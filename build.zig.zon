@@ -1,0 +1,17 @@
+.{
+    .name = .zig_zk,
+    .version = "0.2.0",
+    .fingerprint = 0x41f815a392c34107,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        .zig_algebra = .{
+            .url = "https://github.com/samooth/zig-algebra/archive/refs/tags/v0.3.2.tar.gz",
+            .hash = "zig_algebra-0.3.2-PdVS05JfEwAc7M57KrjFSdjN2X4pIR6AxllIPzW6N85Q",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "libs",
+    },
+}

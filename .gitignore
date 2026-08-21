@@ -1,0 +1,13 @@
+.zig-cache/
+zig-out/
+zig-pkg/
+*.o
+*.a
+*.so
+*.dll
+*.exe
+.DS_Store
+*.swp
+*.swo
+*~
+.opencode/

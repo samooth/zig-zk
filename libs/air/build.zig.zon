@@ -1,0 +1,16 @@
+.{
+    .name = .zig_air,
+    .version = "0.1.0",
+    .fingerprint = 0x1d2dbc972bd1a6a,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        .zig_algebra_traits = .{
+            .path = "../../zig-algebra/libs/algebra-traits",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

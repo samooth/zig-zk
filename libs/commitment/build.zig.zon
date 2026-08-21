@@ -1,0 +1,25 @@
+.{
+    .name = .zig_commitment,
+    .version = "0.1.0",
+    .fingerprint = 0xc763c8071267216b,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        .zig_algebra_traits = .{
+            .path = "../../zig-algebra/libs/algebra-traits",
+        },
+        .zig_field = .{
+            .path = "../../zig-algebra/libs/field",
+        },
+        .zig_merkle = .{
+            .path = "../../zig-algebra/libs/merkle",
+        },
+        .zig_poly = .{
+            .path = "../../zig-algebra/libs/poly",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

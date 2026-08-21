@@ -1,0 +1,25 @@
+.{
+    .name = .zig_signature,
+    .version = "0.1.0",
+    .fingerprint = 0xdeadbeef12345678,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        .zig_algebra_traits = .{
+            .path = "../../zig-algebra/libs/algebra-traits",
+        },
+        .zig_curve = .{
+            .path = "../../zig-algebra/libs/curve",
+        },
+        .zig_hash = .{
+            .path = "../../zig-algebra/libs/hash",
+        },
+        .zig_rng = .{
+            .path = "../../zig-algebra/libs/rng",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
