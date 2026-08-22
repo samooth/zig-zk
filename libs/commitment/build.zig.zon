@@ -5,16 +5,16 @@
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .zig_algebra_traits = .{
-            .path = "../../zig-algebra/libs/algebra-traits",
+            .path = "../../../zig-algebra/libs/algebra-traits",
         },
         .zig_field = .{
-            .path = "../../zig-algebra/libs/field",
+            .path = "../../../zig-algebra/libs/field",
         },
         .zig_merkle = .{
-            .path = "../../zig-algebra/libs/merkle",
+            .path = "../../../zig-algebra/libs/merkle",
         },
         .zig_poly = .{
-            .path = "../../zig-algebra/libs/poly",
+            .path = "../../../zig-algebra/libs/poly",
         },
     },
     .paths = .{

@@ -51,63 +51,42 @@ pub fn Pedersen(comptime Point: type) type {
 
 const testing = std.testing;
 
-/// Simple test field (mod 7) for testing.
-const F7 = struct {
-    value: u64,
-    pub const MODULUS: u64 = 7;
+/// Additive group Z_7 as a toy "curve" for testing. Scalar multiplication
+/// distributes over addition, so homomorphic properties hold exactly.
+const Z7 = struct {
+    v: u64,
 
-    pub fn zero() @This() { return .{ .value = 0 }; }
-    pub fn one() @This() { return .{ .value = 1 }; }
-    pub fn fromInt(x: u64) @This() { return .{ .value = x % MODULUS }; }
-    pub fn add(a: @This(), b: @This()) @This() { return fromInt(a.value + b.value); }
-    pub fn sub(a: @This(), b: @This()) @This() { return fromInt(a.value + MODULUS - b.value); }
-    pub fn mul(a: @This(), b: @This()) @This() { return fromInt(a.value * b.value); }
-    pub fn neg(a: @This()) @This() { return if (a.value == 0) a else fromInt(MODULUS - a.value); }
-    pub fn eql(a: @This(), b: @This()) bool { return a.value == b.value; }
-    pub fn scalarMul(p: anytype, s: anytype) @TypeOf(p) {
-        _ = s;
-        return p;
+    pub fn zero() @This() {
+        return .{ .v = 0 };
     }
-};
 
-/// Simple test point for testing (just wraps F7 values).
-const TestPoint = struct {
-    x: F7,
-    y: F7,
-    infinity: bool,
+    pub fn fromInt(x: u64) @This() {
+        return .{ .v = x % 7 };
+    }
 
-    pub fn zero() @This() { return .{ .x = F7.zero(), .y = F7.zero(), .infinity = true }; }
     pub fn eql(a: @This(), b: @This()) bool {
-        if (a.infinity and b.infinity) return true;
-        if (a.infinity or b.infinity) return false;
-        return a.x.eql(b.x) and a.y.eql(b.y);
+        return a.v == b.v;
     }
+
     pub fn add(a: @This(), b: @This()) @This() {
-        if (a.infinity) return b;
-        if (b.infinity) return a;
-        // Simplified: just add coordinates (not real curve math, just for testing)
-        return .{ .x = a.x.add(b.x), .y = a.y.add(b.y), .infinity = false };
+        return .{ .v = (a.v + b.v) % 7 };
     }
+
     pub fn neg(a: @This()) @This() {
-        if (a.infinity) return a;
-        return .{ .x = a.x, .y = a.y.neg(), .infinity = false };
+        return .{ .v = (7 - a.v) % 7 };
     }
-    pub fn scalarMul(p: @This(), s: anytype) @This() {
-        if (p.infinity) return p;
-        const scalar_val = if (@typeInfo(@TypeOf(s)) == .@"struct") s.value else s;
-        // Simplified: multiply coordinates by scalar
-        return .{
-            .x = F7.fromInt(p.x.value * @as(u64, @intCast(scalar_val % 7))),
-            .y = F7.fromInt(p.y.value * @as(u64, @intCast(scalar_val % 7))),
-            .infinity = false,
-        };
+
+    pub fn scalarMul(a: @This(), s: anytype) @This() {
+        const T = @TypeOf(s);
+        const k: u64 = if (T == Z7) s.v else @intCast(s);
+        return .{ .v = (a.v * (k % 7)) % 7 };
     }
 };
 
 test "Pedersen commit and verify" {
-    const Ped = Pedersen(TestPoint);
-    const G = TestPoint{ .x = F7.fromInt(1), .y = F7.fromInt(2), .infinity = false };
-    const H = TestPoint{ .x = F7.fromInt(3), .y = F7.fromInt(4), .infinity = false };
+    const Ped = Pedersen(Z7);
+    const G = Z7.fromInt(3);
+    const H = Z7.fromInt(5);
 
     const c = Ped.commit(@as(u64, 5), @as(u64, 3), G, H);
     try testing.expect(Ped.verify(c, @as(u64, 5), @as(u64, 3), G, H));
@@ -115,27 +94,25 @@ test "Pedersen commit and verify" {
 }
 
 test "Pedersen homomorphic addition" {
-    const Ped = Pedersen(TestPoint);
-    const G = TestPoint{ .x = F7.fromInt(1), .y = F7.fromInt(2), .infinity = false };
-    const H = TestPoint{ .x = F7.fromInt(3), .y = F7.fromInt(4), .infinity = false };
+    const Ped = Pedersen(Z7);
+    const G = Z7.fromInt(3);
+    const H = Z7.fromInt(5);
 
     const c1 = Ped.commit(@as(u64, 2), @as(u64, 1), G, H);
     const c2 = Ped.commit(@as(u64, 3), @as(u64, 4), G, H);
     const sum = Ped.add(c1, c2);
 
-    // sum should be commit(5, 5) = commit(5, 5 mod 7)
     try testing.expect(Ped.verify(sum, @as(u64, 5), @as(u64, 5), G, H));
 }
 
 test "Pedersen homomorphic subtraction" {
-    const Ped = Pedersen(TestPoint);
-    const G = TestPoint{ .x = F7.fromInt(1), .y = F7.fromInt(2), .infinity = false };
-    const H = TestPoint{ .x = F7.fromInt(3), .y = F7.fromInt(4), .infinity = false };
+    const Ped = Pedersen(Z7);
+    const G = Z7.fromInt(3);
+    const H = Z7.fromInt(5);
 
     const c1 = Ped.commit(@as(u64, 5), @as(u64, 3), G, H);
     const c2 = Ped.commit(@as(u64, 2), @as(u64, 1), G, H);
     const diff = Ped.sub(c1, c2);
 
-    // diff should be commit(3, 2)
     try testing.expect(Ped.verify(diff, @as(u64, 3), @as(u64, 2), G, H));
 }

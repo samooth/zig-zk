@@ -13,9 +13,10 @@ const std = @import("std");
 pub const schnorr = @import("schnorr.zig");
 
 pub const SchnorrSignature = schnorr.SchnorrSignature;
-pub const schnorrInit = schnorr.init;
-pub const schnorrVerify = schnorr.verify;
-pub const schnorrChallenge = schnorr.challenge;
+
+test {
+    std.testing.refAllDecls(@This());
+}
 
 // ============================================================================
 // Tests
@@ -23,24 +24,75 @@ pub const schnorrChallenge = schnorr.challenge;
 
 const testing = std.testing;
 
-// Minimal test using Secp256k1
-test "SchnorrSignature basic" {
-    const Secp256k1 = std.crypto.ecc.Secp256k1;
-    const Scalar = Secp256k1.scalar.Scalar;
+const Secp256k1 = std.crypto.ecc.Secp256k1;
+const StdScalar = Secp256k1.scalar.Scalar;
 
-    // Generate keypair
-    var buf: [64]u8 = undefined;
-    std.Io.Threaded.global_single_threaded.io().random(&buf);
-    const sk = Scalar.fromBytes64(buf, .big);
-    const pk = Secp256k1.basePoint.scalarMul(sk.toBytes(.big)) catch unreachable;
+/// Adapter matching the Point interface expected by SchnorrSignature
+/// (add, scalarMul, eql, toBytes).
+const CurvePoint = struct {
+    inner: Secp256k1,
 
-    // Sign
-    var k_buf: [64]u8 = undefined;
-    std.Io.Threaded.global_single_threaded.io().random(&k_buf);
-    const k = Scalar.fromBytes64(k_buf, .big);
-    const sig = SchnorrSignature.init(pk, sk, k, "test");
+    pub fn add(a: @This(), b: @This()) @This() {
+        return .{ .inner = a.inner.add(b.inner) };
+    }
 
-    // Verify
-    try testing.expect(schnorrVerify(pk, sig, "test"));
-    try testing.expect(!schnorrVerify(pk, sig, "wrong"));
+    pub fn scalarMul(a: @This(), s: CurveScalar) @This() {
+        return .{ .inner = a.inner.mul(s.inner.toBytes(.big), .big) catch Secp256k1.identityElement };
+    }
+
+    pub fn toBytes(self: @This()) [65]u8 {
+        return self.inner.toUncompressedSec1();
+    }
+
+    pub fn eql(a: @This(), b: @This()) bool {
+        return a.inner.equivalent(b.inner);
+    }
+};
+
+/// Adapter matching the Scalar interface expected by SchnorrSignature
+/// (fromBytes, zero, add, mul).
+const CurveScalar = struct {
+    inner: StdScalar,
+
+    pub fn fromBytes(bytes: [32]u8) !@This() {
+        return .{ .inner = try StdScalar.fromBytes(bytes, .big) };
+    }
+
+    pub fn zero() @This() {
+        return .{ .inner = StdScalar.zero };
+    }
+
+    pub fn add(a: @This(), b: @This()) @This() {
+        return .{ .inner = a.inner.add(b.inner) };
+    }
+
+    pub fn mul(a: @This(), b: @This()) @This() {
+        return .{ .inner = a.inner.mul(b.inner) };
+    }
+};
+
+test "Schnorr sign/verify over secp256k1" {
+    const Sig = SchnorrSignature(CurvePoint, CurveScalar);
+    const io = testing.io;
+
+    // Key pair: P = x*G
+    const x = CurveScalar{ .inner = StdScalar.random(io) };
+    const G = CurvePoint{ .inner = Secp256k1.basePoint };
+    const P = G.scalarMul(x);
+
+    // Sign with nonce k: R = k*G, z = k + e*x
+    const k = CurveScalar{ .inner = StdScalar.random(io) };
+    const R = G.scalarMul(k);
+    const e = Sig.challenge(G, P, R, "test message");
+    const z = k.add(e.mul(x));
+
+    const sig = Sig.init(R, z);
+
+    try testing.expect(sig.verify(G, P, "test message"));
+    try testing.expect(!sig.verify(G, P, "wrong message"));
+
+    // Wrong public key must fail
+    const x2 = CurveScalar{ .inner = StdScalar.random(io) };
+    const P2 = G.scalarMul(x2);
+    try testing.expect(!sig.verify(G, P2, "test message"));
 }

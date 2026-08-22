@@ -97,7 +97,7 @@ pub const Transcript = struct {
     /// Squeeze `out.len` pseudorandom bytes.
     ///
     /// The squeeze is deterministic: it clones the current hasher state,
-/// appends the internal counter, and finalizes.  The counter is then
+    /// appends the internal counter, and finalizes.  The counter is then
     /// incremented so the next squeeze produces different bytes.
     pub fn squeeze(self: *Self, out: []u8) void {
         var temp = self.hasher;

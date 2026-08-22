@@ -74,20 +74,38 @@ const F7 = struct {
     value: u64,
     pub const MODULUS: u64 = 7;
 
-    pub fn zero() @This() { return .{ .value = 0 }; }
-    pub fn one() @This() { return .{ .value = 1 }; }
-    pub fn fromInt(x: u64) @This() { return .{ .value = x % MODULUS }; }
-    pub fn fromBytes(bytes: [32]u8) !@This() { return fromInt(bytes[31]); }
+    pub fn zero() @This() {
+        return .{ .value = 0 };
+    }
+    pub fn one() @This() {
+        return .{ .value = 1 };
+    }
+    pub fn fromInt(x: u64) @This() {
+        return .{ .value = x % MODULUS };
+    }
+    pub fn fromBytes(bytes: [32]u8) !@This() {
+        return fromInt(bytes[31]);
+    }
     pub fn toBytes(self: @This()) [32]u8 {
         var out: [32]u8 = std.mem.zeroes([32]u8);
         out[31] = @intCast(self.value);
         return out;
     }
-    pub fn add(a: @This(), b: @This()) @This() { return fromInt(a.value + b.value); }
-    pub fn sub(a: @This(), b: @This()) @This() { return fromInt((a.value + MODULUS - b.value) % MODULUS); }
-    pub fn mul(a: @This(), b: @This()) @This() { return fromInt(a.value * b.value); }
-    pub fn eql(a: @This(), b: @This()) bool { return a.value == b.value; }
-    pub fn random() @This() { return fromInt(3); } // deterministic for testing
+    pub fn add(a: @This(), b: @This()) @This() {
+        return fromInt(a.value + b.value);
+    }
+    pub fn sub(a: @This(), b: @This()) @This() {
+        return fromInt((a.value + MODULUS - b.value) % MODULUS);
+    }
+    pub fn mul(a: @This(), b: @This()) @This() {
+        return fromInt(a.value * b.value);
+    }
+    pub fn eql(a: @This(), b: @This()) bool {
+        return a.value == b.value;
+    }
+    pub fn random() @This() {
+        return fromInt(3);
+    } // deterministic for testing
 };
 
 /// Simple test point for testing.
@@ -96,7 +114,9 @@ const TestPoint = struct {
     y: F7,
     infinity: bool,
 
-    pub fn zero() @This() { return .{ .x = F7.zero(), .y = F7.zero(), .infinity = true }; }
+    pub fn zero() @This() {
+        return .{ .x = F7.zero(), .y = F7.zero(), .infinity = true };
+    }
     pub fn eql(a: @This(), b: @This()) bool {
         if (a.infinity and b.infinity) return true;
         if (a.infinity or b.infinity) return false;

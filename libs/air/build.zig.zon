@@ -5,7 +5,7 @@
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .zig_algebra_traits = .{
-            .path = "../../zig-algebra/libs/algebra-traits",
+            .path = "../../../zig-algebra/libs/algebra-traits",
         },
     },
     .paths = .{

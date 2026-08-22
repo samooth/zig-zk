@@ -104,12 +104,24 @@ const F7 = struct {
     value: u64,
     pub const MODULUS: u64 = 7;
 
-    pub fn zero() @This() { return .{ .value = 0 }; }
-    pub fn one() @This() { return .{ .value = 1 }; }
-    pub fn fromInt(x: u64) @This() { return .{ .value = x % MODULUS }; }
-    pub fn add(a: @This(), b: @This()) @This() { return fromInt(a.value + b.value); }
-    pub fn sub(a: @This(), b: @This()) @This() { return fromInt((a.value + MODULUS - b.value) % MODULUS); }
-    pub fn mul(a: @This(), b: @This()) @This() { return fromInt(a.value * b.value); }
+    pub fn zero() @This() {
+        return .{ .value = 0 };
+    }
+    pub fn one() @This() {
+        return .{ .value = 1 };
+    }
+    pub fn fromInt(x: u64) @This() {
+        return .{ .value = x % MODULUS };
+    }
+    pub fn add(a: @This(), b: @This()) @This() {
+        return fromInt(a.value + b.value);
+    }
+    pub fn sub(a: @This(), b: @This()) @This() {
+        return fromInt((a.value + MODULUS - b.value) % MODULUS);
+    }
+    pub fn mul(a: @This(), b: @This()) @This() {
+        return fromInt(a.value * b.value);
+    }
     pub fn inv(a: @This()) @This() {
         if (a.isZero()) return a;
         // Fermat's little theorem: a^(p-2) mod p
@@ -126,9 +138,15 @@ const F7 = struct {
         }
         return result;
     }
-    pub fn eql(a: @This(), b: @This()) bool { return a.value == b.value; }
-    pub fn isZero(self: @This()) bool { return self.value == 0; }
-    pub fn random() @This() { return fromInt(4); } // deterministic for testing
+    pub fn eql(a: @This(), b: @This()) bool {
+        return a.value == b.value;
+    }
+    pub fn isZero(self: @This()) bool {
+        return self.value == 0;
+    }
+    pub fn random() @This() {
+        return fromInt(4);
+    } // deterministic for testing
 };
 
 test "Shamir split and reconstruct" {
