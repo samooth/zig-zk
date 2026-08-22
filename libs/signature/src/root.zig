@@ -11,6 +11,7 @@
 const std = @import("std");
 
 pub const schnorr = @import("schnorr.zig");
+pub const ed25519 = @import("ed25519.zig");
 
 pub const SchnorrSignature = schnorr.SchnorrSignature;
 
