@@ -24,7 +24,64 @@ pub const sigma = @import("sigma.zig");
 pub fn Ipa(comptime F: type) type {
     return struct {
         const Self = @This();
-        const Hash = std.crypto.hash.sha2.Sha256;
+
+        /// Running Fiat-Shamir sponge (Blake3). Every absorbed value feeds
+        /// forward, so each derived challenge binds the full statement
+        /// (generators, commitment) and all prior round values.
+        const Fs = struct {
+            const Sponge = std.crypto.hash.Blake3;
+
+            hasher: Sponge,
+
+            fn init() Fs {
+                var h = Sponge.init(.{});
+                h.update("zig-commitment:Ipa:v1");
+                return .{ .hasher = h };
+            }
+
+            fn absorbBytes(self: *Fs, bytes: []const u8) void {
+                var len_buf: [8]u8 = undefined;
+                std.mem.writeInt(u64, &len_buf, bytes.len, .little);
+                self.hasher.update(&len_buf);
+                self.hasher.update(bytes);
+            }
+
+            fn absorbField(self: *Fs, f: F) void {
+                const enc = f.toBytes();
+                self.absorbBytes(&enc);
+            }
+
+            fn absorbU64(self: *Fs, v: u64) void {
+                var buf: [8]u8 = undefined;
+                std.mem.writeInt(u64, &buf, v, .little);
+                self.absorbBytes(&buf);
+            }
+
+            /// Derive a uniform field element from the current sponge state.
+            /// Rejection-samples on the canonical encoding (< modulus); the
+            /// rejected digest is absorbed so every iteration advances state.
+            fn challenge(self: *Fs) F {
+                while (true) {
+                    var out: [32]u8 = undefined;
+                    var peek = self.hasher;
+                    peek.final(&out);
+                    self.absorbBytes(&out);
+                    const v = F.fromBytes(out[0..F.NUM_BYTES]) catch continue;
+                    return v;
+                }
+            }
+        };
+
+        /// Bind the statement (size, generators, blinding base and commitment)
+        /// into the transcript. Prover and verifier must call this in the same
+        /// order before deriving any round challenge.
+        fn bindStatement(fs: *Fs, self: Self, commitment: F) void {
+            fs.absorbU64(self.n);
+            for (self.g) |gi| fs.absorbField(gi);
+            for (self.h) |hi| fs.absorbField(hi);
+            fs.absorbField(self.u);
+            fs.absorbField(commitment);
+        }
 
         allocator: std.mem.Allocator,
         n: usize,
@@ -124,6 +181,11 @@ pub fn Ipa(comptime F: type) type {
             const r = try allocator.alloc(F, log_n);
             errdefer allocator.free(r);
 
+            // Bind the statement to the Fiat-Shamir transcript before any
+            // challenge is derived.
+            var fs = Fs.init();
+            bindStatement(&fs, self, self.commit(a, b, innerProduct(a, b)));
+
             var n = self.n;
             var round: usize = 0;
             while (n > 1) {
@@ -145,7 +207,9 @@ pub fn Ipa(comptime F: type) type {
                 r_commit = r_commit.add(r_ip.mul(self.u));
                 r[round] = r_commit;
 
-                const x = challenge(l[round], r[round], round);
+                fs.absorbField(l[round]);
+                fs.absorbField(r[round]);
+                const x = fs.challenge();
                 const x_inv = x.inv();
 
                 for (0..half) |i| {
@@ -182,9 +246,20 @@ pub fn Ipa(comptime F: type) type {
         ) !void {
             std.debug.assert(proof.l.len == proof.r.len);
             const log_n = proof.l.len;
-            std.debug.assert(self.n == (@as(usize, 1) << @intCast(log_n)));
+            if (self.n != (@as(usize, 1) << @intCast(log_n))) return error.VerificationFailed;
 
-            const s = try self.generatorScalars(proof);
+            // Replay the prover's transcript to rederive the round challenges.
+            var fs = Fs.init();
+            bindStatement(&fs, self, commitment);
+            const challenges = try self.allocator.alloc(F, log_n);
+            defer self.allocator.free(challenges);
+            for (proof.l, proof.r, 0..) |lj, rj, j| {
+                fs.absorbField(lj);
+                fs.absorbField(rj);
+                challenges[j] = fs.challenge();
+            }
+
+            const s = try self.generatorScalars(challenges);
             defer self.allocator.free(s);
 
             var g_final = F.zero();
@@ -202,7 +277,7 @@ pub fn Ipa(comptime F: type) type {
             // C_final = a0 g' + b0 h' + a0 b0 u gives
             //   C = a0 g' + b0 h' + a0 b0 u - sum_j (x_j^2 L_j + x_j^-2 R_j).
             for (proof.l, 0..) |lj, j| {
-                const x = challenge(lj, proof.r[j], j);
+                const x = challenges[j];
                 const x_sq = x.mul(x);
                 const x_inv_sq = x.inv().mul(x.inv());
                 rhs = rhs.sub(lj.mul(x_sq));
@@ -214,8 +289,8 @@ pub fn Ipa(comptime F: type) type {
 
         /// Per-generator folding scalars: g_i contributes with s[i] and h_i
         /// with s[i]^-1, matching the prover's fold direction.
-        fn generatorScalars(self: Self, proof: *const Proof) ![]F {
-            const log_n = proof.l.len;
+        fn generatorScalars(self: Self, challenges: []const F) ![]F {
+            const log_n = challenges.len;
 
             const s = try self.allocator.alloc(F, self.n);
             for (0..self.n) |i| s[i] = F.one();
@@ -224,7 +299,7 @@ pub fn Ipa(comptime F: type) type {
             var round: usize = 0;
             while (n > 1) {
                 const half = n / 2;
-                const x = challenge(proof.l[round], proof.r[round], round);
+                const x = challenges[round];
                 const x_inv = x.inv();
 
                 for (0..self.n) |i| {
@@ -238,20 +313,6 @@ pub fn Ipa(comptime F: type) type {
                 round += 1;
             }
             return s;
-        }
-
-        fn challenge(l: F, r: F, round: usize) F {
-            var hasher = Hash.init(.{});
-            hasher.update(&l.toBytes());
-            hasher.update(&r.toBytes());
-            var round_bytes: [8]u8 = undefined;
-            std.mem.writeInt(u64, &round_bytes, round, .little);
-            hasher.update(&round_bytes);
-            var out: [32]u8 = undefined;
-            hasher.final(&out);
-
-            var prng = std.Random.DefaultPrng.init(std.mem.readInt(u64, out[0..8], .little));
-            return F.random(prng.random());
         }
     };
 }
@@ -295,6 +356,43 @@ test "IPA prove and verify round-trip" {
     try testing.expectError(
         error.VerificationFailed,
         ipa.verify(commitment.add(F.one()), &proof),
+    );
+}
+
+test "IPA proof is bound to its generator setup" {
+    const F = zf.M31;
+    const alloc = testing.allocator;
+    const n = 8;
+
+    var seed_a: [32]u8 = undefined;
+    var seed_b: [32]u8 = undefined;
+    std.mem.writeInt(u64, seed_a[0..8], 1, .little);
+    std.mem.writeInt(u64, seed_b[0..8], 2, .little);
+    var ipa_a = try Ipa(F).init(alloc, n, seed_a);
+    defer ipa_a.deinit();
+    var ipa_b = try Ipa(F).init(alloc, n, seed_b);
+    defer ipa_b.deinit();
+
+    var prng = std.Random.DefaultPrng.init(99);
+    const rnd = prng.random();
+    const a = try alloc.alloc(F, n);
+    defer alloc.free(a);
+    const b = try alloc.alloc(F, n);
+    defer alloc.free(b);
+    for (a) |*x| x.* = F.random(rnd);
+    for (b) |*x| x.* = F.random(rnd);
+
+    // Proof made under ipa_a's setup must not verify under ipa_b's:
+    // challenges are derived from a transcript bound to the generators.
+    const c_a = Ipa(F).innerProduct(a, b);
+    const C_a = ipa_a.commit(a, b, c_a);
+    const proof = try ipa_a.prove(alloc, a, b);
+    defer proof.deinit(alloc);
+
+    try ipa_a.verify(C_a, &proof);
+    try testing.expectError(
+        error.VerificationFailed,
+        ipa_b.verify(ipa_b.commit(a, b, c_a), &proof),
     );
 }
 
