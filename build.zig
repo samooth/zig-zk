@@ -121,4 +121,40 @@ pub fn build(b: *std.Build) void {
         .{ .name = "zig-field", .module = field },
         .{ .name = "zig-transcript", .module = transcript_mod },
     });
+
+    // End-to-end and fuzz suites (canonical zig-stark tests).
+    const stark_lib_mod = b.addModule("zig-stark-e2e-src", .{
+        .root_source_file = b.path("libs/stark/root.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "zig-field", .module = field },
+            .{ .name = "zig-transcript", .module = transcript_mod },
+        },
+    });
+
+    const e2e_mod = b.createModule(.{
+        .root_source_file = b.path("libs/stark/tests/e2e_tests.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "zig-stark", .module = stark_lib_mod },
+            .{ .name = "zig-transcript", .module = transcript_mod },
+            .{ .name = "zig-field", .module = field },
+        },
+    });
+    const e2e_tests = b.addTest(.{ .name = "zig-stark-e2e-tests", .root_module = e2e_mod });
+    test_step.dependOn(&b.addRunArtifact(e2e_tests).step);
+
+    const fuzz_mod = b.createModule(.{
+        .root_source_file = b.path("libs/stark/tests/fuzz.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "zig-stark", .module = stark_lib_mod },
+            .{ .name = "zig-field", .module = field },
+        },
+    });
+    const fuzz_tests = b.addTest(.{ .name = "zig-stark-fuzz-tests", .root_module = fuzz_mod });
+    test_step.dependOn(&b.addRunArtifact(fuzz_tests).step);
 }
