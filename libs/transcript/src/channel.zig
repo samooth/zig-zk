@@ -35,6 +35,12 @@ pub const Channel = struct {
         self.hasher.update(data);
     }
 
+    /// Absorb a Merkle digest (any array-of-u8 container exposing its bytes,
+    /// e.g. `[32]u8`).
+    pub fn absorbDigest(self: *Channel, digest: anytype) void {
+        self.hasher.update(&digest);
+    }
+
     /// Absorb a single serializable element.
     ///
     /// `T` must expose:

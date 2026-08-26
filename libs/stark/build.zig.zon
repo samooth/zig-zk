@@ -1,0 +1,22 @@
+.{
+    .name = .zig_stark,
+    .version = "0.1.0",
+    .fingerprint = 0x2bba815bd590f827,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        .zig_transcript = .{
+            .path = "../transcript",
+        },
+        .zig_algebra = .{
+            .path = "../../zig-algebra",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "root.zig",
+        "binius",
+        "core",
+        "m31",
+    },
+}

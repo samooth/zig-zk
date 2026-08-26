@@ -4,7 +4,7 @@ const PcsMod = @import("pcs.zig");
 const FriPcsMod = @import("fripcs.zig");
 const BatchPcsMod = @import("batchpcs.zig");
 const CoreHash = @import("../core/hash/hash.zig");
-const Channel = @import("../core/channel/channel.zig").Channel;
+const Channel = @import("zig-transcript").Channel;
 const Pool = @import("../core/pool.zig").Pool;
 
 /// Binius STARK over a binary field `F` (the witness/base field) with the
