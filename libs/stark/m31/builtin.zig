@@ -3,7 +3,6 @@ const zf = @import("zig-field");
 
 /// Builtin M31/CM31/QM31 adapter wrapping zig-field.
 /// Matches zig-stark's vendor API surface exactly.
-
 /// M31 = 2^31 - 1
 pub const M31 = zf.M31;
 

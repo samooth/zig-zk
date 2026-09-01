@@ -1,5 +1,7 @@
 # zig-zk
 
+![CI](https://github.com/samooth/zig-zk/actions/workflows/ci.yml/badge.svg)
+
 An ecosystem of cryptographic protocols and zero-knowledge proofs for Zig. Built on top of `zig-algebra`.
 
 ## Vision
@@ -68,7 +70,7 @@ Layer 3  +----------+----------+----------+
 | [signature](libs/signature/) | Digital signatures (generic Schnorr, Ed25519; ECDSA/BLS planned) | curve, hash |
 | [air](libs/air/) | Generic AIR framework for STARKs | algebra-traits |
 | [stark](libs/stark/) | STARK prover/verifier (M31 DEEP-FRI + Binius stacks) | — (uses zig-transcript) |
-| [snark](libs/snark/) | zkSNARKs (Groth16, PLONK — planned, not yet scaffolded) | field, curve, pairing, poly |
+| [snark](libs/snark/) | zkSNARKs (Groth16 verifier + reference prover over BN254; PLONK planned) | field, curve, pairing |
 
 ## Dependency Table
 
@@ -79,7 +81,7 @@ Layer 3  +----------+----------+----------+
 | signature | curve, hash, rng, algebra-traits | — |
 | air | algebra-traits | — |
 | stark | — | transcript |
-| snark | field, curve, pairing, poly (planned) | commitment, transcript (planned) |
+| snark | field, curve, pairing | — |
 
 ## Installation
 
@@ -107,6 +109,7 @@ const commitment_mod = zk.module("zig-commitment");
 const signature_mod = zk.module("zig-signature");
 const air_mod = zk.module("zig-air");
 const stark_mod = zk.module("zig-stark");
+const snark_mod = zk.module("zig-snark");
 ```
 
 ## Quick Start
@@ -155,6 +158,14 @@ const C = ipa.commit(a, b, c);
 const proof = try ipa.prove(allocator, a, b);
 defer proof.deinit(allocator);
 try ipa.verify(C, &proof);
+```
+
+```zig
+const std = @import("std");
+const snark = @import("zig-snark");
+
+// Groth16 verify over BN254: e(-A,B)*e(alpha1,beta2)*e(C,delta2)*e(PV,gamma2)==1
+const ok = snark.verify(a1, b2, gamma_g2, delta_g2, &ic, pi_a, pi_b, pi_c, &public_inputs);
 ```
 
 ## Running Tests

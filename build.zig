@@ -44,6 +44,7 @@ pub fn build(b: *std.Build) void {
     const curve = algebra_dep.module("zig-curve");
     const merkle = algebra_dep.module("zig-merkle");
     const poly = algebra_dep.module("zig-poly");
+    const pairing = algebra_dep.module("zig-pairing");
 
     // Module for transcript library
     const transcript_mod = b.addModule("zig-transcript", .{
@@ -85,6 +86,16 @@ pub fn build(b: *std.Build) void {
     signature_mod.addImport("zig-hash", hash);
     signature_mod.addImport("zig-rng", rng);
 
+    // Module for snark library (Groth16 verifier; uses pairing)
+    const snark_mod = b.addModule("zig-snark", .{
+        .root_source_file = b.path("libs/snark/src/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    snark_mod.addImport("zig-field", field);
+    snark_mod.addImport("zig-curve", curve);
+    snark_mod.addImport("zig-pairing", pairing);
+
     // Module for stark library (M31 + Binius stacks; uses zig-transcript)
     const stark_mod = b.addModule("zig-stark", .{
         .root_source_file = b.path("libs/stark/root.zig"),
@@ -120,6 +131,11 @@ pub fn build(b: *std.Build) void {
     addTests(b, test_step, "zig-stark-tests", b.path("libs/stark/root.zig"), target, optimize, &.{
         .{ .name = "zig-field", .module = field },
         .{ .name = "zig-transcript", .module = transcript_mod },
+    });
+    addTests(b, test_step, "zig-snark-tests", b.path("libs/snark/src/root.zig"), target, optimize, &.{
+        .{ .name = "zig-field", .module = field },
+        .{ .name = "zig-curve", .module = curve },
+        .{ .name = "zig-pairing", .module = pairing },
     });
 
     // End-to-end and fuzz suites (canonical zig-stark tests).
