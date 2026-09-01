@@ -1,0 +1,23 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: false
+      - name: Setup Zig
+        uses: ./.github/actions/setup-zig
+        with:
+          version: 0.16.0
+      - name: Run full suite (incl. STARK e2e + fuzz)
+        run: zig build test --summary all
