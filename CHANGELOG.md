@@ -1,8 +1,47 @@
 # Changelog
 
+> English. [Versión en español](CHANGELOG.es.md)
+
 All notable changes to zig-zk are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
-versioning follows [SemVer](https://semver.org/) (0.x: MINOR may carry breaking changes).
+versioning follows [SemVer](https://semver.org/): in `0.y.z` the MINOR carries
+incompatible changes and the PATCH carries additive changes and fixes only. The
+policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning).
+
+## [0.2.2] - 2026-09-26
+
+PATCH: nothing here changes a public API. Documentation, licensing, and build
+files that were never wired.
+
+### Fixed
+- **build**: the per-library `build.zig` files could not build at all. They
+  resolved zig-algebra as path dependencies (`../../zig-algebra`), which
+  requires that repository to be checked out next to this one, and they were
+  written against the old zig-algebra layout of one package per module, which
+  v0.3.x replaced. They now resolve the same pinned tarball the root build uses,
+  so `cd libs/<name> && zig build test` works from a bare checkout.
+
+### Added
+- `LICENSE-MIT` and `LICENSE-APACHE`. The README declared a dual license while
+  neither file existed, so no license was actually being granted.
+- `SECURITY.md`: which surfaces are audited, which are not, and — the part that
+  is usually missing — what does *not* count as a vulnerability. Notably, a
+  Groth16 prover that holds the setup trapdoor can prove anything; that is a
+  property of the setup ceremony, not a bug in the prover.
+- `zig build check-docs`, a build step that `zig build test` also depends on:
+  verifies that every markdown file has its counterpart in the other language,
+  that each one declares its language, that the prose of one has not drifted into
+  the other, and that the Spanish files avoid anglicisms with a clean Spanish
+  equivalent.
+
+### Changed
+- **docs**: the documentation now exists in English and Spanish. The bare file
+  name is English and the Spanish counterpart adds `.es`. `AGENTS.md` and
+  `ARCHITECTURE.md` were Spanish-only and now have English counterparts.
+- **docs**: `README.md` no longer advertises KZG, ECDSA, BLS or PLONK as if they
+  existed. The stack diagram and the library tables now match `build.zig`.
+- **docs**: the Groth16 QAP conventions are written once, in `ARCHITECTURE.md`,
+  instead of twice.
 
 ## [0.2.1] - 2026-09-26
 
