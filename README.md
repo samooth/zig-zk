@@ -4,6 +4,15 @@
 
 An ecosystem of cryptographic protocols and zero-knowledge proofs for Zig. Built on top of `zig-algebra`.
 
+Requires Zig 0.16 and `zig-algebra` **v0.3.2** (pinned by hash in `build.zig.zon`).
+
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [docs/architecture.md](docs/architecture.md) | Per-library API, module graph, Groth16/QAP conventions, security posture, testing |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Repo layering, dedupe decisions, snark conventions, tooling notes (ES) |
+
 ## Vision
 
 `zig-zk` is an **ecosystem of protocol libraries** that consumes the algebraic infrastructure from `zig-algebra` to implement STARKs, SNARKs, digital signatures, and commitment schemes.
@@ -71,6 +80,10 @@ Layer 3  +----------+----------+----------+
 | [air](libs/air/) | Generic AIR framework for STARKs | algebra-traits |
 | [stark](libs/stark/) | STARK prover/verifier (M31 DEEP-FRI + Binius stacks) | — (uses zig-transcript) |
 | [snark](libs/snark/) | zkSNARKs (Groth16 verifier + reference prover over BN254; PLONK planned) | field, curve, pairing |
+
+Both tables below are kept in sync with `build.zig`; the two dependency lists
+differ only in the `stark` row, which is the one intra-repo edge (stark consumes
+`zig-transcript` and zig-algebra's `field` directly).
 
 ## Dependency Table
 
@@ -168,15 +181,43 @@ const snark = @import("zig-snark");
 const ok = snark.verify(a1, b2, gamma_g2, delta_g2, &ic, pi_a, pi_b, pi_c, &public_inputs);
 ```
 
+```zig
+const std = @import("std");
+const snark = @import("zig-snark");
+
+// Reference prover for a compile-time-sized R1CS: 3 constraints, 5 wires,
+// known wires {0 = the constant one, 2 = the public output}.
+const G16 = snark.Groth16(&.{ 0, 2 }, 3, 5);
+
+const vk = try G16.setup(&circuit, setup);
+const proof = try G16.prove(&circuit, witness, setup, blind_r, blind_s); // error.QapUnsatisfied
+try std.testing.expect(G16.verifyKey(vk, proof, .{output}));
+```
+
 ## Running Tests
+
+The root build is canonical: it wires every module and runs every suite, and it
+resolves `zig-algebra` from the pinned tarball, so it works from a bare
+checkout.
 
 ```bash
 # Test all libraries (compiles AND runs every suite)
 zig build test --summary all
 
-# Test a specific library
+# Same, optimized: the pairing-heavy snark suite goes from ~57s to ~1s
+zig build test -Doptimize=ReleaseFast --summary all
+```
+
+Each library also carries its own `build.zig` for standalone work, but those
+resolve `zig-algebra` as a **path** dependency (`../../zig-algebra`), so they
+only work in a workspace where that repository sits next to this one:
+
+```bash
 cd libs/transcript && zig build test --summary all
 ```
+
+Tests assert, they never print: a `std.debug.print` in a test reports nothing to
+the harness and can print `true` next to a failing assertion.
 
 ## Design Principles
 

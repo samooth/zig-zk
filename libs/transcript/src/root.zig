@@ -5,6 +5,8 @@
 //! # Modules
 //! - `Transcript`: Core Fiat-Shamir transcript.
 //! - `LabelledTranscript`: Domain-separated transcript with explicit labels.
+//! - `Channel`: duck-typed channel used by `zig-stark`; absorbs anything with
+//!   `SIZE`/`toBytes`/`fromBytes`, no field trait required.
 //!
 //! # Quick Start
 //! ```zig

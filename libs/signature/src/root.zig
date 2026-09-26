@@ -4,8 +4,8 @@
 //!
 //! Provides signature schemes over elliptic curves:
 //! - Schnorr signatures (generic over Point + Scalar)
+//! - Ed25519 (delegated to std.crypto.sign.Ed25519)
 //! - ECDSA (future)
-//! - Ed25519 (future)
 //! - BLS (future)
 
 const std = @import("std");
