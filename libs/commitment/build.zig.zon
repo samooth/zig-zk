@@ -4,17 +4,9 @@
     .fingerprint = 0xc763c8071267216b,
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
-        .zig_algebra_traits = .{
-            .path = "../../../zig-algebra/libs/algebra-traits",
-        },
-        .zig_field = .{
-            .path = "../../../zig-algebra/libs/field",
-        },
-        .zig_merkle = .{
-            .path = "../../../zig-algebra/libs/merkle",
-        },
-        .zig_poly = .{
-            .path = "../../../zig-algebra/libs/poly",
+        .zig_algebra = .{
+            .url = "https://github.com/samooth/zig-algebra/archive/refs/tags/v0.3.2.tar.gz",
+            .hash = "zig_algebra-0.3.2-PdVS05JfEwAc7M57KrjFSdjN2X4pIR6AxllIPzW6N85Q",
         },
     },
     .paths = .{

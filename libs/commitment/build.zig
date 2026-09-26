@@ -4,29 +4,14 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const traits_dep = b.dependency("zig_algebra_traits", .{
+    const algebra_dep = b.dependency("zig_algebra", .{
         .target = target,
         .optimize = optimize,
     });
-    const traits_mod = traits_dep.module("zig-algebra-traits");
-
-    const field_dep = b.dependency("zig_field", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    const field_mod = field_dep.module("zig-field");
-
-    const merkle_dep = b.dependency("zig_merkle", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    const merkle_mod = merkle_dep.module("zig-merkle");
-
-    const poly_dep = b.dependency("zig_poly", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    const poly_mod = poly_dep.module("zig-poly");
+    const traits_mod = algebra_dep.module("zig-algebra-traits");
+    const field_mod = algebra_dep.module("zig-field");
+    const merkle_mod = algebra_dep.module("zig-merkle");
+    const poly_mod = algebra_dep.module("zig-poly");
 
     const commitment_mod = b.addModule("zig-commitment", .{
         .root_source_file = b.path("src/root.zig"),

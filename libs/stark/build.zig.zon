@@ -8,7 +8,8 @@
             .path = "../transcript",
         },
         .zig_algebra = .{
-            .path = "../../zig-algebra",
+            .url = "https://github.com/samooth/zig-algebra/archive/refs/tags/v0.3.2.tar.gz",
+            .hash = "zig_algebra-0.3.2-PdVS05JfEwAc7M57KrjFSdjN2X4pIR6AxllIPzW6N85Q",
         },
     },
     .paths = .{

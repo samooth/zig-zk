@@ -4,11 +4,11 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const traits_dep = b.dependency("zig_algebra_traits", .{
+    const algebra_dep = b.dependency("zig_algebra", .{
         .target = target,
         .optimize = optimize,
     });
-    const traits_mod = traits_dep.module("zig-algebra-traits");
+    const traits_mod = algebra_dep.module("zig-algebra-traits");
 
     const air_mod = b.addModule("zig-air", .{
         .root_source_file = b.path("src/root.zig"),

@@ -4,23 +4,13 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const traits_dep = b.dependency("zig_algebra_traits", .{
+    const algebra_dep = b.dependency("zig_algebra", .{
         .target = target,
         .optimize = optimize,
     });
-    const traits_mod = traits_dep.module("zig-algebra-traits");
-
-    const hash_dep = b.dependency("zig_hash", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    const hash_mod = hash_dep.module("zig-hash");
-
-    const rng_dep = b.dependency("zig_rng", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    const rng_mod = rng_dep.module("zig-rng");
+    const traits_mod = algebra_dep.module("zig-algebra-traits");
+    const hash_mod = algebra_dep.module("zig-hash");
+    const rng_mod = algebra_dep.module("zig-rng");
 
     const transcript_mod = b.addModule("zig-transcript", .{
         .root_source_file = b.path("src/root.zig"),
