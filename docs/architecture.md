@@ -1,5 +1,7 @@
 # zig-zk Architecture Documentation
 
+> English. [Versión en español](architecture.es.md)
+
 ## Overview
 
 `zig-zk` is a monorepo of cryptographic protocol libraries built on
@@ -184,59 +186,13 @@ only inside the proof's `c` element.
 Errors: `error.DegenerateSetup` (zeroed toxic waste, `gamma == delta`, or a
 trapdoor inside the evaluation domain) and `error.QapUnsatisfied`.
 
-### QAP conventions (the parts that are easy to get wrong)
+### Conventions
 
-Domain `H = {1, ..., n_constraints}`. `L_g(tau)` is the Lagrange basis of `H`
-evaluated at the trapdoor:
-
-```
-L_g(tau) = prod_{j != g} (tau - H_j) / (H_g - H_j)
-```
-
-The denominator is **per pair** `(H_g, H_j)`. A single shared normalisation
-`tau - H_j` outside the double product silently produces wrong evaluations.
-
-The three QAP polynomials are the interpolants at `tau` of the *per-constraint
-row evaluations*, not polynomials in the wire index:
-
-```
-A(tau) = sum_g (A . z)(g) * L_g(tau)      (same for B, C)
-```
-
-and the quotient enters the proof as
-
-```
-t(tau) * h(tau) = A(tau) * B(tau) - C(tau)
-```
-
-This identity is what makes the QAP numerator divisible by the vanishing
-polynomial `t`, i.e. what makes `h` exist — and it only holds when the witness
-satisfies every constraint. The prover checks that (`satisfies`) and returns
-`error.QapUnsatisfied` otherwise. Without the check, computing `A*B - C`
-unconditionally yields a *verifying* proof for any witness whatsoever, because
-the pairing equation then reduces to a tautology.
-
-Proof elements, with `mix_w = (beta * A_w + alpha * B_w + C_w)(tau)`:
-
-```
-A = alpha + A(tau) + r * delta
-B = beta  + B(tau) + s * delta
-C = ( sum_{private wires w} z_w * mix_w  +  t(tau) * h(tau) ) / delta
-    + s * A + r * B - r * s * delta
-```
-
-The verifier reconstructs `PV = ic[0] + sum_i ic[i+1] * pub_in[i]`. The pairing
-equation holds exactly when the prover's `c` numerator satisfies
-`Y = alpha * B(tau) + beta * A(tau) + A(tau)*B(tau) - gamma * PV`, which is
-what the formula above is designed to make true. Two consequences worth
-remembering:
-
-- The `sum` runs over **private wires only**. Including a wire that the
-  verifier already accounts for through `ic` double-counts it; omitting a
-  private wire drops it. (Both mistakes were in the pre-`78f265c` code.)
-- `ic[0]` is the one-wire's own `(beta * A_0 + alpha * B_0 + C_0)(tau) / gamma`
-  encoding, **not** a literal `[1]_1`. Mixing the two conventions shifts the
-  result by a `gamma` term that no longer cancels.
+The QAP conventions this prover depends on — the per-pair Lagrange
+denominator, `A(tau)` as the interpolant of the per-constraint row
+evaluations, `t(tau) * h(tau) = A(tau)*B(tau) - C(tau)`, the private-wire-only
+sum in `c`, and the meaning of `ic[0]` — are written down once, with the
+consequence of breaking each one, in [ARCHITECTURE.md](../ARCHITECTURE.md).
 
 ## Dependency management
 
@@ -286,14 +242,34 @@ the mismatch error prints the correct hash.
 
 ## Versioning
 
-SemVer, with the usual 0.x convention inherited from zig-algebra: MINOR may
-carry breaking changes, PATCH is additive-and-fixes only. In practice zig-zk
-reserves MINOR for large correctness or performance passes and ships additive
-API as PATCH.
+SemVer, with the usual `0.x` convention zig-algebra also uses: in `0.y.z`, the
+MINOR carries incompatible changes and the PATCH carries additive changes and
+fixes only.
 
-The manifest version and the git tags are in sync: each release bumps
-`build.zig.zon` in its release commit and the tag points at it. Commits and tags
-are GPG-signed.
+| Change | Version |
+|---|---|
+| Fixing a bug, adding a test, documentation, or a build file that was not wired | PATCH |
+| Adding a function, a type, or a whole module | PATCH (additive) |
+| Changing or removing a public signature, moving a type between modules, or a change of behaviour that a consumer could depend on | MINOR |
+| Anything a consumer must edit to keep building | MINOR |
+
+There is no `1.0.0` in sight, so MINOR is the release channel for breaking
+changes; the PATCH line stays boring on purpose.
+
+The manifest version and the git tag are set in the same release commit, and
+the tag points at it. A release commit contains: the `build.zig.zon` bump, the
+`CHANGELOG.md` section, and nothing else. Commits and tags are GPG-signed.
+
+## Documentation languages
+
+Every markdown file exists in English and Spanish. The bare name is English
+(so GitHub serves it by default) and the Spanish counterpart carries the
+`.es.md` suffix; each file links to its pair in its first two lines.
+`zig build check-docs`, which `zig build test` also depends on, verifies that
+the pairs exist, that each file declares its language, that Spanish prose has
+not drifted into English or vice versa, and that the Spanish files avoid
+anglicisms with a clean Spanish equivalent. Code blocks and identifiers are
+exempt, since those are the same in both languages.
 
 ## Testing
 
@@ -304,9 +280,9 @@ zig build test -Doptimize=ReleaseFast           # same, ~20x faster for snark
 
 The root `build.zig` is canonical: it wires all six modules plus the stark e2e
 and fuzz suites, and pulls zig-algebra from the pinned tarball so it works from
-a bare checkout. The per-library `build.zig` files exist for standalone work and
-resolve zig-algebra as a **path** dependency (`../../zig-algebra`), so they only
-build when that repository is checked out next to this one.
+a bare checkout. The per-library `build.zig` files exist for standalone work
+(`cd libs/<name> && zig build test`) and resolve zig-algebra from the same
+pinned tarball, so they build from a bare checkout too.
 
 The root `test` step compiles and runs every suite: 271 tests across transcript
 (14), commitment (11), air (5), signature (6), stark (208), snark (11), plus

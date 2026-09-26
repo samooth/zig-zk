@@ -1,5 +1,7 @@
 # zig-zk
 
+> English. [Versión en español](README.es.md)
+
 ![CI](https://github.com/samooth/zig-zk/actions/workflows/ci.yml/badge.svg)
 
 An ecosystem of cryptographic protocols and zero-knowledge proofs for Zig. Built on top of `zig-algebra`.
@@ -8,10 +10,16 @@ Requires Zig 0.16 and `zig-algebra` **v0.3.2** (pinned by hash in `build.zig.zon
 
 ## Documentation
 
+Every document exists in English and Spanish; the bare file name is English and
+the Spanish counterpart adds `.es`.
+
 | Document | Contents |
 |---|---|
-| [docs/architecture.md](docs/architecture.md) | Per-library API, module graph, Groth16/QAP conventions, security posture, testing |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Repo layering, dedupe decisions, snark conventions, tooling notes (ES) |
+| [docs/architecture.md](docs/architecture.md) | Per-library API, module graph, dependency and versioning policy, security posture, testing |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Repo layering, dedupe decisions, the AIR contract, Groth16 prover conventions |
+| [CHANGELOG.md](CHANGELOG.md) | Release history |
+| [SECURITY.md](SECURITY.md) | What is audited, what is not, what counts as a vulnerability |
+| [AGENTS.md](AGENTS.md) | Working rules for agents |
 
 ## Vision
 
@@ -59,41 +67,48 @@ Layer 1  +----------+----------+
                     |
 Layer 2  +----------+----------+
          |    commitment       |
-         |  (KZG, FRI, IPA)    |
+         |  (IPA, Pedersen,    |
+         |   Shamir, Sigma)    |
          +----------+----------+
                     |
 Layer 3  +----------+----------+----------+
-         |   signature  |  stark  |  snark  |
-         |  (ECDSA,     | (M31,   | (Groth16|
-         |   Schnorr,   |  Binius)|  PLONK) |
-         |   BLS)       |         |         |
+         |   signature  |   air   |  stark  |
+         |  (Schnorr,  | (AIR    | (M31,    |
+         |   Ed25519)  |  model) |  Binius) |
          +--------------+---------+---------+
+                    |
+Layer 4  +----------+----------+
+         |    snark           |
+         |  (Groth16 over     |
+         |   BN254)           |
+         +----------+----------+
 ```
 
 ## Libraries
 
 | Library | Description | zig-algebra deps |
 |---------|-------------|------------------|
-| [transcript](libs/transcript/) | Fiat-Shamir transcripts (absorb-squeeze, domain separation, challenges) | algebra-traits, hash, rng |
-| [commitment](libs/commitment/) | Commitment schemes (IPA, Pedersen, Shamir, Sigma; KZG/FRI planned) | field, merkle, poly |
-| [signature](libs/signature/) | Digital signatures (generic Schnorr, Ed25519; ECDSA/BLS planned) | curve, hash |
-| [air](libs/air/) | Generic AIR framework for STARKs | algebra-traits |
-| [stark](libs/stark/) | STARK prover/verifier (M31 DEEP-FRI + Binius stacks) | — (uses zig-transcript) |
-| [snark](libs/snark/) | zkSNARKs (Groth16 verifier + reference prover over BN254; PLONK planned) | field, curve, pairing |
+| [transcript](libs/transcript/) | Fiat-Shamir transcripts (absorb-squeeze, domain separation, challenges, Channel) | algebra-traits, hash, rng |
+| [commitment](libs/commitment/) | Commitment schemes (IPA, Pedersen, Shamir, Sigma) | algebra-traits, field, merkle, poly |
+| [signature](libs/signature/) | Digital signatures (generic Schnorr, Ed25519, secp256k1 adapters) | algebra-traits, curve, hash, rng |
+| [air](libs/air/) | AIR data model for STARK backends | algebra-traits |
+| [stark](libs/stark/) | STARK prover/verifier (M31 DEEP-FRI + Binius stacks) | field |
+| [snark](libs/snark/) | zkSNARKs (Groth16 verifier + reference prover over BN254) | field, curve, pairing |
 
-Both tables below are kept in sync with `build.zig`; the two dependency lists
-differ only in the `stark` row, which is the one intra-repo edge (stark consumes
-`zig-transcript` and zig-algebra's `field` directly).
+Both tables are kept in sync with `build.zig`. The two dependency lists differ
+only in the `stark` row: that is the single intra-repo edge, since stark consumes
+`zig-transcript` plus zig-algebra's `field` directly. `zig build check-docs`
+verifies the documentation set; the module graph itself is `build.zig`.
 
 ## Dependency Table
 
 | Library | zig-algebra deps | zig-zk internal deps |
 |---------|------------------|---------------------|
 | transcript | algebra-traits, hash, rng | — |
-| commitment | field, merkle, poly | — |
-| signature | curve, hash, rng, algebra-traits | — |
+| commitment | algebra-traits, field, merkle, poly | — |
+| signature | algebra-traits, curve, hash, rng | — |
 | air | algebra-traits | — |
-| stark | — | transcript |
+| stark | field | transcript |
 | snark | field, curve, pairing | — |
 
 ## Installation
@@ -208,9 +223,8 @@ zig build test --summary all
 zig build test -Doptimize=ReleaseFast --summary all
 ```
 
-Each library also carries its own `build.zig` for standalone work, but those
-resolve `zig-algebra` as a **path** dependency (`../../zig-algebra`), so they
-only work in a workspace where that repository sits next to this one:
+Each library also carries its own `build.zig` for standalone work, resolving
+`zig-algebra` from the same pinned tarball:
 
 ```bash
 cd libs/transcript && zig build test --summary all
