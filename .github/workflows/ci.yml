@@ -21,3 +21,5 @@ jobs:
           version: 0.16.0
       - name: Run full suite (incl. STARK e2e + fuzz)
         run: zig build test --summary all
+      - name: Check documentation is paired and monolingual
+        run: scripts/check-docs

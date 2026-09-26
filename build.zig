@@ -105,8 +105,23 @@ pub fn build(b: *std.Build) void {
     stark_mod.addImport("zig-transcript", transcript_mod);
     stark_mod.addImport("zig-field", field);
 
+    // Documentation invariants: every markdown file is paired across the two
+    // languages, declares its language, and has not mixed the two.
+    const docs_check = b.addExecutable(.{
+        .name = "check-docs",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("scripts/check_docs.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    const run_docs_check = b.addRunArtifact(docs_check);
+    const docs_step = b.step("check-docs", "Verify the documentation is paired and monolingual");
+    docs_step.dependOn(&run_docs_check.step);
+
     // Test step that runs all library tests
     const test_step = b.step("test", "Run all tests");
+    test_step.dependOn(&run_docs_check.step);
 
     addTests(b, test_step, "zig-transcript-tests", b.path("libs/transcript/src/root.zig"), target, optimize, &.{
         .{ .name = "zig-algebra-traits", .module = traits },
