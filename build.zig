@@ -119,9 +119,38 @@ pub fn build(b: *std.Build) void {
     const docs_step = b.step("check-docs", "Verify the documentation is paired and monolingual");
     docs_step.dependOn(&run_docs_check.step);
 
+    // Cross-repository contract with the pinned zig-algebra: the divergence
+    // ledger, the import boundary, and the pin itself. See
+    // scripts/check_contract.zig for what each rule is protecting.
+    const contract_check = b.addExecutable(.{
+        .name = "check-contract",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("scripts/check_contract.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    const run_contract_check = b.addRunArtifact(contract_check);
+    const contract_step = b.step("check-contract", "Verify the declared contract with zig-algebra");
+    contract_step.dependOn(&run_contract_check.step);
+
     // Test step that runs all library tests
     const test_step = b.step("test", "Run all tests");
     test_step.dependOn(&run_docs_check.step);
+    test_step.dependOn(&run_contract_check.step);
+
+    // The gate is the conformance check, so the gate's own scanner gets tested.
+    // Test blocks in a file that is only ever built as an executable never run,
+    // which is the same mistake this gate exists to make visible.
+    const contract_tests = b.addTest(.{
+        .name = "check-contract-tests",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("scripts/check_contract.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(contract_tests).step);
 
     addTests(b, test_step, "zig-transcript-tests", b.path("libs/transcript/src/root.zig"), target, optimize, &.{
         .{ .name = "zig-algebra-traits", .module = traits },
