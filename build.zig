@@ -67,14 +67,6 @@ pub fn build(b: *std.Build) void {
     commitment_mod.addImport("zig-merkle", merkle);
     commitment_mod.addImport("zig-poly", poly);
 
-    // Module for air library
-    const air_mod = b.addModule("zig-air", .{
-        .root_source_file = b.path("libs/air/src/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    air_mod.addImport("zig-algebra-traits", traits);
-
     // Module for signature library
     const signature_mod = b.addModule("zig-signature", .{
         .root_source_file = b.path("libs/signature/src/root.zig"),
@@ -92,7 +84,6 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    snark_mod.addImport("zig-field", field);
     snark_mod.addImport("zig-curve", curve);
     snark_mod.addImport("zig-pairing", pairing);
 
@@ -163,9 +154,6 @@ pub fn build(b: *std.Build) void {
         .{ .name = "zig-merkle", .module = merkle },
         .{ .name = "zig-poly", .module = poly },
     });
-    addTests(b, test_step, "zig-air-tests", b.path("libs/air/src/root.zig"), target, optimize, &.{
-        .{ .name = "zig-algebra-traits", .module = traits },
-    });
     addTests(b, test_step, "zig-signature-tests", b.path("libs/signature/src/root.zig"), target, optimize, &.{
         .{ .name = "zig-algebra-traits", .module = traits },
         .{ .name = "zig-curve", .module = curve },
@@ -206,6 +194,15 @@ pub fn build(b: *std.Build) void {
     const e2e_tests = b.addTest(.{ .name = "zig-stark-e2e-tests", .root_module = e2e_mod });
     test_step.dependOn(&b.addRunArtifact(e2e_tests).step);
 
+    // The gadget fuzz is 2000 rounds by default, which is about three minutes.
+    // The knob exists so a quick local run is possible without pretending the
+    // short run is the full one.
+    const fuzz_opts = b.addOptions();
+    fuzz_opts.addOption(usize, "iters", b.option(
+        usize,
+        "fuzz-iters",
+        "Rounds of the Binius gadget fuzz suite (default 2000)",
+    ) orelse 2000);
     const fuzz_mod = b.createModule(.{
         .root_source_file = b.path("libs/stark/tests/fuzz.zig"),
         .target = target,
@@ -215,6 +212,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "zig-field", .module = field },
         },
     });
+    fuzz_mod.addOptions("fuzz_options", fuzz_opts);
     const fuzz_tests = b.addTest(.{ .name = "zig-stark-fuzz-tests", .root_module = fuzz_mod });
     test_step.dependOn(&b.addRunArtifact(fuzz_tests).step);
 }

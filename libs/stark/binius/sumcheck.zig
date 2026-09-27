@@ -152,7 +152,10 @@ pub fn Sumcheck(comptime F: type) type {
                     denom = denom.mul(points[i].add(points[j]));
                     deg += 1;
                 }
-                const scale = denom.inv().mul(values[i]);
+                // Two challenges that collide, or that are negatives, make
+                // this denominator zero; in a verification path that is
+                // proof-influenced, so it has to fail rather than scale by 0.
+                const scale = (try denom.invChecked()).mul(values[i]);
                 for (0..deg) |d| {
                     coeffs[d] = coeffs[d].add(basis[d].mul(scale));
                 }

@@ -60,6 +60,12 @@ pub fn build(b: *std.Build) void {
     const run_e2e = b.addRunArtifact(e2e_tests);
     test_step.dependOn(&run_e2e.step);
 
+    const fuzz_opts = b.addOptions();
+    fuzz_opts.addOption(usize, "iters", b.option(
+        usize,
+        "fuzz-iters",
+        "Rounds of the Binius gadget fuzz suite (default 2000)",
+    ) orelse 2000);
     const fuzz_module = b.createModule(.{
         .root_source_file = b.path("tests/fuzz.zig"),
         .target = target,
@@ -69,6 +75,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "zig-field", .module = field_mod },
         },
     });
+    fuzz_module.addOptions("fuzz_options", fuzz_opts);
     const fuzz_tests = b.addTest(.{
         .name = "zig-stark-fuzz-tests",
         .root_module = fuzz_module,

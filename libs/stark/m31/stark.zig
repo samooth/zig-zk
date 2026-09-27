@@ -8,13 +8,9 @@ const MerkleTree = @import("../core/merkle/merkle.zig").MerkleTree;
 const merkleVerify = @import("../core/merkle/merkle.zig").verify;
 const UnivariateQM31 = @import("poly/univariate.zig").UnivariateQM31;
 const Fri = @import("fri.zig");
+const air = @import("air/contract.zig");
 
-pub const BoundaryAssertion = struct {
-    column: usize,
-    /// Row index (0-based); point = omega^step in H.
-    step: usize,
-    value: QM31,
-};
+pub const BoundaryAssertion = air.BoundaryAssertion;
 
 /// DEEP-FRI STARK for an AIR over QM31.
 ///
@@ -94,6 +90,10 @@ pub fn GenericStark(comptime Air: type) type {
         const Self = @This();
         const F = QM31;
 
+        // The AIR is duck-typed: the prover reads these declarations off the
+        // type. Checking them here means a malformed AIR fails to compile with a
+        // message that names what is missing, instead of failing deep inside the
+        // prover.
         pub const QueryReveal = struct {
             query_index: usize,
             /// length reveal_len: [0..m_total) = f_j(x0) for trace+accumulator
@@ -156,20 +156,7 @@ pub fn GenericStark(comptime Air: type) type {
         const mult_cols: [n_rel]usize = lookupMultColumns(Air, n_rel);
 
         comptime {
-            if (n_rel > 0) {
-                if (n_pre == 0)
-                    @compileError("GenericStark: AIR has lookups (num_lookup_relations > 0) but num_preprocessed == 0");
-                if (n_lookup_cols == 0)
-                    @compileError("GenericStark: AIR has lookups (num_lookup_relations > 0) but num_lookup_columns == 0");
-                if (!@hasDecl(Air, "lookup_selector_columns"))
-                    @compileError("GenericStark: AIR with lookups must declare lookup_selector_columns (per relation)");
-                if (!@hasDecl(Air, "lookup_key_columns"))
-                    @compileError("GenericStark: AIR with lookups must declare lookup_key_columns (per relation, per key column)");
-                if (!@hasDecl(Air, "lookup_table_columns"))
-                    @compileError("GenericStark: AIR with lookups must declare lookup_table_columns (per relation, per table column)");
-                if (!@hasDecl(Air, "lookup_multiplicity_columns"))
-                    @compileError("GenericStark: AIR with lookups must declare lookup_multiplicity_columns (per relation)");
-            }
+            air.assertAir(Air, F);
         }
 
         // Synthesized LogUp machinery. Per relation r GenericStark appends:
@@ -223,13 +210,19 @@ pub fn GenericStark(comptime Air: type) type {
         /// FRI parameters for g. The FRI domain equals the trace domain
         /// D (size 2^(trace_log + log_blowup)); the FRI blowup is the rate gap
         /// between the combined-degree bound and that domain.
-        fn friParams(params: StarkParams) Fri.FriParams {
+        ///
+        /// `error.InvalidParams` for a `StarkParams` whose parts do not fit
+        /// together: the composition polynomial has to fit in the domain, and
+        /// the remainder needs fewer bits than the domain and at least as many
+        /// as the gap. These were asserts, so in ReleaseFast a caller could hand
+        /// over a nonsensical set and get a proof nobody could verify.
+        fn friParams(params: StarkParams) error{InvalidParams}!Fri.FriParams {
             const n = params.traceLen();
             const log_size = Self.compositionLogSize(n);
             const domain_log = params.trace_log + params.log_blowup;
-            std.debug.assert(log_size <= domain_log);
-            std.debug.assert(params.remainder_log < domain_log);
-            std.debug.assert(params.remainder_log >= domain_log - log_size);
+            if (log_size > domain_log) return error.InvalidParams;
+            if (params.remainder_log >= domain_log) return error.InvalidParams;
+            if (params.remainder_log < domain_log - log_size) return error.InvalidParams;
             return .{
                 .log_size = log_size,
                 .log_blowup = domain_log - log_size,
@@ -335,10 +328,16 @@ pub fn GenericStark(comptime Air: type) type {
             const n = params.traceLen();
             const N = params.domainLen();
             const shift = params.shift();
-            std.debug.assert(trace.len == m);
-            for (trace) |col| std.debug.assert(col.len == n);
-            std.debug.assert(preprocessed.len == n_pre);
-            for (preprocessed) |col| std.debug.assert(col.len == n);
+            // A trace of the wrong shape used to be an assert: in ReleaseFast the
+            // prover went on to index columns that were not there.
+            if (trace.len != m) return error.InvalidTrace;
+            for (trace) |col| if (col.len != n) return error.InvalidTrace;
+            if (preprocessed.len != n_pre) return error.InvalidTrace;
+            for (preprocessed) |col| if (col.len != n) return error.InvalidTrace;
+
+            // Before any allocation: an error here has to leave nothing behind,
+            // and the proof is a lot of work to throw away.
+            const fri_p = try Self.friParams(params);
 
             const w = F.primitiveRootOfUnity(params.trace_log);
             const w_ev = F.primitiveRootOfUnity(params.trace_log + params.log_blowup);
@@ -588,7 +587,7 @@ pub fn GenericStark(comptime Air: type) type {
             }
 
             // Commit g via FRI on the same domain.
-            const fri_proof = try Fri.proveCodeword(allocator, Self.friParams(params), g_codeword, channel);
+            const fri_proof = try Fri.proveCodeword(allocator, fri_p, g_codeword, channel);
 
             // Per-query reveals: trace + accumulator at x0 and w*x0, Q at x0,
             // preprocessed at x0.
@@ -671,6 +670,7 @@ pub fn GenericStark(comptime Air: type) type {
             if (proof.deep_evals.len != n_deep) return false;
             if (n_pre > 0 and proof.preprocessed_roots == null) return false;
             if (n_rel > 0 and proof.accumulator_roots == null) return false;
+            const fri_p = try Self.friParams(params);
 
             const w = F.primitiveRootOfUnity(params.trace_log);
             const w_ev = F.primitiveRootOfUnity(params.trace_log + params.log_blowup);
@@ -707,7 +707,7 @@ pub fn GenericStark(comptime Air: type) type {
             for (gammas) |*g| g.* = channel.sample(QM31);
 
             // FRI verification (also samples FRI alphas / remainder / queries).
-            if (!try Fri.verify(allocator, Self.friParams(params), &proof.fri, channel)) return false;
+            if (!try Fri.verify(allocator, fri_p, &proof.fri, channel)) return false;
 
             const last_point = w.pow(@as(u64, @intCast(n - 1)));
             for (proof.queries, 0..) |qv, qi| {
@@ -734,7 +734,9 @@ pub fn GenericStark(comptime Air: type) type {
                 const x0 = Fri.FRI_OFFSET.mul(w_ev.pow(@as(u64, @intCast(p0))));
 
                 // DEEP identity: g(x0) must match the FRI leaf at p0.
-                const inv_dz = x0.sub(z).inv();
+                // x0 comes from the proof's query index, so this divisor is
+                // attacker-influenced: a zero here is a malformed proof.
+                const inv_dz = try x0.sub(z).invChecked();
                 var g_val = F.zero();
                 for (0..m_total) |j| {
                     g_val = g_val.add(gammas[j].mul(qv.values[j].sub(proof.deep_evals[j]).mul(inv_dz)));
@@ -775,7 +777,7 @@ pub fn GenericStark(comptime Air: type) type {
                 for (0..total_bound) |k| {
                     const p_k = w.pow(@as(u64, @intCast(boundary[k].step)));
                     const term = current[boundary[k].column].sub(boundary[k].value)
-                        .mul(zh).mul(x0.sub(p_k).inv());
+                        .mul(zh).mul(try x0.sub(p_k).invChecked());
                     h_val = h_val.add(betas[k].mul(term));
                 }
                 if (!h_val.eq(zh.mul(qv.values[2 * m_total]))) return false;
@@ -842,10 +844,10 @@ pub fn GenericStark(comptime Air: type) type {
             for (0..total_bound) |k| {
                 const p_k = w.pow(@as(u64, @intCast(boundary[k].step)));
                 const term = current[boundary[k].column].sub(boundary[k].value)
-                    .mul(zh).mul(z.sub(p_k).inv());
+                    .mul(zh).mul(try z.sub(p_k).invChecked());
                 h_val = h_val.add(betas[k].mul(term));
             }
-            return h_val.mul(zh.inv());
+            return h_val.mul(try zh.invChecked());
         }
     };
 }
@@ -1170,8 +1172,11 @@ pub const MultiplicityAir = struct {
     /// Honest trace: rows 0..3 are lookup rows (sel=1) carrying values 0..3
     /// each with multiplicity 3; rows 4..15 are table rows (sel=0). The lookup
     /// multiset {0^3,1^3,2^3,3^3} matches the table multiset below.
+    /// `error.TraceTooShort` below 4 rows: the witness below describes 4 lookup
+    /// rows and 4 table rows, and in ReleaseFast a shorter trace indexed past
+    /// the end of the columns instead of failing.
     pub fn generateTrace(allocator: std.mem.Allocator, n: usize) ![]const []const QM31 {
-        std.debug.assert(n >= 4);
+        if (n < 4) return error.TraceTooShort;
         const cols = try allocator.alloc([]const QM31, num_columns);
         const value = try allocator.alloc(QM31, n);
         const mult = try allocator.alloc(QM31, n);
@@ -1318,4 +1323,56 @@ test "STARK rejects tampered trace commitment" {
     var vchan = Channel.init("zig-stark:stark:fib");
     const ok = try Stark.verify(alloc, params, .{ .claimed_fib = claimed }, &proof, &vchan);
     try std.testing.expect(!ok);
+}
+
+test "STARK refuses a trace whose shape does not match the AIR" {
+    const alloc = std.testing.allocator;
+    const params = StarkParams{ .trace_log = 4, .log_blowup = 3, .num_queries = 12 };
+    const n = params.traceLen();
+    const Stark = GenericStark(FibAir);
+
+    const trace = try FibAir.generateTrace(alloc, n);
+    defer FibAir.freeTrace(alloc, trace);
+
+    // One column too few.
+    {
+        var pchan = Channel.init("shape");
+        try std.testing.expectError(
+            error.InvalidTrace,
+            Stark.prove(alloc, params, .{ .claimed_fib = QM31.zero() }, trace[0 .. trace.len - 1], &pchan),
+        );
+    }
+
+    // Right number of columns, wrong length in the last one.
+    {
+        var pchan = Channel.init("shape");
+        const short = [_][]const QM31{ trace[0], trace[1], trace[trace.len - 1][0 .. n - 1] };
+        try std.testing.expectError(
+            error.InvalidTrace,
+            Stark.prove(alloc, params, .{ .claimed_fib = QM31.zero() }, &short, &pchan),
+        );
+    }
+}
+
+test "STARK refuses StarkParams whose parts do not fit together" {
+    const alloc = std.testing.allocator;
+    const n: usize = 16;
+    const trace = try FibAir.generateTrace(alloc, n);
+    defer FibAir.freeTrace(alloc, trace);
+    const Stark = GenericStark(FibAir);
+
+    // remainder_log == domain_log, which leaves no room to fold.
+    const bad = StarkParams{ .trace_log = 4, .log_blowup = 3, .num_queries = 12, .remainder_log = 7 };
+    var pchan = Channel.init("params");
+    try std.testing.expectError(
+        error.InvalidParams,
+        Stark.prove(alloc, bad, .{ .claimed_fib = QM31.zero() }, trace, &pchan),
+    );
+}
+
+test "MultiplicityAir refuses a trace shorter than its witness" {
+    try std.testing.expectError(
+        error.TraceTooShort,
+        MultiplicityAir.generateTrace(std.testing.allocator, 3),
+    );
 }

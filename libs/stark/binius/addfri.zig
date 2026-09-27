@@ -190,11 +190,11 @@ pub fn AdditiveFri(comptime F: type) type {
         }
 
         /// The FRI fold of the pair {x, x+h} onto q(x) = x*(x+h).
-        fn foldValue(x: F, xh: F, v0: F, v1: F, alpha: F) F {
+        fn foldValue(x: F, xh: F, v0: F, v1: F, alpha: F) !F {
             const h = x.add(xh);
             const t0 = v0.mul(alpha.add(xh));
             const t1 = v1.mul(alpha.add(x));
-            return t0.add(t1).mul(h.inv());
+            return t0.add(t1).mul(try h.invChecked());
         }
 
         fn commitLayer(allocator: std.mem.Allocator, codeword: []const F) !Layer {
@@ -267,7 +267,7 @@ pub fn AdditiveFri(comptime F: type) type {
                 const half = @as(usize, 1) << @intCast(D - i - 1);
                 const next = try allocator.alloc(F, half);
                 for (0..half) |j| {
-                    next[j] = foldValue(points[i][j], points[i][j + half], cur[j], cur[j + half], alpha);
+                    next[j] = try foldValue(points[i][j], points[i][j + half], cur[j], cur[j + half], alpha);
                 }
                 cur = next;
             }
@@ -378,7 +378,7 @@ pub fn AdditiveFri(comptime F: type) type {
                     }
 
                     // The two opened values must fold to the value at the next layer.
-                    prev_fold = foldValue(points[i][pn], points[i][pn + half], lp.value0, lp.value1, proof.alphas[i]);
+                    prev_fold = try foldValue(points[i][pn], points[i][pn + half], lp.value0, lp.value1, proof.alphas[i]);
                     p = pn;
                 }
 

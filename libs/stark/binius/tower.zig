@@ -272,6 +272,15 @@ pub fn TowerField(comptime level: u8) type {
             return .{ .value = lo.value | (hi.value << half) };
         }
 
+        /// `inv` that refuses zero. At level 0 the only non-zero element is 1,
+        /// so the assert below is the whole check, and it is compiled out in
+        /// ReleaseFast: zero would then invert to zero all the way up the
+        /// recursion instead of failing.
+        pub fn invChecked(a: Self) error{DivideByZero}!Self {
+            if (a.value == 0) return error.DivideByZero;
+            return a.inv();
+        }
+
         /// Norm down to the direct subfield T_{level-1} (multiplicative).
         pub fn norm(a: Self) Subfield {
             if (level == 0) return Subfield{ .value = a.value };
@@ -594,4 +603,22 @@ test "sum-check round trip over tower GF(2^32)" {
     var proof = try Sumcheck(F).prove(alloc, 2, &tables);
     defer proof.deinit(alloc);
     try std.testing.expect(try Sumcheck(F).verify(alloc, 2, &tables, proof));
+}
+
+test "TowerField invChecked refuses zero and inverts the rest" {
+    inline for (0..8) |lv| {
+        const F = TowerField(lv);
+        try std.testing.expectError(error.DivideByZero, F.zero().invChecked());
+
+        var s: u64 = 0x5eed + lv;
+        var tried: usize = 0;
+        while (tried < 50) : (tried += 1) {
+            const a = rng(F, &s);
+            // At level 0 the field is GF(2), so half of the draws are zero and
+            // there is nothing to invert.
+            if (a.value == 0) continue;
+            const checked = try a.invChecked();
+            try std.testing.expect(a.mul(checked).eq(F.one()));
+        }
+    }
 }

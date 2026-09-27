@@ -4,7 +4,7 @@
 //!     reject — the verifier's sum-check / Merkle checks are exact, so a
 //!     modified proof is rejected deterministically, unlike a witness tamper
 //!     whose zero-check can miss a single-point violation in a small field).
-//! Runs under the leak-checking DebugAllocator; `zig build fuzz` invokes it.
+//! Runs under the leak-checking DebugAllocator, as part of `zig build test`.
 
 const std = @import("std");
 const zs = @import("zig-stark");
@@ -133,7 +133,7 @@ fn roundAdder(alloc: std.mem.Allocator, rnd: std.Random) !void {
     try expectRejectTamperedProof(alloc, k, cols_slice, Adder.constraints[0..]);
 }
 
-pub fn main() !void {
+test "binius gadgets: randomised accept, and reject a tampered proof" {
     var gpa = std.heap.DebugAllocator(.{}){};
     const alloc = gpa.allocator();
     defer {
@@ -141,7 +141,7 @@ pub fn main() !void {
         if (check != .ok) @panic("fuzz: memory leaks detected");
     }
 
-    const iters: usize = 2000;
+    const iters = @import("fuzz_options").iters;
     var prng = Rng.init(0x5eed_c0de);
     const rnd = prng.random();
 
@@ -150,5 +150,4 @@ pub fn main() !void {
         try roundCompare(alloc, rnd);
         try roundAdder(alloc, rnd);
     }
-    std.debug.print("fuzz: {d} iterations x (RangeCheck, Compare, Adder) OK, no leaks\n", .{iters});
 }

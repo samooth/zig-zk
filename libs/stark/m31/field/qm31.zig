@@ -47,6 +47,17 @@ pub const QM31 = struct {
         };
     }
 
+    /// `inv` that refuses zero: the norm below is zero exactly when `self` is,
+    /// and `norm.inv()` would answer 0 in ReleaseFast.
+    pub fn invChecked(self: QM31) error{DivideByZero}!QM31 {
+        // `eq` compares the raw components, and M31 has two representations of
+        // zero (0 and MODULUS), so the components are checked the way the
+        // arithmetic treats them rather than with `eq`.
+        if (isZeroM31(self.a.c0) and isZeroM31(self.a.c1) and
+            isZeroM31(self.b.c0) and isZeroM31(self.b.c1)) return error.DivideByZero;
+        return self.inv();
+    }
+
     pub fn eq(self: QM31, other: QM31) bool {
         return self.a.eq(other.a) and self.b.eq(other.b);
     }
@@ -143,6 +154,11 @@ fn refCMMul(a: CM31, b: CM31) CM31 {
     };
 }
 
+/// M31 has two representations of zero; see `M31.invChecked`.
+fn isZeroM31(a: M31) bool {
+    return a.value == 0 or a.value == M31.MODULUS;
+}
+
 fn randCM31(rnd: std.Random) CM31 {
     return CM31.new(M31.fromInt(rnd.uintLessThan(u32, M31.MODULUS)), M31.fromInt(rnd.uintLessThan(u32, M31.MODULUS)));
 }
@@ -223,4 +239,16 @@ test "QM31 serialization round-trip" {
     QM31.one().toBytes(&buf);
     try std.testing.expectEqual(@as(u8, 1), buf[0]);
     try std.testing.expectEqual(@as(u8, 0), buf[15]);
+}
+
+test "QM31 invChecked refuses zero and agrees with inv elsewhere" {
+    try std.testing.expectError(error.DivideByZero, QM31.zero().invChecked());
+    var prng = std.Random.DefaultPrng.init(99);
+    const rnd = prng.random();
+    var i: usize = 0;
+    while (i < 50) : (i += 1) {
+        const a = QM31.new(randCM31(rnd), randCM31(rnd));
+        const checked = try a.invChecked();
+        try std.testing.expect(a.mul(checked).eq(QM31.one()));
+    }
 }

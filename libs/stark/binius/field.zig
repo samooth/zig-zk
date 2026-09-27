@@ -108,6 +108,14 @@ pub fn BinaryField(comptime bits: u8, comptime reduction_constant: u128) type {
             @compileError("inv: unsupported field size");
         }
 
+        /// `inv` that refuses zero. In ReleaseFast the assert is compiled out,
+        /// so a zero sum-check denominator would scale by zero and the round
+        /// would pass instead of failing.
+        pub fn invChecked(a: @This()) error{DivideByZero}!@This() {
+            if (a.value == 0) return error.DivideByZero;
+            return a.inv();
+        }
+
         pub fn eq(a: @This(), b: @This()) bool {
             return a.value == b.value;
         }

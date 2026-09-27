@@ -102,7 +102,7 @@ pub fn PackedMle(comptime F: type) type {
 
             const z = try vanishingPoly(allocator, k);
             defer allocator.free(z);
-            const dinv = lagrangeDenom(z).inv();
+            const dinv = try lagrangeDenom(z).invChecked();
 
             const g = try allocator.alloc(F, N);
             errdefer allocator.free(g);

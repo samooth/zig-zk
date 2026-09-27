@@ -61,6 +61,20 @@ pub const M31 = struct {
         return self.pow(MODULUS - 2);
     }
 
+    /// `inv` that refuses zero instead of asserting. In ReleaseFast the assert
+    /// is gone and `inv(0)` returns 0, which is a plausible-looking wrong
+    /// answer rather than a crash, so anything dividing by a value that came
+    /// from a proof wants this one.
+    pub fn invChecked(self: M31) error{DivideByZero}!M31 {
+        // `value` is a u32 and the modulus is 2^31 - 1, so 0 and MODULUS are
+        // both representations of the additive identity. The arithmetic reduces
+        // mod MODULUS (`add` and `neg` both fold MODULUS back to 0), so both
+        // behave as zero, and testing only `value == 0` would let MODULUS
+        // through to `pow`, which answers 0.
+        if (self.value == 0 or self.value == MODULUS) return error.DivideByZero;
+        return self.pow(MODULUS - 2);
+    }
+
     pub fn pow(self: M31, exp: u32) M31 {
         var result = M31.one();
         var base_val = self;
@@ -303,5 +317,18 @@ test "M31 SIMD edge cases" {
         try std.testing.expectEqual(x.add(y).value, add[i]);
         try std.testing.expectEqual(x.sub(y).value, sub[i]);
         try std.testing.expectEqual(x.mul(y).value, mul[i]);
+    }
+}
+
+test "M31 invChecked refuses zero and agrees with inv elsewhere" {
+    try std.testing.expectError(error.DivideByZero, M31.zero().invChecked());
+    // MODULUS is the other representation of zero, and it must be refused too.
+    const other_zero = M31{ .value = M31.MODULUS };
+    try std.testing.expectError(error.DivideByZero, other_zero.invChecked());
+    for ([_]u32{ 1, 2, 3, 12345, 0x4000_0000 }) |raw| {
+        const a = M31{ .value = raw };
+        const checked = try a.invChecked();
+        try std.testing.expect(a.mul(checked).eq(M31.one()));
+        try std.testing.expect(a.mul(a.inv()).eq(M31.one()));
     }
 }

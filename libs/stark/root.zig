@@ -21,10 +21,7 @@ pub const ntt_simd = @import("m31/ntt/simd.zig");
 pub const ntt_circle = @import("m31/ntt/circle.zig");
 
 // AIR abstractions
-pub const air_air = @import("m31/air/air.zig");
-pub const air_trace = @import("m31/air/trace.zig");
-pub const air_frame = @import("m31/air/frame.zig");
-pub const air_constraint = @import("m31/air/constraint.zig");
+pub const air_contract = @import("m31/air/contract.zig");
 
 pub const bit_utils = @import("core/bit_utils.zig");
 pub const univariate = @import("m31/poly/univariate.zig");
