@@ -132,13 +132,15 @@ fn foldValue(g: QM31, y0: QM31, y1: QM31, alpha: QM31) QM31 {
 /// Produce a full FRI proof for `coeffs` (a QM31 polynomial of degree
 /// < 2^log_size). `channel` is advanced by absorbing commitments and sampling
 /// Fiat-Shamir challenges.
+/// `error.InputLength` unless `coeffs.len == 2^log_size`, which is the length
+/// the parameters demand of a polynomial of that degree bound.
 pub fn prove(
     allocator: std.mem.Allocator,
     params: FriParams,
     coeffs: []const QM31,
     channel: *Channel,
 ) !Proof {
-    std.debug.assert(coeffs.len == @as(usize, 1) << @intCast(params.log_size));
+    if (coeffs.len != @as(usize, 1) << @intCast(params.log_size)) return error.InputLength;
     const dlog = params.domainLogSize();
     const n0 = @as(usize, 1) << @intCast(dlog);
     const dom0 = try domainPoints(allocator, params, 0);
@@ -163,8 +165,11 @@ pub fn proveCodeword(
     const L = params.numFoldRounds();
     const dlog = params.domainLogSize();
     const n0 = @as(usize, 1) << @intCast(dlog);
+    // L is a relation between two FriParams fields, so it stays an assert; the
+    // codeword is the caller's, and in the verification path it is the length
+    // the proof declares, so that one is an error.
     std.debug.assert(L >= 1);
-    std.debug.assert(codeword.len == n0);
+    if (codeword.len != n0) return error.InputLength;
 
     // All layer evaluation domains (indices 0..L).
     const layer_doms = try allocator.alloc([]QM31, L + 1);
@@ -437,4 +442,41 @@ test "FRI rejects tampered query leaf" {
     var vchan = Channel.init("zig-stark:fri:test");
     const ok = try verify(std.testing.allocator, params, &proof, &vchan);
     try std.testing.expect(!ok);
+}
+
+test "fri refuses a codeword or coefficients of the wrong length" {
+    const alloc = std.testing.allocator;
+    const params = FriParams{
+        .log_size = 4,
+        .log_blowup = 2,
+        .num_queries = 8,
+        .remainder_log = 2,
+    };
+    const n0: usize = @as(usize, 1) << @intCast(params.domainLogSize());
+
+    // proveCodeword wants exactly the domain size: a short codeword used to be
+    // folded as if it were the right length.
+    const short = try alloc.alloc(QM31, n0 - 1);
+    defer alloc.free(short);
+    @memset(short, QM31.zero());
+    var channel = Channel.init("length");
+    try std.testing.expectError(
+        error.InputLength,
+        proveCodeword(alloc, params, short, &channel),
+    );
+
+    const long = try alloc.alloc(QM31, n0 + 1);
+    defer alloc.free(long);
+    @memset(long, QM31.zero());
+    try std.testing.expectError(
+        error.InputLength,
+        proveCodeword(alloc, params, long, &channel),
+    );
+
+    // prove wants 2^log_size coefficients, which is not the domain size.
+    const coeffs = try alloc.alloc(QM31, n0);
+    defer alloc.free(coeffs);
+    @memset(coeffs, QM31.zero());
+    var c2 = Channel.init("coeffs");
+    try std.testing.expectError(error.InputLength, prove(alloc, params, coeffs, &c2));
 }

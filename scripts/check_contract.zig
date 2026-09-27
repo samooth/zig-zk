@@ -151,7 +151,7 @@ const ledger = [_]Zone{
         .path = "libs/stark/m31",
         .kind = .api,
         .upstream = null,
-        .asserts = 28,
+        .asserts = 26,
         .invariants = &.{
             // Four public functions whose assert checks a value they were
             // handed, or a relation between two StarkParams fields. Converting
@@ -182,17 +182,17 @@ const ledger = [_]Zone{
             "zig-algebra's FRI is a radix-2 FRI over a base-field subgroup and " ++
             "M31's two-adicity is 1, so it cannot be used here. The zone is " ++
             "legitimately local and the count is a debt against the AGENTS.md " ++
-            "rule. Of the 30, ten are invariants and 20 guard something the " ++
+            "rule. Of the 26, twelve are invariants and 14 guard something the " ++
             "caller supplies, which is the number the work is scoped from. Four " ++
             "of the invariants are in public functions: coset.half checks a field " ++
             "of a value it was handed, M31.inv is the total inverse whose checked " ++
             "sibling is invChecked, and the two in fri.proveCodeword are relations " ++
             "between two StarkParams fields. The other six are in private helpers " ++
             "that the public entry points call with arguments they already checked.",
-        .revisit = "the 20 are the work, and each one is a signature change to a " ++
-            "published function: univariate is done, the circle and ntt " ++
-            "preconditions, the two StarkParams relations in fri, the field " ++
-            "size checks and merkle's two are not. The ten invariants stay unless " ++
+        .revisit = "the 14 are the work, and each one is a signature change to a " ++
+            "published function: univariate, merkle, the two circle log_size " ++
+            "checks and the two fri input lengths are done, the ntt output " ++
+            "buffers and the field size checks are not. The twelve invariants stay unless " ++
             "a caller can reach them, which for M31.inv means the checked sibling " ++
             "stays the caller-facing path and the total keeps its assert.",
     },
@@ -285,7 +285,7 @@ const declared_algebra_pin = "0.3.2";
 /// to the carved one without failing anything. That is a known property rather
 /// than an oversight, and this constant is the second half of the answer, since
 /// every carve out has to be paid for here.
-const declared_reachable: usize = 97;
+const declared_reachable: usize = 95;
 
 const max_detail = 512;
 
@@ -833,7 +833,7 @@ test "the ledger's own numbers add up" {
     // headline is lying in a way a reader cannot see.
     try std.testing.expectEqual(declared, reachable + invariant + fixture + internal_only);
     try std.testing.expectEqual(declared_reachable, reachable);
-    try std.testing.expectEqual(@as(usize, 97), declared_reachable);
+    try std.testing.expectEqual(@as(usize, 95), declared_reachable);
     // transcript is the zone that proves reachability is a declared claim: both
     // of its asserts are `pub fn` inside something private.
     var fixture_zones: usize = 0;
