@@ -23,3 +23,20 @@ jobs:
         run: zig build test --summary all
       - name: Check documentation is paired and monolingual
         run: scripts/check-docs
+      # Each library ships a build.zig so it can be depended on directly, and
+      # nothing else in CI touches those files. A reduced fuzz count is enough
+      # here: the point is that the standalone build resolves and runs, and the
+      # full 2000 rounds already ran in the step above.
+      - name: Build and test each library standalone
+        shell: bash
+        run: |
+          for lib in libs/*/; do
+            [ -f "$lib/build.zig" ] || continue
+            # Only stark's build defines -Dfuzz-iters; passing it anywhere else
+            # is an error, and the full 2000 rounds already ran above.
+            opts=""
+            [ "$lib" = "libs/stark/" ] && opts="-Dfuzz-iters=50"
+            echo "::group::$lib"
+            (cd "$lib" && zig build test $opts --summary all)
+            echo "::endgroup::"
+          done
