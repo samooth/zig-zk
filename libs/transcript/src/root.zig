@@ -263,3 +263,9 @@ test "Transcript absorbFieldSlice" {
     const c = t.squeezeField(F7);
     try std.testing.expect(c.value < 7);
 }
+
+test {
+    // Without this the tests inside `channel.zig` are never compiled in: the
+    // reference to it is lazy, so the test runner only ever saw this file's.
+    std.testing.refAllDecls(@This());
+}

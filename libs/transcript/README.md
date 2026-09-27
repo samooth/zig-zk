@@ -84,7 +84,7 @@ ch.absorbDigest(hash);          // bridges stark's internal Digest type
 ch.absorb(trace_columns);
 ch.absorbMany(&more_columns);
 
-const idx = ch.sampleIndex(n);  // uniform in [0, n)
+const idx = try ch.sampleIndex(n);  // uniform in [0, n), error.EmptyRange if n == 0
 var out: [32]u8 = undefined;
 ch.sampleBytes(&out);
 const v = ch.sample(u32);
@@ -128,7 +128,7 @@ const v = ch.sample(u32);
 | `ch.absorbDigest(digest)` | Absorb a `Digest` from `libs/stark` |
 | `ch.absorbMany(values)` | Absorb several values in order |
 | `ch.sample(T)` | Sample a `T` from the channel state |
-| `ch.sampleIndex(n)` | Sample a uniform index in `[0, n)` |
+| `ch.sampleIndex(n)` | Sample a uniform index in `[0, n)`, `error.EmptyRange` when `n == 0` |
 | `ch.sampleBytes(out)` | Sample `out.len` bytes |
 
 ## Running Tests

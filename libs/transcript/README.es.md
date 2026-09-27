@@ -86,7 +86,7 @@ ch.absorbDigest(hash);          // hace de puente con el tipo Digest de libs/sta
 ch.absorb(columnas_trazy);
 ch.absorbMany(&mas_columnas);
 
-const idx = ch.sampleIndex(n);  // uniforme en [0, n)
+const idx = try ch.sampleIndex(n);  // uniforme en [0, n), error.EmptyRange si n == 0
 var out: [32]u8 = undefined;
 ch.sampleBytes(&out);
 const v = ch.sample(u32);
@@ -130,7 +130,7 @@ const v = ch.sample(u32);
 | `ch.absorbDigest(digest)` | Absorbe un `Digest` de `libs/stark` |
 | `ch.absorbMany(valores)` | Absorbe varios valores en orden |
 | `ch.sample(T)` | Muestrea un `T` del estado del canal |
-| `ch.sampleIndex(n)` | Muestrea un índice uniforme en `[0, n)` |
+| `ch.sampleIndex(n)` | Muestrea un índice uniforme en `[0, n)`, `error.EmptyRange` si `n == 0` |
 | `ch.sampleBytes(out)` | Muestrea `out.len` bytes |
 
 ## Ejecutar las pruebas

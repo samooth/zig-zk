@@ -238,7 +238,7 @@ pub fn proveCodeword(
     for (queries) |*q| {
         q.pairs = try allocator.alloc(Pair, L);
         errdefer allocator.free(q.pairs);
-        const p0 = channel.sampleIndex(n0);
+        const p0 = try channel.sampleIndex(n0);
         q.index = p0;
         var p = p0;
         for (0..L) |i| {
@@ -298,7 +298,7 @@ pub fn verify(
 
     for (proof.queries) |q| {
         // Check the resampled index matches.
-        if (channel.sampleIndex(n0) != q.index) return false;
+        if (try channel.sampleIndex(n0) != q.index) return false;
 
         var p = q.index;
         var prev_fold: ?QM31 = null;

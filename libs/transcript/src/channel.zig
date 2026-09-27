@@ -10,7 +10,8 @@
 //! - **Duck-typed**: Absorbs any type with `SIZE`, `toBytes(&[SIZE]u8)`, `fromBytes([SIZE]u8)`
 //! - **No length prefix** on raw bytes (relies on type size for domain separation)
 //! - **No `clone`/`reset`/`LabelledTranscript`** — minimal core only
-//! - **Has `sampleIndex`** — uniform random index in [0, n)
+//! - **Has `sampleIndex`** — uniform random index in [0, n), `error.EmptyRange`
+//!   when `n == 0`
 
 const std = @import("std");
 const Blake3 = std.crypto.hash.Blake3;
@@ -89,8 +90,12 @@ pub const Channel = struct {
     }
 
     /// Sample a uniform random index in [0, n).
-    pub fn sampleIndex(self: *Channel, n: usize) usize {
-        std.debug.assert(n > 0);
+    ///
+    /// `error.EmptyRange` for `n == 0`: there is no uniform distribution over
+    /// an empty set, and `log2_int(usize, 0)` is undefined, so this is a caller
+    /// mistake rather than something to paper over.
+    pub fn sampleIndex(self: *Channel, n: usize) error{EmptyRange}!usize {
+        if (n == 0) return error.EmptyRange;
         const bits: usize = @intCast(std.math.log2_int(usize, n) + 1);
         const bytes_needed = (bits + 7) / 8;
         var buf: [8]u8 = undefined;
@@ -159,10 +164,15 @@ test "channel sampleIndex is in range" {
     for (sizes) |n| {
         var i: usize = 0;
         while (i < 50) : (i += 1) {
-            const v = c.sampleIndex(n);
+            const v = try c.sampleIndex(n);
             try testing.expect(v < n);
         }
     }
+}
+
+test "channel sampleIndex refuses an empty range" {
+    var c = Channel.init("vacio");
+    try testing.expectError(error.EmptyRange, c.sampleIndex(0));
 }
 
 test "channel sampleIndex covers range roughly uniformly" {
@@ -171,8 +181,8 @@ test "channel sampleIndex covers range roughly uniformly" {
     var counts = [_]usize{0} ** 8;
     var i: usize = 0;
     while (i < 4000) : (i += 1) {
-        const v = c.sampleIndex(n);
-        std.debug.assert(v < n);
+        const v = try c.sampleIndex(n);
+        try std.testing.expect(v < n);
         counts[v] += 1;
     }
     for (counts) |cnt| {
