@@ -101,36 +101,33 @@ const ledger = [_]Zone{
     .{
         .path = "libs/stark/binius",
         .kind = .api,
-        .upstream = "zig-algebra/libs/binary-field @ 0.5.2",
+        .upstream = null,
         .asserts = 57,
         .invariants = &.{},
-        .reason = "the field layer is upstream's, adopted from 0.5.2: field, " ++
-            "tower, pack, polynomial and clmul come from zig-binary-field and " ++
-            "this zone no longer carries them. The sum-check went with a " ++
-            "differential that compared proof bytes, not verdicts: value, " ++
-            "claimed sum and six rounds matched upstream's exactly, so the " ++
-            "local file was a pure deletion. Two more forks went with it: " ++
-            "core/pool.zig, which upstream's sum-check refused because it " ++
-            "takes zig-algebra's Pool and not ours, and accel.zig, whose only " ++
-            "consumer was the local sum-check. What is left of the fork here " ++
-            "is pcs.zig alone. 61 asserts, none of them classified: the zone " ++
-            "has no declared invariants, so every one of them counts as " ++
-            "reachable and overstates the work.",
-        .revisit = "the differential harness ran, and the answer is split. The " ++
-            "sum-check is byte-identical to upstream's over value, claimed sum " ++
-            "and six rounds, so sumcheck.zig is a pure deletion. The PCS is not: " ++
-            "our commit pre-hashed each element and then passed the digests to " ++
-            "MerkleTree.init, which hashes leaves again, so its leaves were " ++
-            "H(H(v)) and the two implementations commit to different roots over " ++
-            "one table. Round-trip tests cannot see that, being self-consistent. " ++
-            "Deleting pcs.zig is therefore blocked on an upstream defect rather " ++
-            "than on this repository: the Blake3 in zig-hash was not " ++
-            "BLAKE3, so adopting the fixed leaf convention would import a hash " ++
-            "that is not the algorithm it names. Resume when a release past that " ++
-            "fix lands, then delete pcs.zig, sumcheck.zig and accel.zig together " ++
-            "and re-scope this zone: the other twelve files have no upstream " ++
-            "counterpart and hold the remaining asserts, so the zone is ours, " ++
-            "not a fork, and cannot go to zero.",
+        .reason = "this zone is no longer a fork of zig-algebra. Six files were " ++
+            "adopted from it, then the sum-check and the PCS, and with them " ++
+            "accel.zig and core/pool.zig: the sum-check was confirmed " ++
+            "byte-identical to the adopted one over value, claimed sum and six " ++
+            "rounds, and the PCS was not, because our commit hashed every Merkle " ++
+            "leaf twice while the adopted convention hashes it once. What " ++
+            "remains here is twelve files with no upstream counterpart at all " ++
+            "-- the Binius circuits, the FRI and batch commitment schemes, the " ++
+            "argument layer and the prover. Upstream has no fripcs, no " ++
+            "batchpcs, no arg: a zone can stop being a fork without ceasing to " ++
+            "exist, and this is that case. 57 asserts, none of them classified, " ++
+            "so every one counts as reachable and overstates the work.",
+        .revisit = "the stack is instantiated over Gf256, which is TowerField(3) " ++
+            "and eight bits wide, because it is fast. The soundness error of a " ++
+            "sum-check round is of order 1/|F|, about 0.4% here, and it " ++
+            "composes over the rounds, so the end-to-end suite is coverage of " ++
+            "plumbing and not of soundness: it shows the prover runs and the " ++
+            "commitments commit, not that a proof is hard to forge. Upstream's " ++
+            "secure entry points require 128 bits, which is why the call sites " ++
+            "name SumcheckUnsafe and CommittedMlePcsUnsafe, and it is worth " ++
+            "reading the suite as anything more. TowerField(7) is 128 bits and " ++
+            "would go through the good door; nobody has instantiated this stack " ++
+            "over it, and that is the thing to do next if the answer is to " ++
+            "matter. Revisit when something does, and record the field it used.",
     },
     .{
         .path = "libs/stark/core",
