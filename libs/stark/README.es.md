@@ -55,8 +55,8 @@ variante:
 | Ruta | Qué contiene |
 |---|---|
 | `binius/tower.zig` | Torre de campos GF(2) → GF(2¹²⁸) |
-| `binius/sumcheck.zig` | El protocolo de suma-producto |
-| `binius/pcs.zig`, `packed_pcs.zig`, `batchpcs.zig`, `fripcs.zig` | Cuatro esquemas de compromiso polinómico |
+| `packed_pcs.zig`, `batchpcs.zig`, `fripcs.zig` | Tres esquemas de compromiso polinómico |
+| `binius/sumcheck.zig`, `binius/pcs.zig` | Se consumen de `zig-algebra` en la versión fijada, no están en el árbol. El suma-producto resultó idéntico byte a byte al adoptado en el valor, la suma declarada y seis rondas; la PCS no, y la diferencia era una hoja del Merkle hasheada dos veces. |
 | `binius/arg.zig` | La capa de argumentos |
 | `binius/recursion/` | Poseidon2 sobre GF(2) |
 | `binius/adder.zig`, `rangecheck.zig`, `compare.zig`, `bitpack.zig`, `pack.zig` | Gadgets de restricciones que usa la suite de fuzz |

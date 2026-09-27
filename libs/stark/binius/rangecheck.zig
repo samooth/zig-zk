@@ -1,6 +1,6 @@
 const std = @import("std");
 const StarkMod = @import("stark.zig");
-const PcsMod = @import("pcs.zig");
+const PcsMod = @import("zig-binary-field").pcs;
 const ConstraintDsl = @import("constraints.zig");
 /// Range-check gadget for the Binius zero-check STARK.
 ///
@@ -22,7 +22,7 @@ const ConstraintDsl = @import("constraints.zig");
 ///   - booleanness (m): b_i + b_i² = 0
 ///   - pack (1):        v + Σ_i b_i·e_i = 0
 pub fn RangeCheck(comptime F: type, comptime E: type, comptime m: usize) type {
-    return RangeCheckWith(F, E, m, PcsMod.CommittedMlePcs(F, E));
+    return RangeCheckWith(F, E, m, PcsMod.CommittedMlePcsUnsafe(F, E));
 }
 
 /// The range-check gadget wired into any `BiniusStarkWith` PCS.
@@ -102,7 +102,7 @@ pub fn RangeCheckWith(comptime F: type, comptime E: type, comptime m: usize, com
 const Gf16 = @import("zig-binary-field").tower.Gf16;
 const Gf256 = @import("zig-binary-field").tower.Gf256;
 const Hash = @import("../core/hash/hash.zig").Hash;
-const Pcs = @import("pcs.zig").CommittedMlePcs;
+const Pcs = @import("zig-binary-field").CommittedMlePcsUnsafe;
 
 test "range check witness decomposes and reconstructs every value" {
     const alloc = std.testing.allocator;

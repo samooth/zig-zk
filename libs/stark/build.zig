@@ -73,6 +73,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "zig-stark", .module = stark_mod },
             .{ .name = "zig-transcript", .module = transcript_mod },
             .{ .name = "zig-field", .module = field_mod },
+            .{ .name = "zig-parallel", .module = algebra_dep.module("zig-parallel") },
         },
     });
     const e2e_tests = b.addTest(.{

@@ -1,6 +1,6 @@
 const std = @import("std");
 const StarkMod = @import("stark.zig");
-const PcsMod = @import("pcs.zig");
+const PcsMod = @import("zig-binary-field").pcs;
 const ConstraintDsl = @import("constraints.zig");
 /// Bit-sliced comparison gadget for the Binius zero-check STARK.
 ///
@@ -27,7 +27,7 @@ const ConstraintDsl = @import("constraints.zig");
 /// columns are forced boolean by their recurrences, so only a and b need
 /// explicit booleanness. The result is lt_0 (`colLt(0)`).
 pub fn Compare(comptime F: type, comptime E: type, comptime m: usize) type {
-    return CompareWith(F, E, m, PcsMod.CommittedMlePcs(F, E));
+    return CompareWith(F, E, m, PcsMod.CommittedMlePcsUnsafe(F, E));
 }
 
 /// The comparison gadget wired into any `BiniusStarkWith` PCS.
@@ -177,7 +177,7 @@ pub fn CompareWith(comptime F: type, comptime E: type, comptime m: usize, compti
 const Gf16 = @import("zig-binary-field").tower.Gf16;
 const Gf256 = @import("zig-binary-field").tower.Gf256;
 const Hash = @import("../core/hash/hash.zig").Hash;
-const Pcs = @import("pcs.zig").CommittedMlePcs;
+const Pcs = @import("zig-binary-field").CommittedMlePcsUnsafe;
 
 test "compare result matches a reference less-than for all pairs" {
     inline for (.{ Gf16, Gf256 }) |F| {

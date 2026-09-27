@@ -1,6 +1,6 @@
 const std = @import("std");
 const SumcheckMod = @import("zig-binary-field").sumcheck;
-const PcsMod = @import("pcs.zig");
+const PcsMod = @import("zig-binary-field").pcs;
 const FriPcsMod = @import("fripcs.zig");
 const CoreHash = @import("../core/hash/hash.zig");
 
@@ -32,7 +32,7 @@ const CoreHash = @import("../core/hash/hash.zig");
 /// for a small witness field `F`. It commits the tables and opens every MLE
 /// evaluation at the challenge point (proof size O(m·2^k)).
 pub fn BiniusArg(comptime F: type, comptime E: type) type {
-    return BiniusArgWith(F, E, PcsMod.CommittedMlePcs(F, E));
+    return BiniusArgWith(F, E, PcsMod.CommittedMlePcsUnsafe(F, E));
 }
 
 /// Product-sum argument with a caller-chosen committed-MLE PCS `CP` (same
@@ -204,7 +204,7 @@ test "binius arg round trip for m=1 and m=2, k=1..3" {
 
             var roots: [1]Hash.Digest = undefined;
             {
-                var tree = try @import("pcs.zig").CommittedMlePcs(Gf16, Gf16).commit(alloc, t0[0..n]);
+                var tree = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf16, Gf16).commit(alloc, t0[0..n]);
                 defer tree.deinit();
                 roots[0] = tree.root();
             }
@@ -220,9 +220,9 @@ test "binius arg round trip for m=1 and m=2, k=1..3" {
 
             var roots: [2]Hash.Digest = undefined;
             {
-                var tree0 = try @import("pcs.zig").CommittedMlePcs(Gf16, Gf16).commit(alloc, t0[0..n]);
+                var tree0 = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf16, Gf16).commit(alloc, t0[0..n]);
                 defer tree0.deinit();
-                var tree1 = try @import("pcs.zig").CommittedMlePcs(Gf16, Gf16).commit(alloc, t1[0..n]);
+                var tree1 = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf16, Gf16).commit(alloc, t1[0..n]);
                 defer tree1.deinit();
                 roots[0] = tree0.root();
                 roots[1] = tree1.root();
@@ -250,9 +250,9 @@ test "binius arg rejects wrong claimed sum and wrong root" {
 
     var roots: [2]Hash.Digest = undefined;
     {
-        var tree0 = try @import("pcs.zig").CommittedMlePcs(Gf16, Gf16).commit(alloc, &t0);
+        var tree0 = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf16, Gf16).commit(alloc, &t0);
         defer tree0.deinit();
-        var tree1 = try @import("pcs.zig").CommittedMlePcs(Gf16, Gf16).commit(alloc, &t1);
+        var tree1 = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf16, Gf16).commit(alloc, &t1);
         defer tree1.deinit();
         roots[0] = tree0.root();
         roots[1] = tree1.root();
@@ -267,7 +267,7 @@ test "binius arg rejects wrong claimed sum and wrong root" {
     bad[2] = bad[2].add(fe(1));
     var bad_root: [2]Hash.Digest = roots;
     {
-        var tree = try @import("pcs.zig").CommittedMlePcs(Gf16, Gf16).commit(alloc, &bad);
+        var tree = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf16, Gf16).commit(alloc, &bad);
         defer tree.deinit();
         bad_root[0] = tree.root();
     }
@@ -294,7 +294,7 @@ test "binius arg extension-mode round trip (F=Gf16, E=Gf2_128)" {
 
     const F = Tower.Gf16;
     const E = Tower.Gf2_128;
-    const Arg = BiniusArgWith(F, E, @import("pcs.zig").CommittedMlePcs(F, E));
+    const Arg = BiniusArgWith(F, E, @import("zig-binary-field").CommittedMlePcsUnsafe(F, E));
 
     inline for (.{ 1, 2, 3 }) |k| {
         const n = @as(usize, 1) << @intCast(k);
@@ -318,7 +318,7 @@ test "binius arg extension-mode round trip (F=Gf16, E=Gf2_128)" {
             defer proof.deinit(alloc);
 
             var roots: [1]Hash.Digest = undefined;
-            var tree = try @import("pcs.zig").CommittedMlePcs(F, E).commit(alloc, t0[0..n]);
+            var tree = try @import("zig-binary-field").CommittedMlePcsUnsafe(F, E).commit(alloc, t0[0..n]);
             defer tree.deinit();
             roots[0] = tree.root();
             try std.testing.expect(try Arg.verify(alloc, k, &roots, expected, proof));
@@ -336,9 +336,9 @@ test "binius arg extension-mode round trip (F=Gf16, E=Gf2_128)" {
             defer proof.deinit(alloc);
 
             var roots: [2]Hash.Digest = undefined;
-            var tree0 = try @import("pcs.zig").CommittedMlePcs(F, E).commit(alloc, t0[0..n]);
+            var tree0 = try @import("zig-binary-field").CommittedMlePcsUnsafe(F, E).commit(alloc, t0[0..n]);
             defer tree0.deinit();
-            var tree1 = try @import("pcs.zig").CommittedMlePcs(F, E).commit(alloc, t1[0..n]);
+            var tree1 = try @import("zig-binary-field").CommittedMlePcsUnsafe(F, E).commit(alloc, t1[0..n]);
             defer tree1.deinit();
             roots[0] = tree0.root();
             roots[1] = tree1.root();
@@ -427,7 +427,7 @@ test "binius arg extension-mode rejects wrong claimed sum and wrong root" {
 
     const F = Tower.Gf16;
     const E = Tower.Gf2_128;
-    const Arg = BiniusArgWith(F, E, @import("pcs.zig").CommittedMlePcs(F, E));
+    const Arg = BiniusArgWith(F, E, @import("zig-binary-field").CommittedMlePcsUnsafe(F, E));
 
     const k = 3;
     var t0: [8]F = undefined;
@@ -448,9 +448,9 @@ test "binius arg extension-mode rejects wrong claimed sum and wrong root" {
 
     var roots: [2]Hash.Digest = undefined;
     {
-        var tree0 = try @import("pcs.zig").CommittedMlePcs(F, E).commit(alloc, &t0);
+        var tree0 = try @import("zig-binary-field").CommittedMlePcsUnsafe(F, E).commit(alloc, &t0);
         defer tree0.deinit();
-        var tree1 = try @import("pcs.zig").CommittedMlePcs(F, E).commit(alloc, &t1);
+        var tree1 = try @import("zig-binary-field").CommittedMlePcsUnsafe(F, E).commit(alloc, &t1);
         defer tree1.deinit();
         roots[0] = tree0.root();
         roots[1] = tree1.root();
@@ -465,7 +465,7 @@ test "binius arg extension-mode rejects wrong claimed sum and wrong root" {
     bad[2] = bad[2].add(F.one());
     var bad_root: [2]Hash.Digest = roots;
     {
-        var tree = try @import("pcs.zig").CommittedMlePcs(F, E).commit(alloc, &bad);
+        var tree = try @import("zig-binary-field").CommittedMlePcsUnsafe(F, E).commit(alloc, &bad);
         defer tree.deinit();
         bad_root[0] = tree.root();
     }

@@ -15,7 +15,7 @@ const Hash = zs.hash.Hash;
 const Ser = zs.core.serialization;
 
 const Stark = zs.binius.stark.BiniusStark(F, E);
-const CommittedPcs = zs.binius.pcs.CommittedMlePcs(F, E);
+const CommittedPcs = zs.binius.pcs.CommittedMlePcsUnsafe(F, E);
 
 const Rng = std.Random.DefaultPrng;
 

@@ -1,6 +1,6 @@
 const std = @import("std");
 const StarkMod = @import("stark.zig");
-const PcsMod = @import("pcs.zig");
+const PcsMod = @import("zig-binary-field").pcs;
 const CoreHash = @import("../core/hash/hash.zig");
 /// Bit-sliced ripple-carry adder gadget for the Binius zero-check STARK.
 ///
@@ -21,7 +21,7 @@ const CoreHash = @import("../core/hash/hash.zig");
 /// XOR is field addition and the majority carry is a sum of three degree-2
 /// monomials, with no carry-propagation cost in the constraint system.
 pub fn Adder(comptime F: type, comptime E: type) type {
-    return AdderWith(F, E, PcsMod.CommittedMlePcs(F, E));
+    return AdderWith(F, E, PcsMod.CommittedMlePcsUnsafe(F, E));
 }
 
 /// The 4-bit ripple-carry adder wired into any `BiniusStarkWith` PCS.
@@ -207,7 +207,7 @@ test "adder bit relations match a reference bit-sliced addition" {
 test "adder STARK round trips over the GF(2^128) extension" {
     const alloc = std.testing.allocator;
     const A = Adder(Gf16, Gf2_128);
-    const CP = PcsMod.CommittedMlePcs(Gf16, Gf2_128);
+    const CP = PcsMod.CommittedMlePcsUnsafe(Gf16, Gf2_128);
 
     const k = 2;
     const x = [_]u4{ 10, 0, 15, 8 };

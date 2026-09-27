@@ -53,7 +53,7 @@ fn biniusAdderRoundTrip(k: usize, tamper: bool) !bool {
     const E = zig_stark.binius.tower.Gf2_128;
     const Adder = zig_stark.binius.adder.Adder(F, E);
     const Stark = zig_stark.binius.stark.BiniusStark(F, E);
-    const CommittedPcs = zig_stark.binius.pcs.CommittedMlePcs(F, E);
+    const CommittedPcs = zig_stark.binius.pcs.CommittedMlePcsUnsafe(F, E);
     const Hash = zig_stark.hash.Hash;
 
     const n = @as(usize, 1) << @intCast(k);
@@ -203,7 +203,7 @@ test "e2e: FRI PCS proof size is sub-linear vs committed-MLE (k = 4..6)" {
     const E = zig_stark.binius.tower.Gf256;
     const Hash = zig_stark.hash.Hash;
     const BatchPcs = zig_stark.binius.batchpcs.BatchFriPcsStark(F, E, 2, 4);
-    const CommittedPcs = zig_stark.binius.pcs.CommittedMlePcs(F, E);
+    const CommittedPcs = zig_stark.binius.pcs.CommittedMlePcsUnsafe(F, E);
 
     const AdderFri = zig_stark.binius.adder.AdderWith(F, E, BatchPcs);
     const StarkFri = zig_stark.binius.stark.BiniusStarkFri(F, E, 2, 4);
@@ -266,7 +266,7 @@ test "e2e: BiniusArg FRI PCS proof size is sub-linear vs committed-MLE (k = 4..6
     const E = zig_stark.binius.tower.Gf256;
     const Hash = zig_stark.hash.Hash;
     const ArgFri = zig_stark.binius.arg.BiniusArgFri(F, E, 2, 4);
-    const ArgCm = zig_stark.binius.arg.BiniusArgWith(F, E, zig_stark.binius.pcs.CommittedMlePcs(F, E));
+    const ArgCm = zig_stark.binius.arg.BiniusArgWith(F, E, zig_stark.binius.pcs.CommittedMlePcsUnsafe(F, E));
 
     var prev_fri: usize = 0;
     var cm_last: usize = 0;
@@ -296,8 +296,8 @@ test "e2e: BiniusArg FRI PCS proof size is sub-linear vs committed-MLE (k = 4..6
 
         var roots_cm: [2]Hash.Digest = undefined;
         {
-            var tree0 = try zig_stark.binius.pcs.CommittedMlePcs(F, E).commit(alloc, t0[0..n]);
-            var tree1 = try zig_stark.binius.pcs.CommittedMlePcs(F, E).commit(alloc, t1[0..n]);
+            var tree0 = try zig_stark.binius.pcs.CommittedMlePcsUnsafe(F, E).commit(alloc, t0[0..n]);
+            var tree1 = try zig_stark.binius.pcs.CommittedMlePcsUnsafe(F, E).commit(alloc, t1[0..n]);
             roots_cm[0] = tree0.root();
             roots_cm[1] = tree1.root();
         }
@@ -331,7 +331,7 @@ fn biniusRoundTrip(tamper: bool) !bool {
     const E = zig_stark.binius.tower.Gf2_128;
     const Adder = zig_stark.binius.adder.Adder(F, E);
     const Stark = zig_stark.binius.stark.BiniusStark(F, E);
-    const CommittedPcs = zig_stark.binius.pcs.CommittedMlePcs(F, E);
+    const CommittedPcs = zig_stark.binius.pcs.CommittedMlePcsUnsafe(F, E);
     const Hash = zig_stark.hash.Hash;
 
     const k = 3;
@@ -449,7 +449,7 @@ fn biniusArgRoundTrip() !bool {
     const F = zig_stark.binius.tower.Gf256;
     const E = zig_stark.binius.tower.Gf256;
     const ArgFri = zig_stark.binius.arg.BiniusArgFri(F, E, 2, 4);
-    const ArgCm = zig_stark.binius.arg.BiniusArgWith(F, E, zig_stark.binius.pcs.CommittedMlePcs(F, E));
+    const ArgCm = zig_stark.binius.arg.BiniusArgWith(F, E, zig_stark.binius.pcs.CommittedMlePcsUnsafe(F, E));
 
     const k = 3;
     const n = @as(usize, 1) << @intCast(k);
@@ -473,8 +473,8 @@ fn biniusArgRoundTrip() !bool {
     }
     var roots_cm: [2]zig_stark.hash.Hash.Digest = undefined;
     {
-        var tree0 = try zig_stark.binius.pcs.CommittedMlePcs(F, E).commit(alloc, t0[0..n]);
-        var tree1 = try zig_stark.binius.pcs.CommittedMlePcs(F, E).commit(alloc, t1[0..n]);
+        var tree0 = try zig_stark.binius.pcs.CommittedMlePcsUnsafe(F, E).commit(alloc, t0[0..n]);
+        var tree1 = try zig_stark.binius.pcs.CommittedMlePcsUnsafe(F, E).commit(alloc, t1[0..n]);
         roots_cm[0] = tree0.root();
         roots_cm[1] = tree1.root();
     }
@@ -538,7 +538,7 @@ test "e2e: parallel prover matches sequential (4-bit adder batch)" {
     const E = zig_stark.binius.tower.Gf2_128;
     const Adder = zig_stark.binius.adder.Adder(F, E);
     const Stark = zig_stark.binius.stark.BiniusStark(F, E);
-    const CommittedPcs = zig_stark.binius.pcs.CommittedMlePcs(F, E);
+    const CommittedPcs = zig_stark.binius.pcs.CommittedMlePcsUnsafe(F, E);
     const Hash = zig_stark.hash.Hash;
 
     const k = 4;

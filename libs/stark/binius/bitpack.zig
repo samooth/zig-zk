@@ -1,6 +1,6 @@
 const std = @import("std");
 const StarkMod = @import("stark.zig");
-const PcsMod = @import("pcs.zig");
+const PcsMod = @import("zig-binary-field").pcs;
 /// Bit-pack gadget for the Binius zero-check STARK.
 ///
 /// Each hypercube point p ∈ {0,1}^k holds one field element `v_p` together with
@@ -24,7 +24,7 @@ const PcsMod = @import("pcs.zig");
 /// assertion "x is a valid uN whose bits are b" is `pack + booleanness`, so a
 /// verifier can commit to bit columns and enforce the packed numeric value.
 pub fn BitPack(comptime F: type, comptime E: type) type {
-    return BitPackWith(F, E, PcsMod.CommittedMlePcs(F, E));
+    return BitPackWith(F, E, PcsMod.CommittedMlePcsUnsafe(F, E));
 }
 
 /// The bit-pack gadget wired into any `BiniusStarkWith` PCS.
@@ -113,7 +113,7 @@ pub fn BitPackWith(comptime F: type, comptime E: type, comptime CP: type) type {
 const Gf16 = @import("zig-binary-field").tower.Gf16;
 const Gf256 = @import("zig-binary-field").tower.Gf256;
 const Hash = @import("../core/hash/hash.zig").Hash;
-const Pcs = @import("pcs.zig").CommittedMlePcs;
+const Pcs = @import("zig-binary-field").CommittedMlePcsUnsafe;
 
 test "bitpack witness decomposes and reconstructs every value" {
     const alloc = std.testing.allocator;

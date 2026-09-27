@@ -1,6 +1,6 @@
 const std = @import("std");
 const StarkMod = @import("../stark.zig");
-const PcsMod = @import("../pcs.zig");
+const PcsMod = @import("zig-binary-field").pcs;
 
 /// Poseidon2b permutation over the binary tower, as an in-circuit gadget for
 /// the Binius zero-check STARK (ePrint 2025/1893, "Poseidon(2)b", Table 1).
@@ -123,7 +123,7 @@ pub fn permutationState(comptime F: type, st: *[state_size]F) void {
 
 /// Poseidon2b permutation wired into any `BiniusStarkWith` PCS.
 pub fn Permutation(comptime F: type, comptime E: type) type {
-    return PermutationWith(F, E, PcsMod.CommittedMlePcs(F, E));
+    return PermutationWith(F, E, PcsMod.CommittedMlePcsUnsafe(F, E));
 }
 
 /// Same gadget with a caller-chosen committed-MLE PCS.
@@ -368,7 +368,7 @@ test "poseidon2b permutation STARK round-trips over GF(2^128) extension" {
 
     var roots: [P.num_columns]CoreHash.Hash.Digest = undefined;
     for (0..P.num_columns) |c| {
-        var tree = try PcsMod.CommittedMlePcs(Gf2_64, Gf2_128).commit(alloc, columns[c]);
+        var tree = try PcsMod.CommittedMlePcsUnsafe(Gf2_64, Gf2_128).commit(alloc, columns[c]);
         defer tree.deinit();
         roots[c] = tree.root();
     }

@@ -1,6 +1,6 @@
 const std = @import("std");
 const SumcheckMod = @import("zig-binary-field").sumcheck;
-const PcsMod = @import("pcs.zig");
+const PcsMod = @import("zig-binary-field").pcs;
 const FriPcsMod = @import("fripcs.zig");
 const BatchPcsMod = @import("batchpcs.zig");
 const CoreHash = @import("../core/hash/hash.zig");
@@ -52,7 +52,7 @@ const Pool = @import("zig-parallel").Pool;
 /// sum-check transcript, so all randomness binds to the public statement and
 /// the committed witness.
 pub fn BiniusStark(comptime F: type, comptime E: type) type {
-    return StarkInner(F, E, PcsMod.CommittedMlePcs(F, E));
+    return StarkInner(F, E, PcsMod.CommittedMlePcsUnsafe(F, E));
 }
 
 /// Same zero-check STARK, but with the sub-linear polylog FRI-Binius PCS
@@ -81,7 +81,7 @@ pub fn BiniusStarkWith(comptime F: type, comptime E: type, comptime CP: type) ty
 fn StarkInner(comptime F: type, comptime E: type, comptime CP: type) type {
     return struct {
         const SC = SumcheckMod.SumcheckUnsafe(E);
-        const M = PcsMod.MlePcs(F, E);
+        const M = PcsMod.MlePcsUnsafe(F, E);
         const Hash = CoreHash.Hash;
 
         /// Fiat-Shamir domain separator for this protocol.
@@ -731,7 +731,7 @@ test "booleanness constraint round trip" {
 
     var roots: [1]CoreHash.Hash.Digest = undefined;
     {
-        var tree = try @import("pcs.zig").CommittedMlePcs(Gf16, Gf16).commit(alloc, &w);
+        var tree = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf16, Gf16).commit(alloc, &w);
         defer tree.deinit();
         roots[0] = tree.root();
     }
@@ -762,7 +762,7 @@ test "non-boolean witness is rejected" {
 
     var roots: [1]CoreHash.Hash.Digest = undefined;
     {
-        var tree = try @import("pcs.zig").CommittedMlePcs(Gf256, Gf256).commit(alloc, &w);
+        var tree = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf256, Gf256).commit(alloc, &w);
         defer tree.deinit();
         roots[0] = tree.root();
     }
@@ -796,11 +796,11 @@ test "multiplication relation h = f·g" {
 
     var roots: [3]CoreHash.Hash.Digest = undefined;
     {
-        var tf = try @import("pcs.zig").CommittedMlePcs(Gf16, Gf16).commit(alloc, &f);
+        var tf = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf16, Gf16).commit(alloc, &f);
         defer tf.deinit();
-        var tg = try @import("pcs.zig").CommittedMlePcs(Gf16, Gf16).commit(alloc, &g);
+        var tg = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf16, Gf16).commit(alloc, &g);
         defer tg.deinit();
-        var th = try @import("pcs.zig").CommittedMlePcs(Gf16, Gf16).commit(alloc, &h);
+        var th = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf16, Gf16).commit(alloc, &h);
         defer th.deinit();
         roots[0] = tf.root();
         roots[1] = tg.root();
@@ -838,11 +838,11 @@ test "wrong product is rejected" {
 
     var roots: [3]CoreHash.Hash.Digest = undefined;
     {
-        var tf = try @import("pcs.zig").CommittedMlePcs(Gf256, Gf256).commit(alloc, &f);
+        var tf = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf256, Gf256).commit(alloc, &f);
         defer tf.deinit();
-        var tg = try @import("pcs.zig").CommittedMlePcs(Gf256, Gf256).commit(alloc, &g);
+        var tg = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf256, Gf256).commit(alloc, &g);
         defer tg.deinit();
-        var th = try @import("pcs.zig").CommittedMlePcs(Gf256, Gf256).commit(alloc, &h);
+        var th = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf256, Gf256).commit(alloc, &h);
         defer th.deinit();
         roots[0] = tf.root();
         roots[1] = tg.root();
@@ -884,13 +884,13 @@ test "multiple constraints in one proof" {
 
     var roots: [4]CoreHash.Hash.Digest = undefined;
     {
-        var tw = try @import("pcs.zig").CommittedMlePcs(Gf16, Gf16).commit(alloc, &w);
+        var tw = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf16, Gf16).commit(alloc, &w);
         defer tw.deinit();
-        var tf = try @import("pcs.zig").CommittedMlePcs(Gf16, Gf16).commit(alloc, &f);
+        var tf = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf16, Gf16).commit(alloc, &f);
         defer tf.deinit();
-        var tg = try @import("pcs.zig").CommittedMlePcs(Gf16, Gf16).commit(alloc, &g);
+        var tg = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf16, Gf16).commit(alloc, &g);
         defer tg.deinit();
-        var th = try @import("pcs.zig").CommittedMlePcs(Gf16, Gf16).commit(alloc, &h);
+        var th = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf16, Gf16).commit(alloc, &h);
         defer th.deinit();
         roots[0] = tw.root();
         roots[1] = tf.root();
@@ -923,7 +923,7 @@ test "tampered root is rejected" {
     bad[2] = fe(2);
     var roots: [1]CoreHash.Hash.Digest = undefined;
     {
-        var tree = try @import("pcs.zig").CommittedMlePcs(Gf16, Gf16).commit(alloc, &bad);
+        var tree = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf16, Gf16).commit(alloc, &bad);
         defer tree.deinit();
         roots[0] = tree.root();
     }
@@ -970,11 +970,11 @@ test "batched constraints open each distinct column once" {
 
     var roots: [3]CoreHash.Hash.Digest = undefined;
     {
-        var tw = try @import("pcs.zig").CommittedMlePcs(Gf16, Gf16).commit(alloc, &w);
+        var tw = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf16, Gf16).commit(alloc, &w);
         defer tw.deinit();
-        var tf = try @import("pcs.zig").CommittedMlePcs(Gf16, Gf16).commit(alloc, &f);
+        var tf = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf16, Gf16).commit(alloc, &f);
         defer tf.deinit();
-        var tg = try @import("pcs.zig").CommittedMlePcs(Gf16, Gf16).commit(alloc, &g);
+        var tg = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf16, Gf16).commit(alloc, &g);
         defer tg.deinit();
         roots[0] = tw.root();
         roots[1] = tf.root();
@@ -1004,7 +1004,7 @@ test "stark runs over tower GF(256)" {
 
     var roots: [1]CoreHash.Hash.Digest = undefined;
     {
-        var tree = try @import("pcs.zig").CommittedMlePcs(Gf256, Gf256).commit(alloc, &w);
+        var tree = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf256, Gf256).commit(alloc, &w);
         defer tree.deinit();
         roots[0] = tree.root();
     }
@@ -1053,7 +1053,7 @@ test "public inputs are bound by the Fiat-Shamir transcript" {
 
     var roots: [1]CoreHash.Hash.Digest = undefined;
     {
-        var tree = try @import("pcs.zig").CommittedMlePcs(Gf256, Gf256).commit(alloc, &w);
+        var tree = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf256, Gf256).commit(alloc, &w);
         defer tree.deinit();
         roots[0] = tree.root();
     }
@@ -1093,7 +1093,7 @@ test "boundary pins round trip" {
 
     var roots: [1]CoreHash.Hash.Digest = undefined;
     {
-        var tree = try @import("pcs.zig").CommittedMlePcs(Gf256, Gf256).commit(alloc, &w);
+        var tree = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf256, Gf256).commit(alloc, &w);
         defer tree.deinit();
         roots[0] = tree.root();
     }
@@ -1126,7 +1126,7 @@ test "wrong boundary pin value is rejected" {
 
     var roots: [1]CoreHash.Hash.Digest = undefined;
     {
-        var tree = try @import("pcs.zig").CommittedMlePcs(Gf256, Gf256).commit(alloc, &w);
+        var tree = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf256, Gf256).commit(alloc, &w);
         defer tree.deinit();
         roots[0] = tree.root();
     }
@@ -1163,7 +1163,7 @@ test "pinned constraint proves a boundary evaluation" {
 
     var roots: [1]CoreHash.Hash.Digest = undefined;
     {
-        var tree = try @import("pcs.zig").CommittedMlePcs(Gf256, Gf256).commit(alloc, &w);
+        var tree = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf256, Gf256).commit(alloc, &w);
         defer tree.deinit();
         roots[0] = tree.root();
     }
@@ -1175,7 +1175,7 @@ test "pinned constraint proves a boundary evaluation" {
     bad[3] = bad[3].add(Gf256.one());
     var bad_roots: [1]CoreHash.Hash.Digest = undefined;
     {
-        var tree = try @import("pcs.zig").CommittedMlePcs(Gf256, Gf256).commit(alloc, &bad);
+        var tree = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf256, Gf256).commit(alloc, &bad);
         defer tree.deinit();
         bad_roots[0] = tree.root();
     }
@@ -1206,7 +1206,7 @@ test "stark runs over the Script field GF(16)" {
 
     var roots: [1]CoreHash.Hash.Digest = undefined;
     {
-        var tree = try @import("pcs.zig").CommittedMlePcs(ScriptGf16, ScriptGf16).commit(alloc, &w);
+        var tree = try @import("zig-binary-field").CommittedMlePcsUnsafe(ScriptGf16, ScriptGf16).commit(alloc, &w);
         defer tree.deinit();
         roots[0] = tree.root();
     }
@@ -1238,7 +1238,7 @@ test "stark with boundary pins over the GF(2^128) extension" {
 
     var roots: [1]CoreHash.Hash.Digest = undefined;
     {
-        var tree = try @import("pcs.zig").CommittedMlePcs(Gf16, Gf2_128).commit(alloc, &w);
+        var tree = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf16, Gf2_128).commit(alloc, &w);
         defer tree.deinit();
         roots[0] = tree.root();
     }

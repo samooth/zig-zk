@@ -102,7 +102,7 @@ const ledger = [_]Zone{
         .path = "libs/stark/binius",
         .kind = .api,
         .upstream = "zig-algebra/libs/binary-field @ 0.5.2",
-        .asserts = 61,
+        .asserts = 57,
         .invariants = &.{},
         .reason = "the field layer is upstream's, adopted from 0.5.2: field, " ++
             "tower, pack, polynomial and clmul come from zig-binary-field and " ++
@@ -301,7 +301,7 @@ const declared_algebra_pin = "0.5.2";
 /// to the carved one without failing anything. That is a known property rather
 /// than an oversight, and this constant is the second half of the answer, since
 /// every carve out has to be paid for here.
-const declared_reachable: usize = 64;
+const declared_reachable: usize = 60;
 
 const max_detail = 512;
 
@@ -853,7 +853,7 @@ test "the ledger's own numbers add up" {
     // headline is lying in a way a reader cannot see.
     try std.testing.expectEqual(declared, reachable + invariant + fixture + internal_only);
     try std.testing.expectEqual(declared_reachable, reachable);
-    try std.testing.expectEqual(@as(usize, 64), declared_reachable);
+    try std.testing.expectEqual(@as(usize, 60), declared_reachable);
     // transcript is the zone that proves reachability is a declared claim: both
     // of its asserts are `pub fn` inside something private.
     var fixture_zones: usize = 0;
