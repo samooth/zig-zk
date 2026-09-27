@@ -45,6 +45,23 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_tests.step);
 
     // End-to-end and fuzz suites (ported from zig-stark/tests).
+    // Guards on the binary-field layer consumed from zig-algebra rather than
+    // owned: a module's test blocks do not run in a consumer.
+    const field_layer_module = b.createModule(.{
+        .root_source_file = b.path("tests/field_layer.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "zig-binary-field", .module = algebra_dep.module("zig-binary-field") },
+            .{ .name = "zig-field", .module = field_mod },
+        },
+    });
+    const field_layer_tests = b.addTest(.{
+        .name = "zig-stark-field-layer-tests",
+        .root_module = field_layer_module,
+    });
+    test_step.dependOn(&b.addRunArtifact(field_layer_tests).step);
+
     const e2e_module = b.createModule(.{
         .root_source_file = b.path("tests/e2e_tests.zig"),
         .target = target,

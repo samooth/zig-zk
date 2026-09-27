@@ -187,6 +187,21 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    // Guards on the binary-field layer we consume from zig-algebra rather than
+    // own: a module's test blocks do not run in a consumer, and the identity
+    // that matters can only be witnessed over a prime.
+    const field_layer_mod = b.createModule(.{
+        .root_source_file = b.path("libs/stark/tests/field_layer.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "zig-binary-field", .module = binary_field },
+            .{ .name = "zig-field", .module = field },
+        },
+    });
+    const field_layer_tests = b.addTest(.{ .name = "zig-stark-field-layer-tests", .root_module = field_layer_mod });
+    test_step.dependOn(&b.addRunArtifact(field_layer_tests).step);
+
     const e2e_mod = b.createModule(.{
         .root_source_file = b.path("libs/stark/tests/e2e_tests.zig"),
         .target = target,
