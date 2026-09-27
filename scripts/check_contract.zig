@@ -101,10 +101,10 @@ const ledger = [_]Zone{
     .{
         .path = "libs/stark/binius",
         .kind = .api,
-        .upstream = "zig-algebra/libs/binary-field @ 0.5.1",
+        .upstream = "zig-algebra/libs/binary-field @ 0.5.2",
         .asserts = 68,
         .invariants = &.{},
-        .reason = "the field layer is upstream's, adopted from 0.5.1: field, " ++
+        .reason = "the field layer is upstream's, adopted from 0.5.2: field, " ++
             "tower, pack, polynomial and clmul come from zig-binary-field and " ++
             "this zone no longer carries them. Fifteen files import them from " ++
             "there now, so the reason this zone still exists is pcs.zig and " ++
@@ -122,7 +122,7 @@ const ledger = [_]Zone{
             "H(H(v)) and the two implementations commit to different roots over " ++
             "one table. Round-trip tests cannot see that, being self-consistent. " ++
             "Deleting pcs.zig is therefore blocked on an upstream defect rather " ++
-            "than on this repository: the Blake3 in zig-hash at 0.5.1 is not " ++
+            "than on this repository: the Blake3 in zig-hash was not " ++
             "BLAKE3, so adopting the fixed leaf convention would import a hash " ++
             "that is not the algorithm it names. Resume when a release past that " ++
             "fix lands, then delete pcs.zig, sumcheck.zig and accel.zig together " ++
@@ -285,7 +285,7 @@ const declared_own_modules = [_][]const u8{
 };
 
 /// The version every manifest that declares `zig_algebra` must pin.
-const declared_algebra_pin = "0.5.1";
+const declared_algebra_pin = "0.5.2";
 
 /// The number of asserts a caller can actually reach, summed over the zones
 /// whose kind is `api` and left after the carved out private helpers. It is
