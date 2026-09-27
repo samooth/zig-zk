@@ -78,14 +78,20 @@ pub fn Groth16(
     comptime n_constraints: usize,
     comptime n_wires: usize,
 ) type {
+    // A `std.debug.assert` here would be compiled out in ReleaseFast, where a
+    // malformed system would still build and then fail on the first proof. The
+    // arguments are comptime, so the only honest way to refuse is to refuse at
+    // compile time and say which argument is wrong.
     comptime {
-        std.debug.assert(n_constraints > 0);
-        std.debug.assert(n_wires > 0);
-        std.debug.assert(ic_wires.len >= 1);
-        std.debug.assert(ic_wires.len <= n_wires);
-        for (ic_wires) |w| std.debug.assert(w < n_wires);
+        if (n_constraints == 0) @compileError("Groth16: n_constraints must be > 0");
+        if (n_wires == 0) @compileError("Groth16: n_wires must be > 0");
+        if (ic_wires.len < 1) @compileError("Groth16: ic_wires must list at least the constant-one wire");
+        if (ic_wires.len > n_wires) @compileError("Groth16: ic_wires lists more wires than the system has");
         for (ic_wires, 0..) |w, i| {
-            for (ic_wires[0..i]) |prev| std.debug.assert(prev != w);
+            if (w >= n_wires) @compileError("Groth16: ic_wires[" ++ std.fmt.comptimePrint("{d}", .{i}) ++ "] is out of range for n_wires");
+            for (ic_wires[0..i], 0..) |prev, j| {
+                if (prev == w) @compileError("Groth16: ic_wires lists wire " ++ std.fmt.comptimePrint("{d}", .{w}) ++ " twice (at " ++ std.fmt.comptimePrint("{d}", .{j}) ++ " and " ++ std.fmt.comptimePrint("{d}", .{i}) ++ ")");
+            }
         }
     }
 
