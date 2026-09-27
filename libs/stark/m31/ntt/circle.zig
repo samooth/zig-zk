@@ -93,8 +93,10 @@ pub fn lineTwiddleSlice(twiddles: []const M31, j: usize, lg: u32) []const M31 {
 /// Compute the circle-layer twiddles (layer 0) from the first line twiddle
 /// layer: each pair (x, y) expands to [y, -y, -x, x]. `out` has length
 /// 2 * first.len. Exported for the CUDA host path (see `precomputeTwiddles`).
-pub fn circleTwiddles(first: []const M31, out: []M31) void {
-    std.debug.assert(out.len == 2 * first.len);
+/// `error.OutputLength` unless out.len == 2 * first.len. `out` is the caller's
+/// buffer, so in ReleaseFast a short one was written past its end.
+pub fn circleTwiddles(first: []const M31, out: []M31) error{OutputLength}!void {
+    if (out.len != 2 * first.len) return error.OutputLength;
     for (0..first.len / 2) |i| {
         const x = first[2 * i];
         const y = first[2 * i + 1];
@@ -200,9 +202,14 @@ pub fn circleFFT(
 ) !void {
     const n = coeffs.len;
     const half = n / 2;
-    std.debug.assert(n >= 2);
-    std.debug.assert(evals.len == n);
-    std.debug.assert(half_coset.size() == half);
+    // Three distinct mistakes, all of them the caller's: a coefficient slice
+    // too short to have a butterfly, an output buffer that is not its length,
+    // and a coset that does not belong to that length. The third is a
+    // relationship between two arguments rather than one buffer, so it gets its
+    // own error.
+    if (n < 2) return error.InputLength;
+    if (evals.len != n) return error.OutputLength;
+    if (half_coset.size() != half) return error.MismatchedLength;
     const lg = std.math.log2_int(usize, n);
 
     interleave(coeffs[0..half], coeffs[half..n], evals);
@@ -236,7 +243,7 @@ pub fn circleFFT(
         // Circle layer (layer 0).
         const circle_twiddles = try allocator.alloc(M31, half);
         defer allocator.free(circle_twiddles);
-        circleTwiddles(lineTwiddleSlice(twiddles, 0, lg), circle_twiddles);
+        try circleTwiddles(lineTwiddleSlice(twiddles, 0, lg), circle_twiddles);
         for (circle_twiddles, 0..) |t, h| {
             fftLayerLoop(evals, 0, h, t, false);
         }
@@ -259,8 +266,14 @@ pub fn evalAtPoint(coeffs: []const M31, point: CirclePoint) M31 {
 
 /// Evaluate the circle polynomial (of order 2^log_size) at every point of a
 /// coset, writing into `evals`.
-pub fn circleEvalCoset(coeffs: []const M31, coset: CircleCoset, evals: []M31) void {
-    std.debug.assert(coeffs.len == evals.len);
+/// `error.MismatchedLength` in two cases, both of them the caller's. The
+/// coefficients and the output have to be the same length, and the output also
+/// has to be as long as the coset: the loop indexes the coset by the length of
+/// evals, so a shorter coset used to run off the end of it and take the assert
+/// in `at` with it, which reports the wrong file and the wrong reason.
+pub fn circleEvalCoset(coeffs: []const M31, coset: CircleCoset, evals: []M31) error{MismatchedLength}!void {
+    if (coeffs.len != evals.len) return error.MismatchedLength;
+    if (evals.len != coset.size()) return error.MismatchedLength;
     for (0..evals.len) |i| {
         evals[i] = evalAtPoint(coeffs, coset.at(i));
     }
@@ -277,9 +290,9 @@ pub fn circleIFFT(
 ) !void {
     const n = evals.len;
     const half = n / 2;
-    std.debug.assert(n >= 2);
-    std.debug.assert(coeffs.len == n);
-    std.debug.assert(half_coset.size() == half);
+    if (n < 2) return error.InputLength;
+    if (coeffs.len != n) return error.OutputLength;
+    if (half_coset.size() != half) return error.MismatchedLength;
     const lg = std.math.log2_int(usize, n);
 
     const values = try allocator.alloc(M31, n);
@@ -326,7 +339,7 @@ pub fn circleIFFT(
         // Circle layer first, then line layers smallest to largest.
         const circle_twiddles = try allocator.alloc(M31, half);
         defer allocator.free(circle_twiddles);
-        circleTwiddles(lineTwiddleSlice(twiddles, 0, lg), circle_twiddles);
+        try circleTwiddles(lineTwiddleSlice(twiddles, 0, lg), circle_twiddles);
         for (circle_twiddles, 0..) |t, h| {
             fftLayerLoop(values, 0, h, t, true);
         }
@@ -463,8 +476,65 @@ test "circle coset evaluation" {
     defer alloc.free(evals_coset);
 
     for (coeffs) |*c| c.* = M31.fromInt(1);
-    circleEvalCoset(coeffs, coset, evals_coset);
+    try circleEvalCoset(coeffs, coset, evals_coset);
     for (0..n) |i| {
         try std.testing.expect(evals_coset[i].eq(evalAtPoint(coeffs, coset.at(i))));
     }
+}
+
+test "the circle ntt refuses lengths the caller got wrong" {
+    const alloc = std.testing.allocator;
+    const lg: u32 = 3;
+    const n: usize = 1 << @intCast(lg);
+    const half = n / 2;
+    // circleFFT and circleIFFT want a coset of size n/2, so the one of size
+    // 2^(lg-1) is the right one here and the full-size one is the mismatch.
+    const right = try CircleCoset.standard(lg - 1);
+    const wrong = try CircleCoset.standard(lg);
+
+    const coeffs = try alloc.alloc(M31, n);
+    defer alloc.free(coeffs);
+    @memset(coeffs, M31.one());
+    const evals = try alloc.alloc(M31, n);
+    defer alloc.free(evals);
+    const short = try alloc.alloc(M31, n - 1);
+    defer alloc.free(short);
+    const tiny = try alloc.alloc(M31, 1);
+    defer alloc.free(tiny);
+    const one = try alloc.alloc(M31, 1);
+    defer alloc.free(one);
+
+    // circleFFT: three separate mistakes.
+    try std.testing.expectError(error.InputLength, circleFFT(alloc, tiny, right, one));
+    try std.testing.expectError(error.OutputLength, circleFFT(alloc, coeffs, right, short));
+    try std.testing.expectError(error.MismatchedLength, circleFFT(alloc, coeffs, wrong, evals));
+    try circleFFT(alloc, coeffs, right, evals);
+
+    // circleIFFT: the same three, with the roles of coeffs and evals swapped.
+    try std.testing.expectError(error.InputLength, circleIFFT(alloc, tiny, right, one));
+    try std.testing.expectError(error.OutputLength, circleIFFT(alloc, evals, right, short));
+    try std.testing.expectError(error.MismatchedLength, circleIFFT(alloc, evals, wrong, coeffs));
+    const recovered = try alloc.alloc(M31, n);
+    defer alloc.free(recovered);
+    try circleIFFT(alloc, evals, right, recovered);
+
+    // circleTwiddles writes 2 * first.len entries into the caller's buffer.
+    const first = try alloc.alloc(M31, half);
+    defer alloc.free(first);
+    @memset(first, M31.one());
+    const tw = try alloc.alloc(M31, n);
+    defer alloc.free(tw);
+    try std.testing.expectError(error.OutputLength, circleTwiddles(first, short));
+    try circleTwiddles(first, tw);
+
+    // circleEvalCoset wants the two lengths to agree.
+    const eval_coset = try alloc.alloc(M31, n);
+    defer alloc.free(eval_coset);
+    try std.testing.expectError(error.MismatchedLength, circleEvalCoset(coeffs, right, short));
+    // eval_coset is as long as coeffs, so the coset has to be too.
+    try std.testing.expectError(
+        error.MismatchedLength,
+        circleEvalCoset(coeffs, right, eval_coset),
+    );
+    try circleEvalCoset(coeffs, wrong, eval_coset);
 }
