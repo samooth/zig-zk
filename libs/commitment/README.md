@@ -61,8 +61,8 @@ std.mem.writeInt(u64, seed[0..8], 42, .little);
 var ipa = try zc.Ipa(zf.M31).init(allocator, 8, seed);
 defer ipa.deinit();
 
-const c = zc.Ipa(zf.M31).innerProduct(a, b);
-const C = ipa.commit(a, b, c);
+const c = try zc.Ipa(zf.M31).innerProduct(a, b);
+const C = try ipa.commit(a, b, c);
 
 const proof = try ipa.prove(allocator, a, b);
 defer proof.deinit(allocator);
@@ -87,8 +87,8 @@ const diff = commitment_a.sub(commitment_b);
 ```zig
 const S = zc.shamir.Share(MyScalar);
 
-const shares = try zc.shamir.split(allocator, secret, threshold, total, rng);
-const rebuilt = zc.shamir.reconstruct(MyScalar, shares);
+const shares = try zc.shamir.split(MyScalar, secret, threshold, total, allocator);
+const rebuilt = try zc.shamir.reconstruct(MyScalar, shares);
 ```
 
 ## API
@@ -98,8 +98,8 @@ const rebuilt = zc.shamir.reconstruct(MyScalar, shares);
 | Function | Description |
 |----------|-------------|
 | `Ipa(F).init(allocator, n, seed)` | Create the argument; `n` elements, power of two |
-| `Ipa(F).innerProduct(a, b)` | Compute `⟨a, b⟩` |
-| `ipa.commit(a, b, c)` | Commit to the pair with the inner product `c` |
+| `Ipa(F).innerProduct(a, b)` | Compute `⟨a, b⟩`, `error.LengthMismatch` |
+| `ipa.commit(a, b, c)` | Commit to the pair with the inner product `c`, `error.LengthMismatch` |
 | `ipa.prove(allocator, a, b)` | Produce the proof |
 | `ipa.verify(commitment, *proof)` | Verify against the commitment; errors on failure |
 | `proof.deinit(allocator)` | Release the proof |
@@ -119,8 +119,8 @@ const rebuilt = zc.shamir.reconstruct(MyScalar, shares);
 | Function | Description |
 |----------|-------------|
 | `shamir.Share(Scalar)` | The share type |
-| `shamir.split(allocator, secret, threshold, total, rng)` | Split into `total` shares |
-| `shamir.reconstruct(Scalar, shares)` | Rebuild from `threshold` or more |
+| `shamir.split(Scalar, secret, threshold, total, allocator)` | Split into `total` shares, `error.InvalidThreshold` or `error.TooFewShares` |
+| `shamir.reconstruct(Scalar, shares)` | Rebuild from `threshold` or more, `error.NoShares` |
 | `shamir.lagrangeCoefficient(...)` | Interpolation coefficient |
 
 ### Sigma protocols

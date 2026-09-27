@@ -120,8 +120,10 @@ pub fn Ipa(comptime F: type) type {
             self.allocator.free(self.h);
         }
 
-        pub fn innerProduct(a: []const F, b: []const F) F {
-            std.debug.assert(a.len == b.len);
+        /// `error.LengthMismatch` when the vectors differ in length. Zipping
+        /// two different lengths would silently drop the tail of the longer one.
+        pub fn innerProduct(a: []const F, b: []const F) error{LengthMismatch}!F {
+            if (a.len != b.len) return error.LengthMismatch;
             var result = F.zero();
             for (a, b) |ai, bi| {
                 result = result.add(ai.mul(bi));
@@ -130,8 +132,9 @@ pub fn Ipa(comptime F: type) type {
         }
 
         /// Pedersen-style vector commitment binding a, b and the inner product c.
-        pub fn commit(self: Self, a: []const F, b: []const F, c: F) F {
-            std.debug.assert(a.len == self.n and b.len == self.n);
+        /// `error.LengthMismatch` unless both vectors have exactly `n` entries.
+        pub fn commit(self: Self, a: []const F, b: []const F, c: F) error{LengthMismatch}!F {
+            if (a.len != self.n or b.len != self.n) return error.LengthMismatch;
             var result = F.zero();
             for (a, self.g) |ai, gi| result = result.add(ai.mul(gi));
             for (b, self.h) |bi, hi| result = result.add(bi.mul(hi));
@@ -157,7 +160,7 @@ pub fn Ipa(comptime F: type) type {
             a_in: []const F,
             b_in: []const F,
         ) !Proof {
-            std.debug.assert(a_in.len == self.n and b_in.len == self.n);
+            if (a_in.len != self.n or b_in.len != self.n) return error.LengthMismatch;
             const log_n = @ctz(self.n);
 
             const a = try allocator.alloc(F, self.n);
@@ -184,7 +187,7 @@ pub fn Ipa(comptime F: type) type {
             // Bind the statement to the Fiat-Shamir transcript before any
             // challenge is derived.
             var fs = Fs.init();
-            bindStatement(&fs, self, self.commit(a, b, innerProduct(a, b)));
+            bindStatement(&fs, self, try self.commit(a, b, try innerProduct(a, b)));
 
             var n = self.n;
             var round: usize = 0;
@@ -244,7 +247,7 @@ pub fn Ipa(comptime F: type) type {
             commitment: F,
             proof: *const Proof,
         ) !void {
-            std.debug.assert(proof.l.len == proof.r.len);
+            if (proof.l.len != proof.r.len) return error.MalformedProof;
             const log_n = proof.l.len;
             if (self.n != (@as(usize, 1) << @intCast(log_n))) return error.VerificationFailed;
 
@@ -344,8 +347,8 @@ test "IPA prove and verify round-trip" {
     for (a) |*x| x.* = F.random(rnd);
     for (b) |*x| x.* = F.random(rnd);
 
-    const c = Ipa(F).innerProduct(a, b);
-    const commitment = ipa.commit(a, b, c);
+    const c = try Ipa(F).innerProduct(a, b);
+    const commitment = try ipa.commit(a, b, c);
 
     const proof = try ipa.prove(alloc, a, b);
     defer proof.deinit(alloc);
@@ -384,18 +387,54 @@ test "IPA proof is bound to its generator setup" {
 
     // Proof made under ipa_a's setup must not verify under ipa_b's:
     // challenges are derived from a transcript bound to the generators.
-    const c_a = Ipa(F).innerProduct(a, b);
-    const C_a = ipa_a.commit(a, b, c_a);
+    const c_a = try Ipa(F).innerProduct(a, b);
+    const C_a = try ipa_a.commit(a, b, c_a);
     const proof = try ipa_a.prove(alloc, a, b);
     defer proof.deinit(alloc);
 
     try ipa_a.verify(C_a, &proof);
     try testing.expectError(
         error.VerificationFailed,
-        ipa_b.verify(ipa_b.commit(a, b, c_a), &proof),
+        ipa_b.verify(try ipa_b.commit(a, b, c_a), &proof),
     );
 }
 
 test {
     std.testing.refAllDecls(@This());
+}
+
+test "IPA refuses vectors of different lengths" {
+    const F = zf.M31;
+    const alloc = std.testing.allocator;
+
+    const a = [_]F{ F.fromInt(1), F.fromInt(2), F.fromInt(3), F.fromInt(4) };
+    const b = [_]F{ F.fromInt(5), F.fromInt(6) };
+
+    try testing.expectError(error.LengthMismatch, Ipa(F).innerProduct(&a, &b));
+
+    const seed: [32]u8 = [_]u8{0x42} ** 32;
+    var ipa = try Ipa(F).init(alloc, 4, seed);
+    defer ipa.deinit();
+
+    try testing.expectError(error.LengthMismatch, ipa.commit(&a, &b, F.fromInt(1)));
+    try testing.expectError(error.LengthMismatch, ipa.prove(alloc, &a, &b));
+}
+
+test "IPA refuses a proof whose halves differ in length" {
+    const F = zf.M31;
+    const alloc = std.testing.allocator;
+
+    const seed: [32]u8 = [_]u8{0x42} ** 32;
+    var ipa = try Ipa(F).init(alloc, 4, seed);
+    defer ipa.deinit();
+
+    const l = try alloc.alloc(F, 4);
+    defer alloc.free(l);
+    @memset(l, F.fromInt(1));
+    const r = try alloc.alloc(F, 2);
+    defer alloc.free(r);
+    @memset(r, F.fromInt(2));
+    const proof = Ipa(F).Proof{ .l = l, .r = r, .a0 = F.fromInt(1), .b0 = F.fromInt(1) };
+
+    try testing.expectError(error.MalformedProof, ipa.verify(F.fromInt(1), &proof));
 }

@@ -63,8 +63,8 @@ std.mem.writeInt(u64, seed[0..8], 42, .little);
 var ipa = try zc.Ipa(zf.M31).init(allocator, 8, seed);
 defer ipa.deinit();
 
-const c = zc.Ipa(zf.M31).innerProduct(a, b);
-const C = ipa.commit(a, b, c);
+const c = try zc.Ipa(zf.M31).innerProduct(a, b);
+const C = try ipa.commit(a, b, c);
 
 const proof = try ipa.prove(allocator, a, b);
 defer proof.deinit(allocator);
@@ -89,8 +89,8 @@ const diff = commitment_a.sub(commitment_b);
 ```zig
 const S = zc.shamir.Share(MyScalar);
 
-const participaciones = try zc.shamir.split(allocator, secreto, umbral, total, rng);
-const reconstruido = zc.shamir.reconstruct(MyScalar, participaciones);
+const participaciones = try zc.shamir.split(MyScalar, secreto, umbral, total, allocator);
+const reconstruido = try zc.shamir.reconstruct(MyScalar, participaciones);
 ```
 
 ## API
@@ -100,8 +100,8 @@ const reconstruido = zc.shamir.reconstruct(MyScalar, participaciones);
 | Función | Descripción |
 |---|---|
 | `Ipa(F).init(allocator, n, seed)` | Crea el argumento; `n` elementos, potencia de dos |
-| `Ipa(F).innerProduct(a, b)` | Calcula `⟨a, b⟩` |
-| `ipa.commit(a, b, c)` | Compromete al par con el producto interno `c` |
+| `Ipa(F).innerProduct(a, b)` | Calcula `⟨a, b⟩`, `error.LengthMismatch` |
+| `ipa.commit(a, b, c)` | Compromete al par con el producto interno `c`, `error.LengthMismatch` |
 | `ipa.prove(allocator, a, b)` | Produce la prueba |
 | `ipa.verify(compromiso, *prueba)` | Verifica contra el compromiso; devuelve error si falla |
 | `prueba.deinit(allocator)` | Libera la prueba |
@@ -121,8 +121,8 @@ const reconstruido = zc.shamir.reconstruct(MyScalar, participaciones);
 | Función | Descripción |
 |---|---|
 | `shamir.Share(Scalar)` | El tipo de participación |
-| `shamir.split(allocator, secreto, umbral, total, rng)` | Divide en `total` participaciones |
-| `shamir.reconstruct(Scalar, participaciones)` | Reconstruye con `umbral` o más |
+| `shamir.split(Scalar, secreto, umbral, total, allocator)` | Divide en `total` participaciones, `error.InvalidThreshold` o `error.TooFewShares` |
+| `shamir.reconstruct(Scalar, participaciones)` | Reconstruye con `umbral` o más, `error.NoShares` |
 | `shamir.lagrangeCoefficient(...)` | Coeficiente de interpolación |
 
 ### Protocolos Sigma

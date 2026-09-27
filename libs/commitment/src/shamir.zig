@@ -28,8 +28,11 @@ pub fn split(
     num_shares: u32,
     allocator: std.mem.Allocator,
 ) ![]Share(Scalar) {
-    std.debug.assert(threshold >= 1);
-    std.debug.assert(num_shares >= threshold);
+    // A threshold below one, or fewer shares than the threshold, is a caller
+    // mistake: both used to be asserts, which vanish in ReleaseFast and leave
+    // `split` returning shares that cannot reconstruct the secret.
+    if (threshold < 1) return error.InvalidThreshold;
+    if (num_shares < threshold) return error.TooFewShares;
 
     var coeffs = try allocator.alloc(Scalar, threshold);
     defer allocator.free(coeffs);
@@ -55,8 +58,10 @@ pub fn split(
 }
 
 /// Reconstruct secret from any t shares using Lagrange interpolation at x=0.
-pub fn reconstruct(comptime Scalar: type, shares: []const Share(Scalar)) Scalar {
-    std.debug.assert(shares.len > 0);
+/// `error.NoShares` for an empty slice: interpolating at x=0 over no points
+/// has no answer, and returning the field's zero would look like a secret.
+pub fn reconstruct(comptime Scalar: type, shares: []const Share(Scalar)) error{NoShares}!Scalar {
+    if (shares.len == 0) return error.NoShares;
     var secret = Scalar.zero();
 
     for (shares) |share_j| {
@@ -157,11 +162,11 @@ test "Shamir split and reconstruct" {
     try testing.expectEqual(@as(usize, 5), shares.len);
 
     // Reconstruct from first 3 shares
-    const reconstructed = reconstruct(F7, shares[0..3]);
+    const reconstructed = try reconstruct(F7, shares[0..3]);
     try testing.expect(secret.eql(reconstructed));
 
     // Reconstruct from different subset
-    const reconstructed2 = reconstruct(F7, shares[1..4]);
+    const reconstructed2 = try reconstruct(F7, shares[1..4]);
     try testing.expect(secret.eql(reconstructed2));
 }
 
@@ -171,10 +176,10 @@ test "Shamir threshold property" {
     defer std.testing.allocator.free(shares);
 
     // Any 2 shares should reconstruct
-    const r1 = reconstruct(F7, shares[0..2]);
+    const r1 = try reconstruct(F7, shares[0..2]);
     try testing.expect(secret.eql(r1));
 
-    const r2 = reconstruct(F7, shares[2..4]);
+    const r2 = try reconstruct(F7, shares[2..4]);
     try testing.expect(secret.eql(r2));
 }
 
@@ -183,4 +188,22 @@ test "Lagrange coefficient" {
     const lc = lagrangeCoefficient(F7, &xs, F7.fromInt(1));
     // L_1(0) = (0-2)*(0-3) / (1-2)*(1-3) = (-2)*(-3) / (-1)*(-2) = 6/2 = 3 (mod 7)
     try testing.expect(lc.eql(F7.fromInt(3)));
+}
+
+test "Shamir split refuses a threshold below one" {
+    try testing.expectError(
+        error.InvalidThreshold,
+        split(F7, F7.fromInt(5), 0, 3, std.testing.allocator),
+    );
+}
+
+test "Shamir split refuses fewer shares than the threshold" {
+    try testing.expectError(
+        error.TooFewShares,
+        split(F7, F7.fromInt(5), 3, 2, std.testing.allocator),
+    );
+}
+
+test "Shamir reconstruct refuses an empty slice" {
+    try testing.expectError(error.NoShares, reconstruct(F7, &.{}));
 }
