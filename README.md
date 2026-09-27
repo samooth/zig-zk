@@ -86,30 +86,17 @@ Layer 4  +----------+----------+
 
 ## Libraries
 
-| Library | Description | zig-algebra deps |
-|---------|-------------|------------------|
-| [transcript](libs/transcript/) | Fiat-Shamir transcripts (absorb-squeeze, domain separation, challenges, Channel) | algebra-traits, hash, rng |
-| [commitment](libs/commitment/) | Commitment schemes (IPA, Pedersen, Shamir, Sigma) | algebra-traits, field, merkle, poly |
-| [signature](libs/signature/) | Digital signatures (generic Schnorr, Ed25519, secp256k1 adapters) | algebra-traits, curve, hash, rng |
-| [air](libs/air/) | AIR data model for STARK backends | algebra-traits |
-| [stark](libs/stark/) | STARK prover/verifier (M31 DEEP-FRI + Binius stacks) | field |
-| [snark](libs/snark/) | zkSNARKs (Groth16 verifier + reference prover over BN254) | field, curve, pairing |
+| Library | Description | Reference |
+| [transcript](libs/transcript/) | Fiat-Shamir transcripts (absorb-squeeze, domain separation, challenges, Channel) | [README](libs/transcript/README.md) |
+| [commitment](libs/commitment/) | Commitment schemes (IPA, Pedersen, Shamir, Sigma) | [README](libs/commitment/README.md) |
+| [signature](libs/signature/) | Digital signatures (generic Schnorr, Ed25519, secp256k1 adapters) | [README](libs/signature/README.md) |
+| [stark](libs/stark/) | STARK prover/verifier (M31 DEEP-FRI + Binius stacks) | [README](libs/stark/README.md) |
+| [snark](libs/snark/) | zkSNARKs (Groth16 verifier + reference prover over BN254) | [README](libs/snark/README.md) |
 
-Both tables are kept in sync with `build.zig`. The two dependency lists differ
-only in the `stark` row: that is the single intra-repo edge, since stark consumes
-`zig-transcript` plus zig-algebra's `field` directly. `zig build check-docs`
-verifies the documentation set; the module graph itself is `build.zig`.
-
-## Dependency Table
-
-| Library | zig-algebra deps | zig-zk internal deps |
-|---------|------------------|---------------------|
-| transcript | algebra-traits, hash, rng | — |
-| commitment | algebra-traits, field, merkle, poly | — |
-| signature | algebra-traits, curve, hash, rng | — |
-| air | algebra-traits | — |
-| stark | field | transcript |
-| snark | field, curve, pairing | — |
+Per-library dependencies are not repeated here: the module graph, the layering
+and the versioning policy live in
+[docs/architecture.md](docs/architecture.md), and `build.zig` is the wiring
+itself.
 
 ## Installation
 
@@ -135,79 +122,16 @@ const zk = b.dependency("zig_zk", .{
 const transcript_mod = zk.module("zig-transcript");
 const commitment_mod = zk.module("zig-commitment");
 const signature_mod = zk.module("zig-signature");
-const air_mod = zk.module("zig-air");
 const stark_mod = zk.module("zig-stark");
 const snark_mod = zk.module("zig-snark");
 ```
 
 ## Quick Start
 
-```zig
-const std = @import("std");
-const transcript = @import("zig-transcript");
-
-// Fiat-Shamir transcript (Blake3-backed, absorb/squeeze)
-var t = transcript.Transcript.init("my-protocol-v1");
-t.absorb(&public_bytes);
-t.absorbField(F, commitment);
-const challenge = t.squeezeField(F);
-```
-
-```zig
-const std = @import("std");
-const signature = @import("zig-signature");
-
-// Schnorr signatures are generic over any Point/Scalar pair supporting:
-//   Point: add, scalarMul, eql   Scalar: fromBytes, zero, add, mul
-// Example with a toy field/group; see libs/signature/src/root.zig for
-// secp256k1 adapters over std.crypto.ecc.
-const Sig = signature.SchnorrSignature(TestPoint, F7);
-
-// Sign: R = k*G, e = H(G, P, R, msg), z = k + e*x
-const sig = Sig.init(R, z);
-
-// Verify: z*G == R + e*P
-try std.testing.expect(sig.verify(G, P, "message"));
-```
-
-```zig
-const std = @import("std");
-const commitment = @import("zig-commitment");
-const zf = @import("zig-field");
-
-// Inner product argument over any zig-algebra field
-var seed: [32]u8 = undefined;
-std.mem.writeInt(u64, seed[0..8], 42, .little);
-var ipa = try commitment.Ipa(zf.M31).init(allocator, 8, seed);
-defer ipa.deinit();
-
-const c = commitment.Ipa(zf.M31).innerProduct(a, b);
-const C = ipa.commit(a, b, c);
-const proof = try ipa.prove(allocator, a, b);
-defer proof.deinit(allocator);
-try ipa.verify(C, &proof);
-```
-
-```zig
-const std = @import("std");
-const snark = @import("zig-snark");
-
-// Groth16 verify over BN254: e(-A,B)*e(alpha1,beta2)*e(C,delta2)*e(PV,gamma2)==1
-const ok = snark.verify(a1, b2, gamma_g2, delta_g2, &ic, pi_a, pi_b, pi_c, &public_inputs);
-```
-
-```zig
-const std = @import("std");
-const snark = @import("zig-snark");
-
-// Reference prover for a compile-time-sized R1CS: 3 constraints, 5 wires,
-// known wires {0 = the constant one, 2 = the public output}.
-const G16 = snark.Groth16(&.{ 0, 2 }, 3, 5);
-
-const vk = try G16.setup(&circuit, setup);
-const proof = try G16.prove(&circuit, witness, setup, blind_r, blind_s); // error.QapUnsatisfied
-try std.testing.expect(G16.verifyKey(vk, proof, .{output}));
-```
+The examples live with the code they demonstrate: the `Transcript` and `Channel`
+usage in the [transcript README](libs/transcript/README.md), the IPA and Pedersen
+flows in the [commitment README](libs/commitment/README.md), and the Groth16
+verifier and reference prover in the module docs of `libs/snark/src/root.zig`.
 
 ## Running Tests
 

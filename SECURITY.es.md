@@ -18,7 +18,7 @@ y auditadas; los *provers* de este repositorio no son código de producción.
 | Verificador de `zig-snark` | Implementación de referencia. La interoperabilidad con otras implementaciones de Groth16 **aún no** está cubierta por pruebas. |
 | Prover de `zig-snark` | **Solo oráculo de pruebas.** No es de tiempo constante, los factores de cegado los aporta el llamante, y usa multiplicaciones por escalar individuales en lugar de sumas de múltiplos. No lo uses con secretos que te importen. |
 | `zig-stark` (M31, Binius) | Árbol adoptado aguas arriba con dos adaptaciones documentadas (`ARCHITECTURE.es.md`). Verifícalo antes de usarlo. |
-| `zig-commitment`, `zig-signature`, `zig-air` | Componentes de caja de herramientas con cobertura de pruebas escasa. Revísalos antes de usarlos. |
+| `zig-commitment`, `zig-signature` | Componentes de caja de herramientas con cobertura de pruebas escasa. Revísalos antes de usarlos. |
 
 ## Qué consideramos una vulnerabilidad
 

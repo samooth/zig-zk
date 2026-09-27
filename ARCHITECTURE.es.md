@@ -34,30 +34,45 @@ zig-zk           protocolos zk: AIR · STARK · compromisos · firmas · snark
 | FRI | DEEP-FRI/circle en stark (producción); algebra/fri queda como primitiva educativa | Requisitos distintos; no forzar unificación |
 | m31/cm31/qm31 como producto | **Eliminados** | Sustituidos por los campos de zig-algebra mediante builtin.zig |
 | Multiplicación por escalar de curvas | **Siempre la de zig-algebra** (`p.scalarMul(s)`) | Es una escalera por ventanas en coordenadas jacobianas: O(1) inversiones, y cualquier implementación local es un riesgo de fallo |
-| Modelo de datos del AIR | **zig-air, fuente única** (`libs/air`) | Véase «El contrato del AIR» más abajo |
+| El contrato del AIR | **Dentro de `zig-stark`**, en `m31/air/contract.zig` | Lo comprueba el compilador, así que no puede quedarse viejo; un módulo suelto con un solo consumidor sería generalidad especulativa |
 
 ## El contrato del AIR
 
-`libs/air` y `libs/stark/m31/air/*` contenían el mismo código por duplicado, y
-ninguna de las dos copias se consumía: el prover de STARK no instancia
-`Air(BaseField, PublicInputs)`. Lo que `GenericStark` lee de verdad es un
-conjunto de miembros, por convención, sobre el tipo del AIR:
+El prover funciona por convención: nunca instancia un «tipo de framework AIR»,
+sino que lee un conjunto de declaraciones del propio tipo del AIR. Ese contrato
+vivía solo como accesos dispersos dentro de `stark.zig`, y nadie comprobaba la
+parte obligatoria: olvidar una declaración producía un error desde dentro del
+prover que nunca mencionaba lo que faltaba.
 
-| Miembro | Clase | Significado |
-|---|---|---|
-| `num_columns`, `num_transition_constraints`, `num_boundary` | `comptime usize` | Forma de la traza y del conjunto de restricciones |
-| `PublicInputs` | cualquier tipo | Lo que el verificador recibe |
-| `maxConstraintDegree(n)` | función | Cota superior del grado de las restricciones, que fija el grado de composición |
-| `evalTransition(x, current, next, out)` | función | Rellena las evaluaciones de las restricciones para un par de filas |
-| `boundaryAssertions(public, n, out)` | función | Valores fijos de columnas en pasos dados |
-| `generateTrace(allocator, n)` | función | Construye una traza válida (lado del prover) |
-| `num_preprocessed`, `num_lookup_columns`, `num_lookup_relations` | opcionales | Tablas LogUp y preprocesadas; si faltan, es que no hay |
+Ahora vive en un solo sitio,
+[`libs/stark/m31/air/contract.zig`](../libs/stark/m31/air/contract.zig), y
+`assertAir(Air, F)` lo comprueba en tiempo de compilación desde `GenericStark`.
+La autoridad de la lista es ese fichero, no este párrafo, y ese es justo el
+punto: una tabla escrita a mano se queda vieja; una tabla que el compilador
+recorre no puede.
 
-`BoundaryAssertion` es el único de esos tipos que el prover usa de verdad, así
-que es el que corresponde a este módulo. Cualquier otra cosa que viva aquí es
-documentación: si aparece una segunda implementación de STARK, este contrato es lo que
-tiene que cumplir, y conviene comprobarlo en tiempo de compilación en lugar de
-descubrirlo con un fallo dentro del prover.
+**Obligatorios** (nueve): `num_columns`, `num_transition_constraints`,
+`num_boundary`, `PublicInputs`, `evalTransition`, `maxConstraintDegree`,
+`boundaryAssertions`, `generateTrace`, `freeTrace`. No solo se comprueba que
+existan, sino sus firmas.
+
+**Condicionados a `num_preprocessed > 0`** (dos): `generateTable`, `freeTable`.
+
+**Condicionados a `num_lookup_relations > 0`** (cinco): `num_lookup_columns`,
+`lookup_selector_columns`, `lookup_key_columns`, `lookup_table_columns`,
+`lookup_multiplicity_columns`.
+
+**Opcionales, si faltan valen cero** (tres): `num_preprocessed`,
+`num_lookup_columns`, `num_lookup_relations`.
+
+`BoundaryAssertion` vive en el mismo fichero: es el único tipo que el prover
+necesita de verdad, así que pertenece al contrato que lo usa.
+
+Existía un módulo `zig-air` para esto. Duplicaba el mismo código, nada de él se
+consumía, y sus cinco constructores no los instanciaba nadie. Se eliminó en
+0.3.0 en lugar de fusionarlo, porque un módulo con un solo consumidor es
+generalidad especulativa. Si algún día aparece un segundo motor de STARK, la
+extracción es mecánica.
 
 ## `libs/snark`: convenciones del prover de Groth16
 

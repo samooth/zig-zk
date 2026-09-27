@@ -91,30 +91,18 @@ Capa 4  +----------+----------+
 
 ## Librerías
 
-| Librería | Descripción | Deps de zig-algebra |
+| Librería | Descripción | Referencia |
 |---|---|---|
-| [transcript](libs/transcript/) | Transcripciones Fiat-Shamir (absorb-squeeze, separación de dominios, desafíos, Channel) | algebra-traits, hash, rng |
-| [commitment](libs/commitment/) | Esquemas de compromiso (IPA, Pedersen, Shamir, Sigma) | algebra-traits, field, merkle, poly |
-| [signature](libs/signature/) | Firmas digitales (Schnorr genérico, Ed25519, adaptadores de secp256k1) | algebra-traits, curve, hash, rng |
-| [air](libs/air/) | Modelo de datos del AIR para backends de STARK | algebra-traits |
-| [stark](libs/stark/) | Prover/verificador de STARK (pilas M31 DEEP-FRI + Binius) | field |
-| [snark](libs/snark/) | zkSNARKs (verificador de Groth16 + prover de referencia sobre BN254) | field, curve, pairing |
+| [transcript](libs/transcript/) | Transcripciones Fiat-Shamir (absorb-squeeze, separación de dominios, desafíos, Channel) | [README](libs/transcript/README.es.md) |
+| [commitment](libs/commitment/) | Esquemas de compromiso (IPA, Pedersen, Shamir, Sigma) | [README](libs/commitment/README.es.md) |
+| [signature](libs/signature/) | Firmas digitales (Schnorr genérico, Ed25519, adaptadores de secp256k1) | [README](libs/signature/README.es.md) |
+| [stark](libs/stark/) | Prover/verificador de STARK (pilas M31 DEEP-FRI + Binius) | [README](libs/stark/README.es.md) |
+| [snark](libs/snark/) | zkSNARKs (verificador de Groth16 + prover de referencia sobre BN254) | [README](libs/snark/README.es.md) |
 
-Las dos tablas se mantienen sincronizadas con `build.zig`. Las dos listas de
-dependencias solo difieren en la fila de `stark`: esa es la única dependencia
-interna del repositorio, porque stark consume `zig-transcript` y el `field` de
-zig-algebra directamente.
-
-## Tabla de dependencias
-
-| Librería | Deps de zig-algebra | Deps internas de zig-zk |
-|---|---|---|
-| transcript | algebra-traits, hash, rng | — |
-| commitment | algebra-traits, field, merkle, poly | — |
-| signature | algebra-traits, curve, hash, rng | — |
-| air | algebra-traits | — |
-| stark | field | transcript |
-| snark | field, curve, pairing | — |
+Las dependencias por librería no se repiten aquí: el grafo de módulos, las capas
+y la política de versionado viven en
+[docs/architecture.es.md](docs/architecture.es.md), y `build.zig` es el
+cableado en sí.
 
 ## Instalación
 
@@ -140,80 +128,17 @@ const zk = b.dependency("zig_zk", .{
 const transcript_mod = zk.module("zig-transcript");
 const commitment_mod = zk.module("zig-commitment");
 const signature_mod = zk.module("zig-signature");
-const air_mod = zk.module("zig-air");
 const stark_mod = zk.module("zig-stark");
 const snark_mod = zk.module("zig-snark");
 ```
 
 ## Primeros pasos
 
-```zig
-const std = @import("std");
-const transcript = @import("zig-transcript");
-
-// Transcripción Fiat-Shamir (sobre Blake3, absorb/squeeze)
-var t = transcript.Transcript.init("mi-protocolo-v1");
-t.absorb(&bytes_publicos);
-t.absorbField(F, compromiso);
-const desafio = t.squeezeField(F);
-```
-
-```zig
-const std = @import("std");
-const signature = @import("zig-signature");
-
-// Las firmas de Schnorr son genéricas sobre cualquier par Point/Scalar con:
-//   Point: add, scalarMul, eql   Scalar: fromBytes, zero, add, mul
-// Ejemplo con un campo/grupo de juguete; para los adaptadores de secp256k1
-// sobre std.crypto.ecc, mira libs/signature/src/root.zig.
-const Sig = signature.SchnorrSignature(TestPoint, F7);
-
-// Firmar: R = k*G, e = H(G, P, R, msg), z = k + e*x
-const sig = Sig.init(R, z);
-
-// Verificar: z*G == R + e*P
-try std.testing.expect(sig.verify(G, P, "mensaje"));
-```
-
-```zig
-const std = @import("std");
-const commitment = @import("zig-commitment");
-const zf = @import("zig-field");
-
-// Argumento de producto interno sobre cualquier campo de zig-algebra
-var seed: [32]u8 = undefined;
-std.mem.writeInt(u64, seed[0..8], 42, .little);
-var ipa = try commitment.Ipa(zf.M31).init(allocator, 8, seed);
-defer ipa.deinit();
-
-const c = commitment.Ipa(zf.M31).innerProduct(a, b);
-const C = ipa.commit(a, b, c);
-const proof = try ipa.prove(allocator, a, b);
-defer proof.deinit(allocator);
-try ipa.verify(C, &proof);
-```
-
-```zig
-const std = @import("std");
-const snark = @import("zig-snark");
-
-// Verificación Groth16 sobre BN254: e(-A,B)*e(alpha1,beta2)*e(C,delta2)*e(PV,gamma2)==1
-const ok = snark.verify(a1, b2, gamma_g2, delta_g2, &ic, pi_a, pi_b, pi_c, &entradas_publicas);
-```
-
-```zig
-const std = @import("std");
-const snark = @import("zig-snark");
-
-// Prover de referencia para un R1CS de tamaño fijado en compilación:
-// 3 restricciones, 5 hilos, hilos conocidos {0 = el uno constante, 2 = la
-// salida pública}.
-const G16 = snark.Groth16(&.{ 0, 2 }, 3, 5);
-
-const vk = try G16.setup(&circuito, setup);
-const proof = try G16.prove(&circuito, testigo, setup, blind_r, blind_s); // error.QapUnsatisfied
-try std.testing.expect(G16.verifyKey(vk, proof, .{salida}));
-```
+Los ejemplos viven junto al código que demuestran: el uso de `Transcript` y
+`Channel` en el [README de transcript](libs/transcript/README.es.md), los
+flujos de IPA y Pedersen en el [README de commitment](libs/commitment/README.es.md),
+y el verificador de Groth16 y su prover de referencia en los comentarios del
+módulo `libs/snark/src/root.zig`.
 
 ## Ejecutar las pruebas
 

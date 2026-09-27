@@ -34,8 +34,22 @@ how to work, not about what the code does.
 - A generic type is declared with an explicit `return struct { ... };`.
 - Do not reimplement what a dependency already provides. Delegating is less code
   and less risk of a bug.
-- Nothing reachable from the public API may rely on `std.debug.assert`: return an
-  explicit error instead.
+- An assert that guards something the caller supplies is a typed error, and one
+  that validates an invariant of an already-constructed value stays an assert.
+  The axis is what the assert protects, not whether its function is `pub`:
+  `coset.at` takes an index from the caller and `coset.half` checks a field of a
+  value it was handed, and both are public. A total function keeps its assert and
+  a checked sibling takes an error, which is what `M31.inv` and `invChecked` do.
+- `zig-algebra` is consumed as a pinned package, so a version number is the only
+  channel between the two repositories, and it runs one way. A zone that copies
+  from `zig-algebra` instead of importing it, and every `std.debug.assert` in the
+  tree, are recorded in the ledger in `scripts/check_contract.zig`.
+  `zig build check-contract` (also a dependency of `zig build test`) enforces it:
+  each zone declares its total, which asserts are invariants, and what those are
+  keyed on, and every number is ratcheted, so a count only moves when a person
+  edits the ledger and says why. A zone that declares no invariants has had none
+  of its asserts classified, so the reachable total the gate prints is an upper
+  bound, not a figure for how much work is left.
 - Comments and doc-comments explain why, and the non-obvious.
 
 ## Tests

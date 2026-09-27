@@ -37,162 +37,27 @@ Exactly as wired in `build.zig`:
 |---|---|---|---|
 | `zig-transcript` | `libs/transcript/src/root.zig` | algebra-traits, hash, rng | — |
 | `zig-commitment` | `libs/commitment/src/root.zig` | algebra-traits, field, merkle, poly | — |
-| `zig-air` | `libs/air/src/root.zig` | algebra-traits | — |
 | `zig-signature` | `libs/signature/src/root.zig` | algebra-traits, curve, hash, rng | — |
 | `zig-snark` | `libs/snark/src/root.zig` | field, curve, pairing | — |
 | `zig-stark` | `libs/stark/root.zig` | field | transcript |
 
-## 1. transcript (Layer 1)
+## Libraries
 
-Fiat-Shamir transcripts over Blake3. Three types with different ergonomics:
+The API of each library lives in its own README, and the doc comments in the
+code carry the detail.
 
-**`Transcript`** — counter-based absorb/squeeze.
+| Library | What it is for | Reference |
+|---|---|---|
+| transcript | Fiat-Shamir transcripts: `Transcript`, `LabelledTranscript`, `Channel` | [README](../libs/transcript/README.md) |
+| commitment | `Ipa`, Pedersen commitments, Shamir sharing, Sigma protocols | [README](../libs/commitment/README.md) |
+| signature | Generic Schnorr, Ed25519 over std, secp256k1 adapters | [README](../libs/signature/README.md) |
+| stark | M31 DEEP-FRI and Binius STARK stacks | [README](../libs/stark/README.md) |
+| snark | Groth16 verifier and reference prover over BN254 | [README](../libs/snark/README.md) |
 
-- `init(label)`, `absorb(bytes)`, `absorbField(F, x)`, `absorbFieldSlice(F, xs)`
-- `squeeze(out)`, `squeezeField(F)` (rejection sampling, uniform over `F`),
-  `squeezeU64()`, `squeezeU256()`
-- `clone()` forks the state; `reset(label)` restarts the domain separator
-- Every absorb is length-prefixed; every squeeze bumps an internal counter, so
-  repeated squeezes never repeat bytes.
-
-**`LabelledTranscript`** — every operation takes an explicit string label, so
-cross-protocol confusion needs a hash collision rather than a shared prefix.
-
-**`Channel`** — duck-typed, the shape `libs/stark` expects.
-
-- `absorb(value)` / `absorbMany(...)` work on anything with `SIZE`, `toBytes`
-  and `fromBytes` (no field trait needed)
-- `absorbDigest(digest)` is the bridge for the STARK tree's internal `Digest`
-  type
-- `sample(T)`, `sampleIndex(n)`, `sampleBytes(out)`
-
-## 2. commitment (Layer 2)
-
-**`Ipa(F)`** — inner-product argument over any zig-algebra field.
-
-- `init(allocator, n, seed)`, `deinit()`
-- `commit(a, b, c) -> F`, `innerProduct(a, b) -> F`
-- `prove(allocator, a, b) -> Proof`, `verify(C, *Proof) -> bool`
-- Challenges come from a **running Blake3 Fiat-Shamir sponge**: every absorbed
-  value feeds forward, so round *k*'s challenge binds the whole statement and
-  all prior rounds. (Fixed in `986c421`; before that, challenges were derived
-  from a static state and the argument was not bound.)
-
-**Pedersen** — `Pedersen(Point)`: `commit`, `verify`, `add`, `sub`, generic
-over any point type with the right operations.
-
-**Shamir** — `Share(Scalar)`, `split`, `reconstruct`, `lagrangeCoefficient`,
-plus a mod-7 test field used by the suite.
-
-**Sigma protocols** — `SchnorrPoK(Point, Scalar)` proof of knowledge, and
-`CdsOrProof(Point, Scalar)`, the CDS '94 one-out-of-many OR proof.
-
-**`MerkleTree`** — re-export of `zig-merkle`.
-
-Not implemented here: KZG, FRI, DARK, Ligero. FRI lives in `zig-algebra` for
-the STARK stack, and KZG likewise; neither is re-exported as a commitment-scheme
-API.
-
-## 3. signature (Layer 3)
-
-**`SchnorrSignature(Point, Scalar)`** — generic over any Point/Scalar pair with
-`add`, `scalarMul`, `eql` (and `Scalar` with `fromBytes`, `zero`, `add`, `mul`).
-`init(R, z)`, `verify(base, public_key, msg)`, `challenge(...)`.
-
-**`Ed25519Impl`** — thin alias over `std.crypto.sign.Ed25519` (deterministic,
-constant time, no code of ours in the hot path), together with its
-`KeyPair`/`PublicKey`/`SecretKey`/`Signature` types for streaming APIs.
-
-**secp256k1 adapters** — `libs/signature/src/root.zig` adapts
-`std.crypto.ecc.Secp256k1` points/scalars to the generic Schnorr interface
-(`toBytes`/`fromBytes`/`scalarMul`/`eql`).
-
-Not implemented: ECDSA, BLS, MuSig2.
-
-## 4. air (Layer 3)
-
-Generic Algebraic Intermediate Representation, parameterized by field and
-public-input type: `Air(BaseField, PublicInputs)`, plus `BoundaryConstraint`,
-`TransitionConstraint`, `EvaluationFrame` (current/next row pair) and
-`ExecutionTrace` (allocator-backed rows/columns with `get`/`set`/`getRow`/
-`getCol`).
-
-## 5. stark (Layer 4)
-
-The canonical zig-stark tree, adopted wholesale. See `ARCHITECTURE.md` for the
-two permanent adaptations (Channel lives in `zig-transcript`; M31/CM31/QM31 come
-from zig-algebra via `m31/builtin.zig`).
-
-**M31 stack** — `m31/`: circle FFT (`circle/`), NTT (`ntt/classic.zig`,
-`ntt/simd.zig`, `ntt/circle.zig`), univariate polynomials (`poly/`), DEEP-FRI
-(`fri.zig`), and `stark.zig` with `GenericStark(Air)` plus worked AIRs
-(`FibAir`, `RangeCheckAir`, `AndTableAir`, `MultiplicityAir`).
-
-**Binius stack** — `binius/`: tower fields, sum-check, PCS variants
-(`pcs`, `packed_pcs`, `batchpcs`, `fripcs`, `addfri`), argument layer (`arg`),
-`recursion/` (Poseidon2 over GF(2)), and the constraint gadgets used by the fuzz
-suite (`adder`, `rangecheck`, `compare`, `bitpack`, `pack`).
-
-**core** — `core/hash` (Blake3 + `Digest`), `core/merkle`, `bit_utils`, SIMD
-helpers, serialization.
-
-## 6. snark (Layer 4)
-
-Groth16 over BN254: one verification primitive plus a reference prover used as
-a test oracle. Not a production prover (see *Security posture*).
-
-### Verification
-
-```zig
-pub fn verify(
-    a1: G1,          // [alpha]_1
-    b2: G2,          // [beta]_2
-    g2: G2,          // [gamma]_2
-    d2: G2,          // [delta]_2
-    ic: []const G1,  // public-input encodings
-    pa: G1, pb: G2, pc: G1,   // the proof
-    pub_in: []const Fr,
-) bool
-```
-
-Checks `e(A, B) == e(alpha, beta) * e(C, delta) * e(PV, gamma)`, i.e.
-`e(-A, B) * e(alpha, beta) * e(C, delta) * e(PV, gamma) == 1`.
-
-`ic[0]` encodes the **constant-one wire**; `ic[i + 1]` encodes public input
-`i`, whose value comes from `pub_in`. A length mismatch means a malformed
-proof and returns false.
-
-Proof elements are validated for curve and prime-order-subgroup membership
-before use. This is not paranoia about the maths: `zig-pairing`'s `pairing()`
-returns the multiplicative identity for points that are off the curve or
-outside the r-order subgroup, so without an explicit check a bogus element
-would silently delete one term of the equation instead of failing the proof.
-
-### Reference prover
-
-```zig
-const G16 = Groth16(&.{ 0, 2 }, 3, 5);   // known wires, constraints, wires
-const vk = try G16.setup(&circuit, setup);
-const proof = try G16.prove(&circuit, witness, setup, blind_r, blind_s);
-try G16.verifyKey(vk, proof, .{output});
-```
-
-`Groth16(ic_wires, n_constraints, n_wires)` is comptime-parameterised, so the
-constraint matrices are stack arrays and nothing allocates (except the caller's
-`Proof`/`VerifyingKey` values). `ic_wires[0]` must be the constant-one wire; the
-rest are the public inputs in order. Every other wire is private and appears
-only inside the proof's `c` element.
-
-Errors: `error.DegenerateSetup` (zeroed toxic waste, `gamma == delta`, or a
-trapdoor inside the evaluation domain) and `error.QapUnsatisfied`.
-
-### Conventions
-
-The QAP conventions this prover depends on — the per-pair Lagrange
-denominator, `A(tau)` as the interpolant of the per-constraint row
-evaluations, `t(tau) * h(tau) = A(tau)*B(tau) - C(tau)`, the private-wire-only
-sum in `c`, and the meaning of `ic[0]` — are written down once, with the
-consequence of breaking each one, in [ARCHITECTURE.md](../ARCHITECTURE.md).
+Cross-cutting material is split by kind: the module graph, the dependency and
+versioning policy, security posture and testing are here, while the dedupe
+decisions, the AIR contract and the Groth16 prover conventions live in
+[ARCHITECTURE.md](../ARCHITECTURE.md).
 
 ## Dependency management
 
@@ -278,17 +143,25 @@ zig build test --summary all                    # all suites, Debug
 zig build test -Doptimize=ReleaseFast           # same, ~20x faster for snark
 ```
 
-The root `build.zig` is canonical: it wires all six modules plus the stark e2e
+The root `build.zig` is canonical: it wires all five modules plus the stark e2e
 and fuzz suites, and pulls zig-algebra from the pinned tarball so it works from
 a bare checkout. The per-library `build.zig` files exist for standalone work
 (`cd libs/<name> && zig build test`) and resolve zig-algebra from the same
 pinned tarball, so they build from a bare checkout too.
 
-The root `test` step compiles and runs every suite: 271 tests across transcript
-(14), commitment (11), air (5), signature (6), stark (208), snark (11), plus
-the stark e2e (16) and fuzz suites. `libs/stark/tests/fuzz.zig` is a `main`
-that panics on leaks and asserts accept/reject on every round, so its pass is
-carried by the assertions, not by its summary print.
+The root `test` step compiles and runs every suite: 273 tests across transcript
+(20), commitment (11), signature (6), stark (208), snark (11), plus the stark
+e2e (16) and fuzz (1) suites. `libs/stark/tests/fuzz.zig` runs 2000 iterations
+over three gadgets under a leak-checking allocator and asserts accept and
+reject on every round, which takes about three minutes.
+
+A test in a new file only runs if something forces that file to be analysed: a
+`test { std.testing.refAllDecls(@This()); }` block in the module root, or a
+reference to the file from a test. Without one, the test runner compiles a
+binary with zero tests in it and reports a pass in milliseconds. The transcript
+channel and the Binius fuzz suite were both in that state, so the counts above
+are the ones to compare against, not the number of `test` declarations in the
+tree.
 
 CI runs the Debug suite on Linux, macOS and Windows via
 `.github/actions/setup-zig`, which downloads the compiler from ziglang.org
@@ -298,11 +171,19 @@ CI runs the Debug suite on Linux, macOS and Windows via
 
 1. Protocol libraries go in `libs/<name>/` with a `build.zig` exposing one
    module.
-2. New algebra needs a zig-algebra dep declared in both `build.zig` and the
-   `build.zig.zon`; keep the two module tables in this file in sync.
+2. New algebra needs a zig-algebra dep declared in both the root `build.zig` and
+   the library's own `build.zig.zon`; keep the module graph above in sync. A new
+   library needs a README, which is the reference for its API.
 3. Tests assert, they never print. A `std.debug.print` in a test is a bug: it
    reports nothing to the harness and it can print `true` next to a failing
    assertion.
-4. Prefer an error return over `std.debug.assert` for anything a caller can
-   reach through the API — asserts vanish in ReleaseFast.
-5. Run `zig fmt` and the full suite before opening a PR.
+4. A caller-supplied value is an error return, never a `std.debug.assert`:
+   asserts vanish in ReleaseFast, where the call then does the wrong thing
+   quietly. That covers constructor arguments, slice shapes, and anything
+   divided by. Internal invariants between two functions of the same
+   implementation stay asserts, because there is no caller to answer to.
+5. Dividing by a value that came from a proof uses the checked variant
+   (`invChecked`), which returns `error.DivideByZero`. A zero divisor in a
+   verification path is attacker-influenced: `inv(0)` answering 0 would scale a
+   term by zero and let the round pass.
+6. Run `zig fmt` and the full suite before opening a PR.

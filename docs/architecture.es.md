@@ -38,170 +38,27 @@ Exactamente como está cableado en `build.zig`:
 |---|---|---|---|
 | `zig-transcript` | `libs/transcript/src/root.zig` | algebra-traits, hash, rng | — |
 | `zig-commitment` | `libs/commitment/src/root.zig` | algebra-traits, field, merkle, poly | — |
-| `zig-air` | `libs/air/src/root.zig` | algebra-traits | — |
 | `zig-signature` | `libs/signature/src/root.zig` | algebra-traits, curve, hash, rng | — |
 | `zig-snark` | `libs/snark/src/root.zig` | field, curve, pairing | — |
 | `zig-stark` | `libs/stark/root.zig` | field | transcript |
 
-## 1. transcript (capa 1)
+## Librerías
 
-Transcripciones Fiat-Shamir sobre Blake3. Tres tipos con propósitos distintos:
+La API de cada librería vive en su propio README, y los comentarios de
+documentación del código llevan el detalle.
 
-**`Transcript`** — absorb/squeeze con contador.
+| Librería | Para qué sirve | Referencia |
+|---|---|---|
+| transcript | Transcripciones Fiat-Shamir: `Transcript`, `LabelledTranscript`, `Channel` | [README](../libs/transcript/README.es.md) |
+| commitment | `Ipa`, compromisos de Pedersen, reparto de Shamir, protocolos Σ | [README](../libs/commitment/README.es.md) |
+| signature | Schnorr genérico, Ed25519 sobre std, adaptadores de secp256k1 | [README](../libs/signature/README.es.md) |
+| stark | Pilas de STARK M31 DEEP-FRI y Binius | [README](../libs/stark/README.es.md) |
+| snark | Verificador de Groth16 y prover de referencia sobre BN254 | [README](../libs/snark/README.es.md) |
 
-- `init(label)`, `absorb(bytes)`, `absorbField(F, x)`, `absorbFieldSlice(F, xs)`
-- `squeeze(out)`, `squeezeField(F)` (muestreo por rechazo, uniforme sobre `F`),
-  `squeezeU64()`, `squeezeU256()`
-- `clone()` bifurca el estado; `reset(label)` reinicia el separador de dominio
-- Cada absorción lleva prefijo de longitud; cada squeeze incrementa un contador
-  interno, así que dos squeezes seguidos nunca devuelven los mismos bytes.
-
-**`LabelledTranscript`** — cada operación lleva una etiqueta explícita, de modo
-que confundir dos protocolos exige una colisión de resumen y no un prefijo
-compartido.
-
-**`Channel`** — duck-typed, la forma que espera `libs/stark`.
-
-- `absorb(value)` y `absorbMany(...)` aceptan cualquier cosa con `SIZE`,
-  `toBytes` y `fromBytes` (no hace falta el trait de campo)
-- `absorbDigest(digest)` es el puente hacia el tipo `Digest` interno del árbol de
-  STARK
-- `sample(T)`, `sampleIndex(n)`, `sampleBytes(out)`
-
-## 2. commitment (capa 2)
-
-**`Ipa(F)`** — argumento de producto interno sobre cualquier campo de
-zig-algebra.
-
-- `init(allocator, n, seed)`, `deinit()`
-- `commit(a, b, c) -> F`, `innerProduct(a, b) -> F`
-- `prove(allocator, a, b) -> Proof`, `verify(C, *Proof) -> bool`
-- Los desafíos salen de una **esponja Fiat-Shamir en marcha** (Blake3): todo
-  valor absorbido avanza el estado, así que el desafío de la ronda *k* ata el
-  enunciado completo y todas las rondas anteriores.
-
-**Pedersen** — `Pedersen(Point)`: `commit`, `verify`, `add`, `sub`, genérico
-sobre cualquier tipo de punto con las operaciones necesarias.
-
-**Shamir** — `Share(Scalar)`, `split`, `reconstruct`, `lagrangeCoefficient`, y
-un campo de prueba módulo 7 usado por las pruebas.
-
-**Protocolos Σ** — `SchnorrPoK(Point, Scalar)` como prueba de conocimiento, y
-`CdsOrProof(Point, Scalar)`, la prueba OR de uno entre muchos de CDS '94.
-
-**`MerkleTree`** — reexportación de `zig-merkle`.
-
-Aquí no están: KZG, FRI, DARK ni Ligero. KZG y FRI viven en `zig-algebra` para
-el árbol de STARK, y ninguno de los dos se reexporta como API de esquema de
-compromiso.
-
-## 3. signature (capa 3)
-
-**`SchnorrSignature(Point, Scalar)`** — genérico sobre cualquier par
-Point/Scalar con `add`, `scalarMul`, `eql` (y `Scalar` con `fromBytes`, `zero`,
-`add`, `mul`). `init(R, z)`, `verify(base, public_key, msg)`,
-`challenge(...)`.
-
-**`Ed25519Impl`** — un alias delgado sobre `std.crypto.sign.Ed25519`
-(determinista, de tiempo constante, sin código nuestro en el camino crítico),
-junto con sus tipos `KeyPair`/`PublicKey`/`SecretKey`/`Signature` para las API
-de streaming.
-
-**Adaptadores de secp256k1** — `libs/signature/src/root.zig` adapta los puntos y
-escalares de `std.crypto.ecc.Secp256k1` a la interfaz genérica de Schnorr
-(`toBytes`/`fromBytes`/`scalarMul`/`eql`).
-
-No están: ECDSA, BLS, MuSig2.
-
-## 4. air (capa 3)
-
-Representación algebraica intermedia genérica, parametrizada por campo y por
-tipo de entradas públicas: `Air(BaseField, PublicInputs)`, más
-`BoundaryConstraint`, `TransitionConstraint`, `EvaluationFrame` (par de filas
-actual/siguiente) y `ExecutionTrace` (matriz de traza con asignador, con
-`get`/`set`/`getRow`/`getCol`).
-
-El contrato que un AIR debe cumplir para servir a `GenericStark` está escrito en
-[ARCHITECTURE.md](../ARCHITECTURE.es.md).
-
-## 5. stark (capa 4)
-
-El árbol canónico de zig-stark, adoptado tal cual. Véase `ARCHITECTURE.es.md`
-para las dos adaptaciones permanentes (el canal vive en `zig-transcript`;
-M31/CM31/QM31 vienen de zig-algebra mediante `m31/builtin.zig`).
-
-**Pila M31** — `m31/`: FFT circular (`circle/`), NTT (`ntt/classic.zig`,
-`ntt/simd.zig`, `ntt/circle.zig`), polinomios univariantes (`poly/`), DEEP-FRI
-(`fri.zig`) y `stark.zig` con `GenericStark(Air)` más AIRs ya resueltos
-(`FibAir`, `RangeCheckAir`, `AndTableAir`, `MultiplicityAir`).
-
-**Pila Binius** — `binius/`: campos en torre, sum-check, variantes de PCS
-(`pcs`, `packed_pcs`, `batchpcs`, `fripcs`, `addfri`), capa de argumentos
-(`arg`), `recursion/` (Poseidon2 sobre GF(2)) y los gadgets de restricciones que
-usa la suite de fuzz (`adder`, `rangecheck`, `compare`, `bitpack`, `pack`).
-
-**core** — `core/hash` (Blake3 + `Digest`), `core/merkle`, `bit_utils`, ayudas
-SIMD, serialización.
-
-## 6. snark (capa 4)
-
-Groth16 sobre BN254: una primitiva de verificación más un prover de referencia
-usado como oráculo de pruebas, y no como generador de pruebas de producción (véase
-*Postura de seguridad*).
-
-### Verificación
-
-```zig
-pub fn verify(
-    a1: G1,          // [alpha]_1
-    b2: G2,          // [beta]_2
-    g2: G2,          // [gamma]_2
-    d2: G2,          // [delta]_2
-    ic: []const G1,  // codificaciones de las entradas públicas
-    pa: G1, pb: G2, pc: G1,   // la prueba
-    pub_in: []const Fr,
-) bool
-```
-
-Comprueba `e(A, B) == e(alpha, beta) * e(C, delta) * e(PV, gamma)`, es decir
-`e(-A, B) * e(alpha, beta) * e(C, delta) * e(PV, gamma) == 1`.
-
-`ic[0]` codifica el **hilo constante uno**; `ic[i + 1]` codifica la entrada
-pública `i`, cuyo valor llega en `pub_in`. Un desajuste de longitudes significa
-una prueba malformada y devuelve `false`.
-
-Los elementos de la prueba se validan contra curva y subgrupo de orden primo
-antes de usarse. Esto no es paranoia matemática: el `pairing()` de `zig-pairing`
-devuelve la identidad multiplicativa para puntos fuera de la curva o del
-subgrupo de orden r, así que sin la comprobación un elemento falso **elimina un
-término** de la ecuación en lugar de hacer fallar la prueba.
-
-### Prover de referencia
-
-```zig
-const G16 = Groth16(&.{ 0, 2 }, 3, 5);   // hilos conocidos, restricciones, hilos
-const vk = try G16.setup(&circuit, setup);
-const proof = try G16.prove(&circuit, witness, setup, blind_r, blind_s);
-try G16.verifyKey(vk, proof, .{output});
-```
-
-`Groth16(ic_wires, n_constraints, n_wires)` está parametrizado en comptime, así
-que las matrices de restricciones viven en la pila y nada asigna memoria
-—salvo los valores `Proof`/`VerifyingKey` que devuelve el llamante—. `ic_wires[0]`
-debe ser el hilo constante uno; el resto son las entradas públicas en orden.
-Todos los demás hilos son privados y solo aparecen dentro del elemento `c` de la
-prueba.
-
-Errores: `error.DegenerateSetup` (residuo tóxico a cero, `gamma == delta`, o un
-trapdoor dentro del dominio de evaluación) y `error.QapUnsatisfied`.
-
-### Convenciones
-
-Las convenciones del QAP de las que depende este prover —el denominador de
-Lagrange por par, `A(tau)` como interpolante de las evaluaciones por
-restricción, `t(tau) * h(tau) = A(tau)*B(tau) - C(tau)`, la suma de `c` solo sobre
-hilos privados y el significado de `ic[0]`— están escritas una sola vez, con la
-consecuencia de romper cada una, en
+Lo transversal se reparte por tipo: el grafo de módulos, la política de
+dependencias y versionado, la postura de seguridad y las pruebas están aquí,
+mientras que las decisiones de unificación, el contrato del AIR y las
+convenciones del prover de Groth16 viven en
 [ARCHITECTURE.md](../ARCHITECTURE.es.md).
 
 ## Gestión de dependencias
@@ -292,17 +149,25 @@ zig build test --summary all                    # todas las suites, Debug
 zig build test -Doptimize=ReleaseFast           # lo mismo, ~20x más rápido para snark
 ```
 
-El `build.zig` raíz es el canónico: cablea los seis módulos más las suites e2e y
+El `build.zig` raíz es el canónico: cablea los cinco módulos más las suites e2e y
 de fuzz de stark, y trae zig-algebra desde el tarball pinneado, así que funciona
 desde un clon limpio. Los `build.zig` por librería existen para el trabajo
 aislado y resuelven zig-algebra desde el mismo tarball pinneado.
 
-El paso `test` de la raíz compila y ejecuta todas las suites: 271 pruebas
-repartidas en transcript (14), commitment (11), air (5), signature (6), stark
-(208), snark (11), más las suites e2e (16) y de fuzz de stark.
-`libs/stark/tests/fuzz.zig` es un `main` que entra en pánico si detecta fugas y
-afirma que acepta y que rechaza en cada vuelta, así que su resultado lo
-sostienen las aserciones y no el resumen que imprime.
+El paso `test` de la raíz compila y ejecuta todas las suites: 273 pruebas
+repartidas en transcript (20), commitment (11), signature (6), stark (208),
+snark (11), más las suites e2e (16) y de fuzz (1) de stark.
+`libs/stark/tests/fuzz.zig` da 2000 vueltas sobre tres gadgets con un asignador
+que detecta fugas, y afirma que acepta y que rechaza en cada vuelta; tarda unos
+tres minutos.
+
+Una prueba en un fichero nuevo solo se ejecuta si algo fuerza que ese fichero
+se analice: un bloque `test { std.testing.refAllDecls(@This()); }` en la raíz
+del módulo, o una referencia al fichero desde una prueba. Sin eso, el corredor
+compila un binario sin ninguna prueba y reporta un aprobado en milisegundos. El
+canal de transcript y la suite de fuzz de Binius estaban los dos en ese estado,
+así que las cifras de arriba son las que hay que comparar, no el número de
+declaraciones `test` del árbol.
 
 La CI ejecuta la suite en Debug sobre Linux, macOS y Windows mediante
 `.github/actions/setup-zig`, que descarga el compilador desde ziglang.org
@@ -312,15 +177,23 @@ La CI ejecuta la suite en Debug sobre Linux, macOS y Windows mediante
 
 1. Las librerías de protocolos van en `libs/<nombre>/` con un `build.zig` que
    exponga un módulo.
-2. Toda dependencia nueva de álgebra se declara en `build.zig` y en
-   `build.zig.zon`; mantén sincronizadas las dos tablas de módulos de este
-   documento.
+2. Toda dependencia nueva de álgebra se declara en el `build.zig` raíz y en el
+   `build.zig.zon` de la librería; mantén sincronizado el grafo de módulos de
+   arriba. Una librería nueva necesita un README, que es la referencia de su
+   API.
 3. Las pruebas afirman, nunca imprimen. Un `std.debug.print` en una prueba es un
    fallo: no reporta nada al arnés y puede imprimir `true` junto a una aserción
    que falla.
-4. Prefiere un error devuelto a un `std.debug.assert` para todo lo que un
-   llamante pueda alcanzar a través de la API: las aserciones desaparecen en
-   ReleaseFast.
+4. Un valor que viene del llamante es un error devuelto, nunca un
+   `std.debug.assert`: las aserciones desaparecen en ReleaseFast, donde la
+   llamada pasa entonces a hacer lo que sea sin avisar. Eso incluye los
+   argumentos de los constructores, la forma de los fragmentos y todo lo que
+   se divide. Los invariantes internos entre dos funciones de la misma
+   implementación se quedan como aserciones, porque no hay a quién responderle.
+5. Dividir por un valor que venía de una prueba usa la variante comprobada
+   (`invChecked`), que devuelve `error.DivideByZero`. Un divisor cero en un
+   camino de verificación depende de quien ataca: si `inv(0)` respondiera 0,
+   el término escalaría por cero y la vuelta se daría por buena.
 5. Ejecuta `zig fmt` y la suite completa antes de abrir un PR.
 6. Cada fichero markdown necesita su pareja en el otro idioma, y
    `zig build check-docs` lo verifica.

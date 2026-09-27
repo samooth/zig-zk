@@ -32,30 +32,43 @@ zig-zk           zk protocols: AIR · STARK · commitments · signatures · snar
 | FRI | DEEP-FRI/circle in stark (production); algebra/fri remains an educational primitive | Different requirements; do not force a dedupe |
 | m31/cm31/qm31 as sold | **Removed** | Replaced by zig-algebra's fields via builtin.zig |
 | Curve scalar multiplication | **Always zig-algebra's** (`p.scalarMul(s)`) | It is a windowed ladder in Jacobian coordinates: O(1) inversions, and any local implementation is a bug risk |
-| AIR data model | **zig-air, single source** (`libs/air`) | See "The AIR contract" below |
+| The AIR contract | **In `zig-stark`**, at `m31/air/contract.zig` | It is checked by the compiler, so it cannot go stale; a standalone module with one consumer would be speculative |
 
 ## The AIR contract
 
-`libs/air` and `libs/stark/m31/air/*` used to hold the same code twice, and
-neither copy was consumed: the STARK prover does not instantiate
-`Air(BaseField, PublicInputs)`. What `GenericStark` actually reads is a
-duck-typed set of members on the AIR type:
+The prover is duck-typed: it never instantiates an "AIR framework" type, it
+reads a set of declarations off the AIR type itself. That contract used to live
+only as scattered accesses inside `stark.zig`, and nothing checked the mandatory
+part — forgetting a declaration produced an error from deep inside the prover
+that never mentioned what was missing.
 
-| Member | Kind | Meaning |
-|---|---|---|
-| `num_columns`, `num_transition_constraints`, `num_boundary` | `comptime usize` | Shape of the trace and the constraint set |
-| `PublicInputs` | any type | What the verifier is told |
-| `maxConstraintDegree(n)` | function | Upper bound on the constraint degree, which drives the composition degree |
-| `evalTransition(x, current, next, out)` | function | Fill the constraint evaluations for one row pair |
-| `boundaryAssertions(public, n, out)` | function | Fixed column values at given steps |
-| `generateTrace(allocator, n)` | function | Build a valid trace (prover side) |
-| `num_preprocessed`, `num_lookup_columns`, `num_lookup_relations` | optional | LogUp and preprocessed tables; absent means "none" |
+It now lives in one place, [`libs/stark/m31/air/contract.zig`](../libs/stark/m31/air/contract.zig),
+and `assertAir(Air, F)` checks it at compile time from `GenericStark`. The
+authority for the list is that file, not this paragraph, which is the whole
+point: a hand-written table goes stale, a table the compiler walks cannot.
 
-`BoundaryAssertion` is the only one of those types that the prover really uses,
-so it is the one that belongs in this module. Anything else here is
-documentation: if a second STARK backend appears, this contract is what it must
-satisfy, and it should be checked at compile time rather than discovered from a
-crash inside the prover.
+**Mandatory** (nine): `num_columns`, `num_transition_constraints`,
+`num_boundary`, `PublicInputs`, `evalTransition`, `maxConstraintDegree`,
+`boundaryAssertions`, `generateTrace`, `freeTrace`. Their signatures are pinned,
+not just their presence.
+
+**Conditional on `num_preprocessed > 0`** (two): `generateTable`, `freeTable`.
+
+**Conditional on `num_lookup_relations > 0`** (five): `num_lookup_columns`,
+`lookup_selector_columns`, `lookup_key_columns`, `lookup_table_columns`,
+`lookup_multiplicity_columns`.
+
+**Optional, absent means zero** (three): `num_preprocessed`,
+`num_lookup_columns`, `num_lookup_relations`.
+
+`BoundaryAssertion` lives in the same file: it is the one type the prover really
+needs, so it belongs with the contract that uses it.
+
+There was a standalone `zig-air` module for this. It duplicated the same code,
+none of it was consumed, and its five constructors were instantiated by nobody.
+It was removed in 0.3.0 rather than fused, because a module with a single
+consumer is speculative generality. If a second STARK backend ever appears, the
+extraction is mechanical.
 
 ## `libs/snark`: Groth16 prover conventions
 

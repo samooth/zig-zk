@@ -18,7 +18,7 @@ repository are not production code.
 | `zig-snark` verifier | Reference implementation. Interoperability against other Groth16 implementations is **not** yet covered by tests. |
 | `zig-snark` prover | **Test oracle only.** Not constant time, blinding factors come from the caller, single scalar multiplications instead of MSMs. Do not use with secrets you care about. |
 | `zig-stark` (M31, Binius) | Adopted upstream tree with two documented adaptations (`ARCHITECTURE.md`). Verify before use. |
-| `zig-commitment`, `zig-signature`, `zig-air` | Toolbox components with thin test coverage. Review before use. |
+| `zig-commitment`, `zig-signature` | Toolbox components with thin test coverage. Review before use. |
 
 ## What we consider a vulnerability
 

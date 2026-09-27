@@ -34,8 +34,24 @@ archivo trata de cómo trabajar, no de lo que hace el código.
 - Un tipo genérico se declara con un `return struct { ... };` explícito.
 - No reimplementes lo que una dependencia ya aporta. Delegar es menos código y
   menos riesgo de fallo.
-- Nada alcanzable desde la API pública puede depender de `std.debug.assert`:
-  devuelve un error explícito.
+- Una aserción que protege algo que aporta el llamante es un error tipado, y una
+  que valida un invariante de un valor ya construido se queda como aserción. El
+  eje es qué protege la aserción, no si su función es `pub`: `coset.at` toma un
+  índice del llamante y `coset.half` comprueba un campo de un valor que le
+  dieron, y las dos son públicas. Una función total conserva su aserción y una
+  hermana comprobada devuelve error, que es lo que hacen `M31.inv` e
+  `invChecked`.
+- `zig-algebra` se consume como paquete fijado, así que un número de versión es
+  el único canal entre los dos repositorios, y ese canal va en un solo sentido.
+  Toda zona que copie de `zig-algebra` en vez de importarla, y todo
+  `std.debug.assert` del árbol, quedan registrados en el libro mayor de
+  `scripts/check_contract.zig`. `zig build check-contract` (también dependencia de
+  `zig build test`) lo hace cumplir: cada zona declara su total, cuáles de sus
+  aserciones son invariantes, y en qué se apoyan esas claves, y todo número está
+  trinqueteado, así que la cuenta solo puede moverse cuando alguien edita el
+  libro mayor y explica por qué. Una zona que no declara invariantes no ha
+  clasificado ninguna aserción, así que el total alcanzable que imprime el gate
+  es un máximo, no una cifra de cuánto trabajo queda.
 - Los comentarios, incluidos los de documentación, explican el porqué y lo no
   obvio.
 
