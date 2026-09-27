@@ -207,6 +207,18 @@ pub fn build(b: *std.Build) void {
     const field_layer_tests = b.addTest(.{ .name = "zig-stark-field-layer-tests", .root_module = field_layer_mod });
     test_step.dependOn(&b.addRunArtifact(field_layer_tests).step);
 
+    // Known-answer tests for the adopted Merkle commitment's leaf convention.
+    const merkle_kat_mod = b.createModule(.{
+        .root_source_file = b.path("libs/stark/tests/merkle_kat.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "zig-binary-field", .module = binary_field },
+        },
+    });
+    const merkle_kat_tests = b.addTest(.{ .name = "zig-stark-merkle-kat-tests", .root_module = merkle_kat_mod });
+    test_step.dependOn(&b.addRunArtifact(merkle_kat_tests).step);
+
     const e2e_mod = b.createModule(.{
         .root_source_file = b.path("libs/stark/tests/e2e_tests.zig"),
         .target = target,

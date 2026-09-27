@@ -65,6 +65,21 @@ pub fn build(b: *std.Build) void {
     });
     test_step.dependOn(&b.addRunArtifact(field_layer_tests).step);
 
+    // Known-answer tests for the adopted Merkle commitment's leaf convention.
+    const merkle_kat_module = b.createModule(.{
+        .root_source_file = b.path("tests/merkle_kat.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "zig-binary-field", .module = algebra_dep.module("zig-binary-field") },
+        },
+    });
+    const merkle_kat_tests = b.addTest(.{
+        .name = "zig-stark-merkle-kat-tests",
+        .root_module = merkle_kat_module,
+    });
+    test_step.dependOn(&b.addRunArtifact(merkle_kat_tests).step);
+
     const e2e_module = b.createModule(.{
         .root_source_file = b.path("tests/e2e_tests.zig"),
         .target = target,
