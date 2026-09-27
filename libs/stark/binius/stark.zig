@@ -1238,7 +1238,7 @@ test "stark with boundary pins over the GF(2^128) extension" {
 
     var roots: [1]CoreHash.Hash.Digest = undefined;
     {
-        var tree = try @import("zig-binary-field").CommittedMlePcsUnsafe(Gf16, Gf2_128).commit(alloc, &w);
+        var tree = try @import("zig-binary-field").CommittedMlePcs(Gf16, Gf2_128).commit(alloc, &w);
         defer tree.deinit();
         roots[0] = tree.root();
     }

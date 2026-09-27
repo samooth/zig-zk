@@ -368,7 +368,7 @@ test "poseidon2b permutation STARK round-trips over GF(2^128) extension" {
 
     var roots: [P.num_columns]CoreHash.Hash.Digest = undefined;
     for (0..P.num_columns) |c| {
-        var tree = try PcsMod.CommittedMlePcsUnsafe(Gf2_64, Gf2_128).commit(alloc, columns[c]);
+        var tree = try PcsMod.CommittedMlePcs(Gf2_64, Gf2_128).commit(alloc, columns[c]);
         defer tree.deinit();
         roots[c] = tree.root();
     }

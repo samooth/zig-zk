@@ -116,18 +116,22 @@ const ledger = [_]Zone{
             "batchpcs, no arg: a zone can stop being a fork without ceasing to " ++
             "exist, and this is that case. 57 asserts, none of them classified, " ++
             "so every one counts as reachable and overstates the work.",
-        .revisit = "the stack is instantiated over Gf256, which is TowerField(3) " ++
-            "and eight bits wide, because it is fast. The soundness error of a " ++
-            "sum-check round is of order 1/|F|, about 0.4% here, and it " ++
-            "composes over the rounds, so the end-to-end suite is coverage of " ++
-            "plumbing and not of soundness: it shows the prover runs and the " ++
-            "commitments commit, not that a proof is hard to forge. Upstream's " ++
-            "secure entry points require 128 bits, which is why the call sites " ++
-            "name SumcheckUnsafe and CommittedMlePcsUnsafe, and it is worth " ++
-            "reading the suite as anything more. TowerField(7) is 128 bits and " ++
-            "would go through the good door; nobody has instantiated this stack " ++
-            "over it, and that is the thing to do next if the answer is to " ++
-            "matter. Revisit when something does, and record the field it used.",
+        .revisit = "the 128-bit gate is on the extension field, not the base " ++
+            "one, because the sum-check runs over the extension: SC = " ++
+            "Sumcheck(E). Gf256 as an extension is eight bits, so the " ++
+            "end-to-end and fuzz paths need the Unsafe variants, and a " ++
+            "sum-check round there has a soundness error of order 1/|F|, " ++
+            "about 0.4%, composing over the rounds. Read that suite as " ++
+            "coverage of plumbing, not of soundness: it shows the prover runs " ++
+            "and the commitments commit, not that a proof is hard to forge. " ++
+            "TowerField(7) is 128 bits and is instantiated -- the whole " ++
+            "prover runs as BiniusStark(Gf16, Gf2_128), and so do the packed " ++
+            "PCS and the recursion -- and those call sites use the secure " ++
+            "entry points, because they pass the gate. So the destination " ++
+            "exists and is exercised; what is missing is that it is the " ++
+            "exception. The default the suite reads is the one that cannot be " ++
+            "sound. Revisit when a default changes, and record which field " ++
+            "the default is over.",
     },
     .{
         .path = "libs/stark/core",

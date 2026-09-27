@@ -38,6 +38,16 @@ archivo trata de cómo trabajar, no de lo que hace el código.
 - Un tipo genérico se declara con un `return struct { ... };` explícito.
 - No reimplementes lo que una dependencia ya aporta. Delegar es menos código y
   menos riesgo de fallo.
+- Un refactor que recorre un árbol no desciende en un directorio de dependencia
+  vendorizada. `zig-pkg/` guarda paquetes descargados contra un hash de contenido,
+  y ese hash es su único mecanismo de integridad: escribir dentro desincroniza el
+  paquete respecto al manifiesto en silencio, y nada protesta hasta que algo lee
+  un fichero que no es el que dice la versión fijada. La recuperación, si ocurre,
+  es borrar el directorio y dejar que Zig lo descargue otra vez, y luego cotejar
+  las dos copias byte a byte: una descarga verifica el hash y una comparación es
+  lo único que demuestra que el árbol está entero. Una regla que depende de que
+  salga un error de compilación no es una regla.
+
 - Una aserción que protege algo que aporta el llamante es un error tipado, y una
   que valida un invariante de un valor ya construido se queda como aserción. El
   eje es qué protege la aserción, no si su función es `pub`: `coset.at` toma un

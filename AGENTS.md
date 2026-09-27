@@ -38,6 +38,15 @@ how to work, not about what the code does.
 - A generic type is declared with an explicit `return struct { ... };`.
 - Do not reimplement what a dependency already provides. Delegating is less code
   and less risk of a bug.
+- A refactor that walks a tree does not descend into a vendored dependency
+  directory. `zig-pkg/` holds packages fetched against a content hash, and that
+  hash is their only integrity mechanism: writing inside one desynchronises it
+  from the manifest in silence, and nothing complains until something downstream
+  reads a file that is not what the pin says. The recovery, if it happens, is to
+  delete the directory and let Zig fetch it again, then compare the two copies
+  byte for byte -- a fetch verifies the hash and a diff is the only thing that
+  proves the tree is whole. A rule that depends on a compile error appearing is
+  not a rule.
 - An assert that guards something the caller supplies is a typed error, and one
   that validates an invariant of an already-constructed value stays an assert.
   The axis is what the assert protects, not whether its function is `pub`:

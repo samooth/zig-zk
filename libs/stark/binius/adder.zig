@@ -207,7 +207,7 @@ test "adder bit relations match a reference bit-sliced addition" {
 test "adder STARK round trips over the GF(2^128) extension" {
     const alloc = std.testing.allocator;
     const A = Adder(Gf16, Gf2_128);
-    const CP = PcsMod.CommittedMlePcsUnsafe(Gf16, Gf2_128);
+    const CP = PcsMod.CommittedMlePcs(Gf16, Gf2_128);
 
     const k = 2;
     const x = [_]u4{ 10, 0, 15, 8 };
