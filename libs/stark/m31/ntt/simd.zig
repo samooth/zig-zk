@@ -9,9 +9,12 @@ const classic = @import("classic.zig");
 /// field is the circle FFT (see `ntt/circle.zig` and `field/m31.zig` Vec8 ops).
 /// This module currently delegates to the scalar NTT and is only valid for
 /// `a.len <= 2`.
-pub fn simdButterfly(a: []M31, invert: bool) void {
-    std.debug.assert(a.len <= 2);
-    classic.nttClassic(a, invert);
+/// Propagates nttClassic's `error.InvalidLength`. The assert that used to be
+/// here was weaker than the one in the function it delegates to: it allowed a
+/// length of zero, which nttClassic rejects. Checking it twice meant the error
+/// could come from either place, and the weaker one first.
+pub fn simdButterfly(a: []M31, invert: bool) error{InvalidLength}!void {
+    try classic.nttClassic(a, invert);
 }
 
 test "simd butterfly round-trip (n = 2)" {
@@ -20,8 +23,8 @@ test "simd butterfly round-trip (n = 2)" {
     var work = try alloc.dupe(M31, &input);
     defer alloc.free(work);
 
-    simdButterfly(work, false);
-    simdButterfly(work, true);
+    try simdButterfly(work, false);
+    try simdButterfly(work, true);
     try std.testing.expect(work[0].eq(input[0]));
     try std.testing.expect(work[1].eq(input[1]));
 }
@@ -35,20 +38,37 @@ test "simd butterfly matches classic NTT (n = 2)" {
     const b = try alloc.dupe(M31, &input);
     defer alloc.free(b);
 
-    simdButterfly(a, false);
-    classic.nttForward(b);
+    try simdButterfly(a, false);
+    try classic.nttForward(b);
     try std.testing.expect(a[0].eq(b[0]));
     try std.testing.expect(a[1].eq(b[1]));
 
-    simdButterfly(a, true);
-    classic.nttInverse(b);
+    try simdButterfly(a, true);
+    try classic.nttInverse(b);
     try std.testing.expect(a[0].eq(b[0]));
     try std.testing.expect(a[1].eq(b[1]));
 }
 
 test "simd butterfly n = 1 is identity" {
     var v = [_]M31{M31.fromInt(7)};
-    simdButterfly(&v, false);
-    simdButterfly(&v, true);
+    try simdButterfly(&v, false);
+    try simdButterfly(&v, true);
     try std.testing.expect(v[0].eq(M31.fromInt(7)));
+}
+
+test "simdButterfly propagates the length error from the transform it delegates to" {
+    const alloc = std.testing.allocator;
+    var three: [3]M31 = undefined;
+    @memset(&three, M31.one());
+    // The assert this used to carry allowed a length of zero and rejected
+    // nothing else that the delegated check would not, so the error has to come
+    // from the callee for the constraint to be the one that is actually stated.
+    try std.testing.expectError(error.InvalidLength, simdButterfly(&three, false));
+    try std.testing.expectError(error.InvalidLength, simdButterfly(&three, true));
+
+    const one = [_]M31{M31.fromInt(7)};
+    const work = try alloc.dupe(M31, &one);
+    defer alloc.free(work);
+    try simdButterfly(work, false);
+    try simdButterfly(work, true);
 }
