@@ -9,6 +9,64 @@ los cambios incompatibles y el PATCH solo cambios aditivos y correcciones. La
 política está desarrollada en
 [docs/architecture.es.md](docs/architecture.es.md#versionado).
 
+## [0.4.0] - 2026-09-27
+
+MINOR: las aserciones que protegían valores aportados por el llamante
+devuelven errores tipados.
+
+299 pruebas en 22 pasos. Veinticuatro aserciones pasaron a ser veintitrés
+comprobaciones, y una de ellas no es una conversión.
+
+### Cambiado (INCOMPATIBLE)
+- **stark**: veintidós aserciones de la zona M31 y dos de `core` devuelven ahora
+  errores en vez de desaparecer en ReleaseFast. `Univariate` devuelve
+  `error.OutputLength` para un búfer del tamaño equivocado y
+  `error.InputLengthMismatch` cuando dos entradas que deben coincidir no
+  coinciden. `MerkleTree` devuelve `error.InvalidLeafCount` y
+  `error.OutOfRange`. `CirclePoint.generatorWithOrder` y
+  `CircleCoset.canonicHalf` devuelven `error.InvalidLogSize`: los dos reciben un
+  `log_size` que llega desde `StarkParams`, y con 32 el desplazamiento del
+  exponente desborda. `fri` devuelve `error.InputLength` para un codeword cuya
+  longitud no es la del dominio, que es el que la prueba le entrega al
+  verificador. Las transformadas del círculo devuelven `error.OutputLength`,
+  `error.InputLength` o `error.MismatchedLength`, que se mantienen como tres
+  porque el nombre es el diagnóstico con el que el llamante va a actuar.
+- **stark**: `nttClassic` y `nttForward`/`nttInverse` devuelven
+  `error.InvalidLength`. Sus dos aserciones decían lo mismo entre las dos, e
+  `isPowerOfTwo(0)` ya devuelve falso, así que una comprobación cubre el
+  fragmento vacío, una longitud impar y cualquier cosa más larga.
+
+### Corregido
+- **stark**: `circleEvalCoset` solo comparaba `coeffs.len` con `evals.len`
+  mientras el bucle indexa el coset con la longitud de `evals`, así que un coset
+  más corto se salía de él y se llevaba por delante la aserción de
+  `CircleCoset.at`. El llamante recibía un fallo que señalaba el fichero
+  equivocado y el motivo equivocado. Esa es una comprobación que faltaba, no
+  una que se convirtiera, y solo apareció porque se estaban convirtiendo las
+  aserciones de al lado y ejercitando sus caminos de error.
+- **stark**: el `a.len <= 2` de `simdButterfly` se borra en vez de convertirse.
+  Delegaba en `nttClassic` y era a la vez redundante y más débil que la
+  comprobación de la función a la que llamaba, porque aceptaba longitud cero. Una
+  comprobación redundante y más débil que su sustituta es peor que ninguna,
+  porque aparenta ser validación. Por eso la cuenta de la zona baja tres donde
+  se convirtieron dos aserciones.
+
+### Documentación
+- Dos aserciones del círculo pasan a la lista de invariantes del libro mayor y no
+  se convierten. `CircleCoset.at` y `CircleDomain.get` reciben un índice que
+  todos sus puntos de llamada derivan del propio tamaño del coset, en un bucle
+  acotado por ese tamaño o como cero, así que un índice malo no es alcanzable
+  desde un llamante ni de lejos desde una prueba. Convertirlas cascadearía una
+  firma falible por el NTT para guardar un caso que no puede suceder.
+- `primitiveRootOfUnity` se deja a propósito, dos veces en `M31` y una en
+  `QM31`. Con `n == 0` la segunda comprobación, `(n & (n - 1)) == 0`, desborda
+  `n - 1`, así que en ReleaseFast eso es aritmética rota que produce una raíz de
+  unidad equivocada, no un diagnóstico que falta. Es la aritmética de campo que
+  el prover usa en el camino caliente, y necesita su propio análisis.
+- `AGENTS.md` ganó una regla para comprobar la rama antes de editar, no después.
+  Dos veces en dos días se hizo un cambio en la rama equivocada y el gate solo lo
+  notó porque el recuento de aserciones salió imposible.
+
 ## [0.3.0] - 2026-09-26
 
 MINOR: el contrato del AIR se muda a la librería que lo consume, el módulo

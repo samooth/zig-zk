@@ -8,6 +8,61 @@ versioning follows [SemVer](https://semver.org/): in `0.y.z` the MINOR carries
 incompatible changes and the PATCH carries additive changes and fixes only. The
 policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning).
 
+## [0.4.0] - 2026-09-27
+
+MINOR: the asserts that guarded values a caller supplies return typed errors.
+
+299 tests in 22 steps. Twenty-four asserts became twenty-three checks, and one
+of them is not a conversion.
+
+### Changed (BREAKING)
+- **stark**: twenty-two asserts in the M31 zone and two in `core` now return
+  errors instead of vanishing in ReleaseFast. `Univariate` returns
+  `error.OutputLength` for a buffer of the wrong size and
+  `error.InputLengthMismatch` when two inputs that must agree do not.
+  `MerkleTree` returns `error.InvalidLeafCount` and `error.OutOfRange`.
+  `CirclePoint.generatorWithOrder` and `CircleCoset.canonicHalf` return
+  `error.InvalidLogSize`; both take a `log_size` that arrives from
+  `StarkParams`, and 32 underflows the exponent shift. `fri` returns
+  `error.InputLength` for a codeword whose length is not the domain's, which is
+  the one the verifier is handed by the proof. The circle transforms return
+  `error.OutputLength`, `error.InputLength` or `error.MismatchedLength`, kept as
+  three because the name is the diagnosis the caller acts on.
+- **stark**: `nttClassic` and `nttForward`/`nttInverse` return
+  `error.InvalidLength`. Its two asserts said the same thing between them, and
+  `isPowerOfTwo(0)` is already false, so one check covers the empty slice, an
+  odd length and anything longer.
+
+### Fixed
+- **stark**: `circleEvalCoset` only compared `coeffs.len` against `evals.len`
+  while the loop indexes the coset by the length of `evals`, so a short coset ran
+  off the end of it and took the assert in `CircleCoset.at` with it. The caller
+  got a failure pointing at the wrong file and the wrong reason. That is a check
+  that was missing rather than one that was converted, and it only surfaced
+  because the neighbouring asserts were being converted and their error paths
+  exercised.
+- **stark**: `simdButterfly`'s `a.len <= 2` is removed rather than converted. It
+  delegated to `nttClassic` and was both redundant and weaker than the check in
+  the function it called, since it accepted a length of zero. A redundant check
+  weaker than its replacement is worse than none, because it reads as validation.
+  The zone count therefore drops by three where two asserts were converted.
+
+### Docs
+- Two of the circle's asserts move to the invariant list in the contract ledger
+  and are not converted. `CircleCoset.at` and `CircleDomain.get` take an index
+  that every call site derives from the coset's own size, in a loop bounded by
+  that size or as zero, so a bad index is not reachable from a caller and
+  certainly not from a proof. Converting them would cascade a fallible signature
+  through the NTT to guard a case that cannot happen.
+- `primitiveRootOfUnity` is deliberately left, in `M31` twice and in `QM31` once.
+  With `n == 0` the second check, `(n & (n - 1)) == 0`, underflows `n - 1`, so
+  in ReleaseFast that is broken arithmetic producing a wrong root of unity rather
+  than a missing diagnostic. It is the field arithmetic the prover uses on its
+  hot path, and it needs its own analysis.
+- `AGENTS.md` gained a rule to check the branch before editing, not after. Twice
+  in two days a change was made on the wrong branch and the gate only noticed
+  because an assert count came out impossible.
+
 ## [0.3.0] - 2026-09-26
 
 MINOR: the AIR contract moved into the library that consumes it, the
