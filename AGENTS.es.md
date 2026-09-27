@@ -30,6 +30,10 @@ archivo trata de cómo trabajar, no de lo que hace el código.
 
 ## Código
 
+- Antes de editar nada, saber en qué rama estás: `git rev-parse --abbrev-ref
+  HEAD`. El gate detecta un cambio hecho en la rama equivocada, pero solo
+  porque las cuentas salen imposibles; esta es la comprobación que lo evita en
+  vez de limitarse a detectarlo.
 - Comptime para monomorfización: coste cero en tiempo de ejecución.
 - Un tipo genérico se declara con un `return struct { ... };` explícito.
 - No reimplementes lo que una dependencia ya aporta. Delegar es menos código y

@@ -30,6 +30,10 @@ how to work, not about what the code does.
 
 ## Code
 
+- Before editing anything, know which branch you are on: `git rev-parse
+  --abbrev-ref HEAD`. The gate catches a change made on the wrong branch, but
+  only because the counts came out impossible; this is the check that prevents
+  it instead of noticing it.
 - Comptime for monomorphisation: zero runtime cost.
 - A generic type is declared with an explicit `return struct { ... };`.
 - Do not reimplement what a dependency already provides. Delegating is less code
