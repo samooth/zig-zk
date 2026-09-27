@@ -8,6 +8,106 @@ versioning follows [SemVer](https://semver.org/): in `0.y.z` the MINOR carries
 incompatible changes and the PATCH carries additive changes and fixes only. The
 policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning).
 
+## [0.3.0] - 2026-09-26
+
+MINOR: the AIR contract moved into the library that consumes it, the
+standalone `zig-air` module is gone, and the rule about asserts stopped being
+prose.
+
+289 tests in 22 steps, Debug and ReleaseFast. Two of them never ran before this
+release: the Binius fuzz suite, which was a `main` in a test binary, and the
+channel's own five tests, which nothing forced the file to be analysed for. Both
+are named under Fixed.
+
+### Changed (BREAKING)
+- **stark**: the AIR contract now lives in `libs/stark/m31/air/contract.zig`,
+  where `BoundaryAssertion` was already needed, and `assertAir(Air, F)` checks
+  it at compile time from `GenericStark`. Nine mandatory declarations and their
+  signatures, two more required when `num_preprocessed > 0`, and five when
+  `num_lookup_relations > 0`. A malformed AIR now fails where it is written
+  instead of producing an error from inside the prover that never mentioned
+  what was missing.
+- **stark**: `libs/stark/m31/air/{air,constraint,frame,trace}.zig` are removed.
+  Nothing imported them; they were re-exported and never consumed.
+  `zig_stark.m31.air_air`, `air_trace`, `air_frame` and `air_constraint` are
+  replaced by `zig_stark.m31.air_contract`.
+- **air**: the `zig-air` module is removed. Its five constructors
+  (`Air`, `BoundaryConstraint`, `TransitionConstraint`, `EvaluationFrame`,
+  `ExecutionTrace`) were instantiated by nothing: the prover is duck-typed and
+  never built them, so the published framework was not the one the prover used.
+  Delete the import and use `zig-stark`, whose `m31/air/contract.zig` now
+  documents and checks what a second STARK backend would have to satisfy.
+
+- **snark**: `Groth16(ic_wires, n_constraints, n_wires)` validates its
+  arguments at compile time instead of with `std.debug.assert`, which is
+  compiled out in ReleaseFast: a malformed system used to build there and fail
+  on the first proof. A duplicate or out-of-range wire now fails the build with
+  a message naming the argument.
+
+- **commitment**: values a caller supplies are errors now, not asserts.
+  `shamir.reconstruct` returns `error.NoShares`, `Ipa.innerProduct` and
+  `Ipa.commit` return `error.LengthMismatch`, `shamir.split` returns
+  `error.InvalidThreshold` or `error.TooFewShares`, and `Ipa.verify` returns
+  `error.MalformedProof` for a proof whose halves differ in length.
+- **stark**: `prove` and `verify` can return `error.InvalidParams` for a
+  `StarkParams` whose parts do not fit together and `error.InvalidTrace` for a
+  trace of the wrong shape, and `MultiplicityAir.generateTrace` returns
+  `error.TraceTooShort` below four rows. All three were asserts.
+- **transcript**: `Channel.sampleIndex` returns `error.EmptyRange` for `n == 0`,
+  where `log2_int(usize, 0)` is undefined and the old assert vanished in
+  ReleaseFast.
+### Fixed
+- **stark**: the Binius fuzz suite never ran. Its 2000 rounds lived in a
+  `pub fn main`, and a test binary with no test declarations exits successfully
+  in milliseconds, so the CI step named "incl. fuzz" was not running it. It is a
+  test now, it passes, and it takes about three minutes.
+- **transcript**: the five tests in `channel.zig` were never compiled in, because
+  nothing forced the file to be analysed and the module root had no
+  `test { std.testing.refAllDecls(@This()); }` block. The missing test counts
+  and the rule that prevents a recurrence are in `docs/architecture.md`.
+- **stark**: `proveWithPreprocessed` leaked 22 allocations when the FRI
+  parameters were rejected, so the parameter check now runs before anything is
+  allocated. The leak-checking test found it.
+- **stark**: the fuzz suite printed its own summary with `std.debug.print`,
+  which reports nothing to the harness.
+- **commitment**: the README showed `shamir.split(allocator, secret, threshold,
+  total, rng)`, a signature that never existed.
+
+### Added
+- **stark**: `M31.invChecked`, `QM31.invChecked`, `TowerField.invChecked` and
+  `BinaryField.invChecked` return `error.DivideByZero`. They are used for the six
+  divisors in the M31 and Binius verification paths whose value comes from the
+  proof or from a Fiat-Shamir challenge, where `inv(0)` answering 0 would scale
+  a term by zero instead of failing.
+- **stark**: `-Dfuzz-iters` sets the number of fuzz rounds (default 2000) in the
+  root and `libs/stark` builds.
+- **snark**: `libs/snark` gets the `build.zig` and `build.zig.zon` the other four
+  libraries already had. Without them, `zig build test` inside `libs/snark`
+  silently built the repository root.
+- **ci**: a step that builds and tests each library through its own `build.zig`,
+  which nothing exercised before.
+- **build**: `scripts/check_contract.zig` and `zig build check-contract`, wired as
+  a dependency of `zig build test` so CI runs it. It holds a ledger of every
+  zone under `libs/` with its total assert count, which asserts are invariants,
+  and what those are keyed on; the counts are ratcheted, so one only moves when
+  someone edits the ledger and says why. It also pins the `zig-algebra` version
+  and the set of modules imported across the boundary. The rule it enforces is
+  that an assert guarding something the caller supplies is a typed error, and
+  one validating an invariant of an already-constructed value stays an assert.
+  Reachability cannot be inferred from source, so the reachable total it prints
+  is an upper bound: a zone that declares no invariants has had none of its
+  asserts classified.
+
+### Docs
+- Every library has a README, in both languages. The API of each library lives
+  there; `docs/architecture.md` keeps the module graph, the policies, security
+  posture and testing, and `ARCHITECTURE.md` keeps the decisions and
+  conventions. The API was previously written in three places at once, which is
+  how a description of a removed feature survives in the documentation.
+- Each README states what the library does not do, and `libs/snark/README.md`
+  says outright that its prover is a test oracle: blinding factors come from the
+  caller, it is not constant time, and it has no interop vectors yet.
+
 ## [0.2.2] - 2026-09-26
 
 PATCH: nothing here changes a public API. Documentation, licensing, and build
