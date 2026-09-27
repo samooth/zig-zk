@@ -114,13 +114,21 @@ const ledger = [_]Zone{
             "What remains is 68 asserts, none of them classified: the zone has " ++
             "no declared invariants, so every one of them counts as reachable " ++
             "and overstates the work.",
-        .revisit = "the differential harness, then delete pcs and sumcheck. The " ++
-            "harness proves that the local pair and upstream's produce the same " ++
-            "proof bytes on random witnesses, because a comparison of verdicts " ++
-            "passes while the proofs differ, and the proof is what has to " ++
-            "interoperate. Until that runs, the zone is a field layer from " ++
-            "upstream with two local files on top, and that is a state with a " ++
-            "named task in it, not a half-finished fork.",
+        .revisit = "the differential harness ran, and the answer is split. The " ++
+            "sum-check is byte-identical to upstream's over value, claimed sum " ++
+            "and six rounds, so sumcheck.zig is a pure deletion. The PCS is not: " ++
+            "our commit pre-hashed each element and then passed the digests to " ++
+            "MerkleTree.init, which hashes leaves again, so its leaves were " ++
+            "H(H(v)) and the two implementations commit to different roots over " ++
+            "one table. Round-trip tests cannot see that, being self-consistent. " ++
+            "Deleting pcs.zig is therefore blocked on an upstream defect rather " ++
+            "than on this repository: the Blake3 in zig-hash at 0.5.1 is not " ++
+            "BLAKE3, so adopting the fixed leaf convention would import a hash " ++
+            "that is not the algorithm it names. Resume when a release past that " ++
+            "fix lands, then delete pcs.zig, sumcheck.zig and accel.zig together " ++
+            "and re-scope this zone: the other twelve files have no upstream " ++
+            "counterpart and hold the remaining asserts, so the zone is ours, " ++
+            "not a fork, and cannot go to zero.",
     },
     .{
         .path = "libs/stark/core",
@@ -134,9 +142,19 @@ const ledger = [_]Zone{
             "no code, so this is a parallel implementation rather than a copy. " ++
             "The kind is api even at zero: local describes the missing upstream " ++
             "counterpart, not the reachability of asserts, and the two that were " ++
-            "here are now error.InvalidLeafCount and error.OutOfRange.",
+            "here are now error.InvalidLeafCount and error.OutOfRange. hash.zig " ++
+            "is the third member and the one that carries a known-answer vector " ++
+            "against an independent BLAKE3, including one across chunks: at 0.5.1 " ++
+            "the Blake3 in zig-hash is not BLAKE3, because its root output " ++
+            "recompresses the compressed state instead of the input chaining " ++
+            "value, and a one-block vector does not reach that path. This module " ++
+            "wraps std.crypto.hash.Blake3 and is correct, and the vectors are why " ++
+            "the defect was visible from here at all.",
         .revisit = "revisit if a consumer outside this repository needs the " ++
-            "prover's column layout, or if a generic tree can serve it",
+            "prover's column layout, or if a generic tree can serve it. If this " ++
+            "zone ever adopts zig-hash, re-run the two vectors against an " ++
+            "independent BLAKE3 first: that is the only instrument that saw the " ++
+            "upstream defect, and adopting the module would import it.",
     },
     .{
         .path = "libs/stark/m31",
