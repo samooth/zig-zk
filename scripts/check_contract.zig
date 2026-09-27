@@ -135,15 +135,15 @@ const ledger = [_]Zone{
         .path = "libs/stark/core",
         .kind = .api,
         .upstream = null,
-        .asserts = 2,
+        .asserts = 0,
         .invariants = &.{},
         .reason = "merkle and serialization are local implementations shaped for " ++
             "the prover's own column layout, not the generic trees in " ++
             "zig-merkle and zig-serialization. They share four API names each and " ++
             "no code, so this is a parallel implementation rather than a copy. " ++
-            "Both asserts are on the public surface (MerkleTree init and open), " ++
-            "so the kind is api: local describes the missing upstream counterpart, " ++
-            "not the reachability of the asserts.",
+            "The kind is api even at zero: local describes the missing upstream " ++
+            "counterpart, not the reachability of asserts, and the two that were " ++
+            "here are now error.InvalidLeafCount and error.OutOfRange.",
         .revisit = "revisit if a consumer outside this repository needs the " ++
             "prover's column layout, or if a generic tree can serve it",
     },
@@ -279,7 +279,7 @@ const declared_algebra_pin = "0.3.2";
 /// to the carved one without failing anything. That is a known property rather
 /// than an oversight, and this constant is the second half of the answer, since
 /// every carve out has to be paid for here.
-const declared_reachable: usize = 103;
+const declared_reachable: usize = 101;
 
 const max_detail = 512;
 
@@ -827,7 +827,7 @@ test "the ledger's own numbers add up" {
     // headline is lying in a way a reader cannot see.
     try std.testing.expectEqual(declared, reachable + invariant + fixture + internal_only);
     try std.testing.expectEqual(declared_reachable, reachable);
-    try std.testing.expectEqual(@as(usize, 103), declared_reachable);
+    try std.testing.expectEqual(@as(usize, 101), declared_reachable);
     // transcript is the zone that proves reachability is a declared claim: both
     // of its asserts are `pub fn` inside something private.
     var fixture_zones: usize = 0;

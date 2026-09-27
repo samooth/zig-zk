@@ -39,9 +39,12 @@ pub const MerkleTree = struct {
 
     pub const Root = Hash.Digest;
 
+    /// `error.InvalidLeafCount` for an empty list or a length that is not a
+    /// power of two. Both were asserts, and in ReleaseFast a count of three
+    /// built a tree whose level indexing is then out of range.
     pub fn init(allocator: std.mem.Allocator, leaves: []const Hash.Digest) !MerkleTree {
         const n = leaves.len;
-        std.debug.assert(n > 0 and (n & (n - 1)) == 0); // power of two
+        if (n == 0 or (n & (n - 1)) != 0) return error.InvalidLeafCount;
 
         switch (mode) {
             .off => {},
@@ -97,8 +100,11 @@ pub const MerkleTree = struct {
     }
 
     /// The opening proof for leaf `index`: the sibling digests along the path.
+    ///
+    /// `error.OutOfRange` when the index is past the leaves. The assert was
+    /// compiled out in ReleaseFast, where `idx ^ 1` then indexed out of bounds.
     pub fn open(self: MerkleTree, index: usize, allocator: std.mem.Allocator) ![]Hash.Digest {
-        std.debug.assert(index < self.leaves.len);
+        if (index >= self.leaves.len) return error.OutOfRange;
         const path_len: usize = @intCast(std.math.log2_int(usize, self.leaves.len));
         const path = try allocator.alloc(Hash.Digest, path_len);
         var idx = index;
@@ -239,4 +245,32 @@ test "merkle accelerator hook dispatch (off/on/auto)" {
     merkle_commit = null;
     mode = .on;
     try std.testing.expectError(error.GpuUnavailable, MerkleTree.init(alloc, &leaves));
+}
+
+test "MerkleTree refuses a leaf count that is not a power of two" {
+    const alloc = std.testing.allocator;
+    const d = [_]Hash.Digest{ Hash.hashBytes("a"), Hash.hashBytes("b"), Hash.hashBytes("c") };
+
+    // Empty: log2_int(0) is undefined, and there is no root to speak of.
+    try std.testing.expectError(error.InvalidLeafCount, MerkleTree.init(alloc, &.{}));
+    // Three is not a power of two.
+    try std.testing.expectError(error.InvalidLeafCount, MerkleTree.init(alloc, &d));
+
+    // One and two are, so the same calls succeed.
+    var one = try MerkleTree.init(alloc, d[0..1]);
+    defer one.deinit();
+    var two = try MerkleTree.init(alloc, d[0..2]);
+    defer two.deinit();
+}
+
+test "MerkleTree.open refuses an index past the leaves" {
+    const alloc = std.testing.allocator;
+    const d = [_]Hash.Digest{ Hash.hashBytes("a"), Hash.hashBytes("b"), Hash.hashBytes("c"), Hash.hashBytes("d") };
+    var tree = try MerkleTree.init(alloc, &d);
+    defer tree.deinit();
+
+    const path = try tree.open(3, alloc);
+    defer alloc.free(path);
+
+    try std.testing.expectError(error.OutOfRange, tree.open(4, alloc));
 }
