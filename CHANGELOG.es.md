@@ -9,6 +9,61 @@ los cambios incompatibles y el PATCH solo cambios aditivos y correcciones. La
 política está desarrollada en
 [docs/architecture.es.md](docs/architecture.es.md#versionado).
 
+## [0.5.0] - sin publicar
+
+Véase [SECURITY.es.md](SECURITY.es.md) para el hallazgo de solidez que corrige
+esta versión. Es un aviso y no una línea del changelog, y la razón está al final
+de ese documento.
+
+### Changed (BREAKING)
+- **zig-algebra** queda fijada en `0.5.2`. El Blake3 de
+  `libs/hash/src/blake3.zig` no era BLAKE3 en `0.5.1`: su salida raíz
+  recomprimía el estado ya comprimido en lugar del valor de encadenamiento de
+  entrada, así que el resumen no coincidía con ningún vector canónico. El
+  transcript de este repositorio importa ese hash, así que **los desafíos de
+  Fiat-Shamir no se conservan al subir**. Una prueba hecha con `<= 0.5.1`
+  verifica con `<= 0.5.1` y no verifica después, porque los desafíos cambiaron.
+  Los compromisos no están afectados y nunca lo estuvieron:
+  `libs/stark/core/hash/hash.zig` envuelve `std.crypto.hash.Blake3`.
+- **stark/binius**: la PCS y el suma-producto locales desaparecen. Se confirmó
+  que el suma-producto es idéntico byte a byte al adoptado en el valor, la suma
+  declarada y seis rondas, codificando ambas pruebas y comparando bytes en vez
+  de comparar veredictos. La PCS no lo era, y la diferencia era real: nuestro
+  `commit` hasheaba dos veces cada hoja del Merkle, así que su compromiso era
+  otra función y una prueba suya no la leía un verificador de la adoptada. El
+  material comprometido de la versión anterior no es intercambiable.
+- Los puntos de llamada de **stark/binius** nombran ahora `SumcheckUnsafe` y
+  `CommittedMlePcsUnsafe`. El campo sobre el que se instancia la pila Binius es
+  `Gf256 = TowerField(3)`, de ocho bits, y las entradas seguras exigen 128 bits y
+  lo rechazan. El nombre está en el código y no en un comentario para que no se
+  pueda leer como algo que no es.
+- **stark/core**: se elimina `pool.zig` junto con su estructura `Pool`, que era
+  una copia de la de `zig-algebra`. `zig-parallel` pasa a ser una importación
+  declarada.
+- La suite de extremo a extremo de Binius es cobertura de fontanería, no de
+  solidez. El error de solidez de una ronda de suma-producto sobre un campo de
+  ocho bits es del orden de 1/|F|, alrededor del 0,4%, y se compone a lo largo
+  de las rondas. Véase la revisit de `binius` en el libro mayor.
+
+### Fixed
+- **stark/core/hash** queda fijado con vectores de respuesta conocida calculados
+  con un BLAKE3 independiente, uno de los cuales abarca dos fragmentos porque el
+  defecto que vigilan está en la ruta multicapa. `hash2`, por la que pasa cada
+  nodo interno del Merkle, no tenía ningún vector conocido: solo se comprobaba
+  que difiere de la concatenación de sus argumentos, que es una afirmación sobre
+  este módulo y no sobre BLAKE3.
+- Los compromisos de **stark/binius** quedan fijados con raíces conhecidas,
+  también calculadas fuera. Un hash no puede comprobarse consigo mismo, y una
+  ida y vuelta está de acuerdo consigo misma, que es por qué el doble hash
+  sobrevivió a todas las pruebas de extremo a extremo que tuvo.
+
+### Añadido
+- **SECURITY.es.md**, el aviso sobre la derivación de desafíos, y su|English version](SECURITY.md).
+
+### Docs
+- `libs/stark/README` ya no lista ficheros que no tiene, y dice de dónde
+  vienen ahora el suma-producto y la PCS.
+
 ## [0.4.0] - 2026-09-27
 
 MINOR: las aserciones que protegían valores aportados por el llamante

@@ -8,6 +8,58 @@ versioning follows [SemVer](https://semver.org/): in `0.y.z` the MINOR carries
 incompatible changes and the PATCH carries additive changes and fixes only. The
 policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning).
 
+## [0.5.0] - unreleased
+
+See [SECURITY.md](SECURITY.md) for the soundness finding that this release
+fixes. It is an advisory rather than a changelog line, and the reason is at the
+end of that document.
+
+### Changed (BREAKING)
+- **zig-algebra** is pinned to `0.5.2`. The Blake3 in `libs/hash/src/blake3.zig`
+  was not BLAKE3 at `0.5.1`: its root output recompressed the compressed state
+  instead of the input chaining value, so the digest matched no canonical
+  vector. This repository's transcript imports that hash, so **Fiat-Shamir
+  challenges are not preserved across this upgrade**. A proof made under
+  `<= 0.5.1` verifies under `<= 0.5.1` and does not verify after it, because
+  the challenges changed. Commitments are unaffected and always were:
+  `libs/stark/core/hash/hash.zig` wraps `std.crypto.hash.Blake3`.
+- **stark/binius**: the local PCS and sum-check are gone. The sum-check was
+  confirmed byte-identical to the adopted one over value, claimed sum and six
+  rounds, by encoding both proofs and comparing bytes rather than comparing
+  verdicts. The PCS was not, and the difference was real: our `commit` hashed
+  every Merkle leaf twice, so its commitment was a different function and a
+  proof from it was not readable by a verifier of the adopted one. Committed
+  material from the previous version is not interchangeable.
+- **stark/binius** call sites now name `SumcheckUnsafe` and
+  `CommittedMlePcsUnsafe`. The field the Binius stack is instantiated over is
+  `Gf256 = TowerField(3)`, eight bits wide, and the secure entry points require
+  128 bits and refuse it. The name is in the code rather than in a comment so
+  that it cannot be read as something it is not.
+- **stark/core**: `pool.zig` is removed, along with its `Pool` struct, which was
+  a copy of `zig-algebra`'s. `zig-parallel` is now a declared import.
+- The Binius end-to-end suite is coverage of plumbing, not of soundness. A
+  sum-check round's soundness error over an eight-bit field is of order 1/|F|,
+  about 0.4%, and it composes over the rounds. See the ledger's `binius` revisit.
+
+### Fixed
+- **stark/core/hash** is pinned with known-answer vectors computed with an
+  independent BLAKE3, one of which spans two chunks because the defect it
+  guards against is in the multi-chunk path. `hash2`, which every Merkle
+  internal node goes through, had no known-answer vector at all: it was only
+  checked for differing from the concatenation of its arguments, which is a
+  statement about this module and not about BLAKE3.
+- **stark/binius** commitments are pinned with known-answer roots, also computed
+  outside. A hash cannot be checked with itself, and a round trip agrees with
+  itself, which is why the double hash survived every end-to-end test it had.
+
+### Added
+- **SECURITY.md**, the advisory for the challenge derivation, and its Spanish
+  counterpart.
+
+### Docs
+- `libs/stark/README` no longer lists the files it does not have, and says where
+  the sum-check and PCS come from now.
+
 ## [0.4.0] - 2026-09-27
 
 MINOR: the asserts that guarded values a caller supplies return typed errors.
