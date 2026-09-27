@@ -362,7 +362,7 @@ test "circle FFT matches fold reference" {
 
     var log_size: u32 = 1;
     while (log_size <= 8) : (log_size += 1) {
-        const half_coset = CircleCoset.canonicHalf(log_size);
+        const half_coset = try CircleCoset.canonicHalf(log_size);
         const n = half_coset.size() * 2;
         const coeffs = try randomCoeffs(rnd, alloc, n);
         defer alloc.free(coeffs);
@@ -383,7 +383,7 @@ test "circle FFT round-trips with IFFT" {
 
     var log_size: u32 = 1;
     while (log_size <= 8) : (log_size += 1) {
-        const half_coset = CircleCoset.canonicHalf(log_size);
+        const half_coset = try CircleCoset.canonicHalf(log_size);
         const n = half_coset.size() * 2;
         const coeffs = try randomCoeffs(rnd, alloc, n);
         defer alloc.free(coeffs);
@@ -401,7 +401,7 @@ test "circle FFT round-trips with IFFT" {
 }
 
 test "circle FFT evaluates known constant" {
-    const half_coset = CircleCoset.canonicHalf(3);
+    const half_coset = try CircleCoset.canonicHalf(3);
     const n = half_coset.size() * 2;
     var alloc = std.testing.allocator;
     const coeffs = try alloc.alloc(M31, n);
@@ -418,7 +418,7 @@ test "circle FFT evaluates known constant" {
 }
 
 test "circle FFT evaluates x in the FFT basis" {
-    const half_coset = CircleCoset.canonicHalf(3);
+    const half_coset = try CircleCoset.canonicHalf(3);
     const n = half_coset.size() * 2;
     var alloc = std.testing.allocator;
     const coeffs = try alloc.alloc(M31, n);
@@ -435,7 +435,7 @@ test "circle FFT evaluates x in the FFT basis" {
 }
 
 test "circle FFT evaluates y times constant" {
-    const half_coset = CircleCoset.canonicHalf(3);
+    const half_coset = try CircleCoset.canonicHalf(3);
     const n = half_coset.size() * 2;
     const half = n / 2;
     var alloc = std.testing.allocator;
@@ -453,8 +453,8 @@ test "circle FFT evaluates y times constant" {
 }
 
 test "circle coset evaluation" {
-    const half_coset = CircleCoset.canonicHalf(4);
-    const coset = CircleCoset.standard(4);
+    const half_coset = try CircleCoset.canonicHalf(4);
+    const coset = try CircleCoset.standard(4);
     const n = half_coset.size() * 2;
     var alloc = std.testing.allocator;
     const coeffs = try alloc.alloc(M31, n);

@@ -53,8 +53,11 @@ pub const CirclePoint = struct {
     /// A generator of the unique subgroup of order 2^log_size.
     /// The full-circle generator has order 2^31, so G^(2^(31 - log_size))
     /// generates the order-2^log_size subgroup.
-    pub fn generatorWithOrder(log_size: u32) CirclePoint {
-        std.debug.assert(log_size <= 31);
+    /// `error.InvalidLogSize` above 31, where the exponent shift underflows.
+    /// `log_size` reaches here from `StarkParams.trace_log`, so it is the
+    /// caller's value and the assert used to vanish in ReleaseFast.
+    pub fn generatorWithOrder(log_size: u32) error{InvalidLogSize}!CirclePoint {
+        if (log_size > 31) return error.InvalidLogSize;
         const exp: u64 = @as(u64, 1) << @intCast(31 - log_size);
         return CirclePoint.generator().mulScalar(exp);
     }
@@ -136,7 +139,7 @@ test "circle generator has order 2^31" {
 test "circle generator order-2^k subgroups" {
     var k: u32 = 1;
     while (k <= 20) : (k += 1) {
-        const gen_k = CirclePoint.generatorWithOrder(k);
+        const gen_k = try CirclePoint.generatorWithOrder(k);
         try std.testing.expect(gen_k.mulScalar(@as(u64, 1) << @intCast(k)).isIdentity());
         if (k > 1) {
             try std.testing.expect(!gen_k.mulScalar(@as(u64, 1) << @intCast(k - 1)).isIdentity());
@@ -166,4 +169,13 @@ test "circle scalar multiplication matches double-and-add reference" {
     // scalar 0 and 1
     try std.testing.expect(gen.mulScalar(0).isIdentity());
     try std.testing.expect(gen.mulScalar(1).x.eq(gen.x));
+}
+
+test "a generator of order 2^log_size refuses a log_size above 31" {
+    try std.testing.expectError(error.InvalidLogSize, CirclePoint.generatorWithOrder(32));
+    try std.testing.expectError(error.InvalidLogSize, CirclePoint.generatorWithOrder(1000));
+    // 31 is the largest that does not underflow the exponent shift, and the
+    // full-circle generator itself is the order 2^31 case.
+    _ = try CirclePoint.generatorWithOrder(31);
+    _ = try CirclePoint.generatorWithOrder(4);
 }

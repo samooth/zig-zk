@@ -151,12 +151,18 @@ const ledger = [_]Zone{
         .path = "libs/stark/m31",
         .kind = .api,
         .upstream = null,
-        .asserts = 30,
+        .asserts = 28,
         .invariants = &.{
             // Four public functions whose assert checks a value they were
             // handed, or a relation between two StarkParams fields. Converting
             // these would change a published signature to guard nothing.
             .{ .file = "circle/coset.zig", .condition = "self.log_size > 0" },
+            // at and get take an index that every call site derives from the
+            // coset's own size, so a bad index is not reachable from a caller,
+            // let alone from a proof. Converting them would cascade a fallible
+            // signature through the NTT to guard a case that cannot happen.
+            .{ .file = "circle/coset.zig", .condition = "index < self.size()" },
+            .{ .file = "circle/domain.zig", .condition = "index < self.size()" },
             .{ .file = "field/m31.zig", .condition = "self.value != 0" },
             .{ .file = "fri.zig", .condition = "L >= 1" },
             .{ .file = "fri.zig", .condition = "params.remainder_log >= params.log_blowup" },
@@ -279,7 +285,7 @@ const declared_algebra_pin = "0.3.2";
 /// to the carved one without failing anything. That is a known property rather
 /// than an oversight, and this constant is the second half of the answer, since
 /// every carve out has to be paid for here.
-const declared_reachable: usize = 101;
+const declared_reachable: usize = 97;
 
 const max_detail = 512;
 
@@ -789,10 +795,10 @@ test "a condition is keyed by its text, not by where it sits" {
 test "the ledger classifies by condition text, and a file suffix is a path suffix" {
     const m31 = ledger[2];
     try std.testing.expectEqualStrings("libs/stark/m31", m31.path);
-    try std.testing.expectEqual(@as(usize, 9), m31.invariants.len);
+    try std.testing.expectEqual(@as(usize, 11), m31.invariants.len);
     var declared: usize = 0;
     for (m31.invariants) |c| declared += c.count;
-    try std.testing.expectEqual(@as(usize, 10), declared);
+    try std.testing.expectEqual(@as(usize, 12), declared);
 
     // The six private-helper asserts are five conditions, one of them twice.
     var twice: usize = 0;
@@ -827,7 +833,7 @@ test "the ledger's own numbers add up" {
     // headline is lying in a way a reader cannot see.
     try std.testing.expectEqual(declared, reachable + invariant + fixture + internal_only);
     try std.testing.expectEqual(declared_reachable, reachable);
-    try std.testing.expectEqual(@as(usize, 101), declared_reachable);
+    try std.testing.expectEqual(@as(usize, 97), declared_reachable);
     // transcript is the zone that proves reachability is a declared claim: both
     // of its asserts are `pub fn` inside something private.
     var fixture_zones: usize = 0;

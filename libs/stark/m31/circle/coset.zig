@@ -27,9 +27,9 @@ pub const CircleCoset = struct {
 
     /// A coset of the canonical subgroup of order 2^log_size, offset by the
     /// full-circle generator so that none of its points lie in the subgroup.
-    pub fn standard(log_size: u32) CircleCoset {
+    pub fn standard(log_size: u32) !CircleCoset {
         const offset = CirclePoint.generator();
-        const step = CirclePoint.generatorWithOrder(log_size);
+        const step = try CirclePoint.generatorWithOrder(log_size);
         return CircleCoset.new(offset, step, log_size);
     }
 
@@ -56,8 +56,11 @@ pub const CircleCoset = struct {
     /// Note: `generator()` and its negation differ by an element of order 4,
     /// so `canonicHalf` is only guaranteed to match stwo's traversal for
     /// `log_size <= 28`; the FFT is only exercised up to that size.
-    pub fn canonicHalf(log_size: u32) CircleCoset {
-        std.debug.assert(log_size >= 1 and log_size <= 28);
+    /// `error.InvalidLogSize` outside 1..=28, the range over which this matches
+    /// stwo's traversal. `log_size` comes from `StarkParams`, so it is the
+    /// caller's value.
+    pub fn canonicHalf(log_size: u32) error{InvalidLogSize}!CircleCoset {
+        if (log_size < 1 or log_size > 28) return error.InvalidLogSize;
         const gen = CirclePoint.generator().neg();
         const offset = gen.mulScalar(@as(u64, 1) << @intCast(30 - log_size));
         const step = gen.mulScalar(@as(u64, 1) << @intCast(32 - log_size));
@@ -66,7 +69,7 @@ pub const CircleCoset = struct {
 };
 
 test "circle coset properties" {
-    const coset = CircleCoset.standard(4);
+    const coset = try CircleCoset.standard(4);
     try std.testing.expectEqual(@as(usize, 16), coset.size());
     // all points on the circle
     for (0..coset.size()) |i| {
@@ -91,8 +94,8 @@ test "circle coset properties" {
 }
 
 test "circle coset avoids canonical subgroup" {
-    const dom = CircleDomain.standard(3);
-    const coset = CircleCoset.standard(3);
+    const dom = try CircleDomain.standard(3);
+    const coset = try CircleCoset.standard(3);
     for (0..8) |i| {
         const p = coset.at(i);
         var in_domain = false;
@@ -105,7 +108,7 @@ test "circle coset avoids canonical subgroup" {
 }
 
 test "circle coset conjugate negates points" {
-    const coset = CircleCoset.canonicHalf(4);
+    const coset = try CircleCoset.canonicHalf(4);
     const conj = coset.conjugate();
     try std.testing.expectEqual(@as(usize, 8), conj.size());
     for (0..conj.size()) |i| {
@@ -117,7 +120,7 @@ test "circle coset conjugate negates points" {
 test "circle coset canonicHalf properties" {
     var log_size: u32 = 1;
     while (log_size <= 8) : (log_size += 1) {
-        const coset = CircleCoset.canonicHalf(log_size);
+        const coset = try CircleCoset.canonicHalf(log_size);
         try std.testing.expectEqual(@as(usize, 1) << @intCast(log_size - 1), coset.size());
         // all points on the circle and distinct
         const n = coset.size();
@@ -141,4 +144,13 @@ test "circle coset canonicHalf properties" {
             }
         }
     }
+}
+
+test "canonicHalf refuses a log_size outside the range it matches stwo on" {
+    try std.testing.expectError(error.InvalidLogSize, CircleCoset.canonicHalf(0));
+    try std.testing.expectError(error.InvalidLogSize, CircleCoset.canonicHalf(29));
+    // The doc-comment says 28 is where the guarantee stops, so both ends of the
+    // documented range have to work.
+    _ = try CircleCoset.canonicHalf(1);
+    _ = try CircleCoset.canonicHalf(28);
 }

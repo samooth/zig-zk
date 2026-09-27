@@ -22,8 +22,8 @@ pub const CircleDomain = struct {
     }
 
     /// The canonical subgroup of order 2^log_size.
-    pub fn standard(log_size: u32) CircleDomain {
-        const gen = CirclePoint.generatorWithOrder(log_size);
+    pub fn standard(log_size: u32) !CircleDomain {
+        const gen = try CirclePoint.generatorWithOrder(log_size);
         return CircleDomain.new(gen, log_size);
     }
 
@@ -38,7 +38,7 @@ pub const CircleDomain = struct {
 };
 
 test "circle domain properties" {
-    const dom = CircleDomain.standard(4);
+    const dom = try CircleDomain.standard(4);
     try std.testing.expectEqual(@as(usize, 16), dom.size());
     // first point is identity
     try std.testing.expect(dom.get(0).isIdentity());
@@ -57,7 +57,7 @@ test "circle domain properties" {
 }
 
 test "circle domain xValues" {
-    const dom = CircleDomain.standard(3);
+    const dom = try CircleDomain.standard(3);
     var alloc = std.testing.allocator;
     const xs = try dom.xValues(alloc);
     defer alloc.free(xs);
@@ -70,7 +70,7 @@ test "circle domain xValues" {
 test "circle domain sizes are powers of two" {
     var k: u32 = 1;
     while (k <= 15) : (k += 1) {
-        const dom = CircleDomain.standard(k);
+        const dom = try CircleDomain.standard(k);
         try std.testing.expectEqual(@as(usize, 1) << @intCast(k), dom.size());
     }
 }
