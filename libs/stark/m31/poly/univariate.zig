@@ -34,9 +34,10 @@ pub fn Generic(comptime F: type) type {
             return -1;
         }
 
-        /// out = a + b (out may alias neither). out.len == max(a.len, b.len).
-        pub fn add(a: []const F, b: []const F, out: []F) void {
-            std.debug.assert(out.len >= @max(a.len, b.len));
+        /// out = a + b (out may alias neither). `error.OutputLength` unless
+        /// out.len >= max(a.len, b.len).
+        pub fn add(a: []const F, b: []const F, out: []F) error{OutputLength}!void {
+            if (out.len < @max(a.len, b.len)) return error.OutputLength;
             var i: usize = 0;
             while (i < out.len) : (i += 1) {
                 const va = if (i < a.len) a[i] else F.zero();
@@ -45,9 +46,9 @@ pub fn Generic(comptime F: type) type {
             }
         }
 
-        /// out = a - b.
-        pub fn sub(a: []const F, b: []const F, out: []F) void {
-            std.debug.assert(out.len >= @max(a.len, b.len));
+        /// out = a - b. `error.OutputLength` unless out.len >= max(a.len, b.len).
+        pub fn sub(a: []const F, b: []const F, out: []F) error{OutputLength}!void {
+            if (out.len < @max(a.len, b.len)) return error.OutputLength;
             var i: usize = 0;
             while (i < out.len) : (i += 1) {
                 const va = if (i < a.len) a[i] else F.zero();
@@ -56,9 +57,10 @@ pub fn Generic(comptime F: type) type {
             }
         }
 
-        /// out = a * b (schoolbook). out.len == a.len + b.len - 1.
-        pub fn mul(a: []const F, b: []const F, out: []F) void {
-            std.debug.assert(out.len == a.len + b.len - 1);
+        /// out = a * b (schoolbook). `error.OutputLength` unless
+        /// out.len == a.len + b.len - 1.
+        pub fn mul(a: []const F, b: []const F, out: []F) error{OutputLength}!void {
+            if (out.len != a.len + b.len - 1) return error.OutputLength;
             @memset(out, F.zero());
             for (a, 0..) |va, i| {
                 for (b, 0..) |vb, j| {
@@ -67,15 +69,19 @@ pub fn Generic(comptime F: type) type {
             }
         }
 
-        /// out = c * poly.
-        pub fn scale(poly: []const F, c: F, out: []F) void {
-            std.debug.assert(out.len >= poly.len);
+        /// out = c * poly. `error.OutputLength` unless out.len >= poly.len.
+        pub fn scale(poly: []const F, c: F, out: []F) error{OutputLength}!void {
+            if (out.len < poly.len) return error.OutputLength;
             for (poly, 0..) |v, i| out[i] = v.mul(c);
         }
 
         /// Interpolate the unique polynomial of degree < n through points
         /// (xs[i], ys[i]), i = 0..n-1 (distinct xs), writing coefficients into
         /// `coeffs` (length n). Barycentric/Lagrange, O(n^2).
+        ///
+        /// `error.InputLengthMismatch` when `ys.len != xs.len` and
+        /// `error.OutputLength` when `coeffs.len != n`. Both were asserts, so in
+        /// ReleaseFast a short `ys` read past its end instead of failing.
         pub fn interpolate(
             allocator: std.mem.Allocator,
             xs: []const F,
@@ -83,8 +89,8 @@ pub fn Generic(comptime F: type) type {
             coeffs: []F,
         ) !void {
             const n = xs.len;
-            std.debug.assert(ys.len == n);
-            std.debug.assert(coeffs.len == n);
+            if (ys.len != n) return error.InputLengthMismatch;
+            if (coeffs.len != n) return error.OutputLength;
 
             // Basis polynomial P(z) = prod_i (z - xs[i]), degree n (length n+1).
             const p = try allocator.alloc(F, n + 1);
@@ -139,9 +145,9 @@ pub fn Generic(comptime F: type) type {
         }
 
         /// Vanishing polynomial on the point set `points`: prod_i (z - points[i]).
-        /// Output length = points.len + 1.
-        pub fn vanishPoly(points: []const F, out: []F) void {
-            std.debug.assert(out.len == points.len + 1);
+        /// `error.OutputLength` unless out.len == points.len + 1.
+        pub fn vanishPoly(points: []const F, out: []F) error{OutputLength}!void {
+            if (out.len != points.len + 1) return error.OutputLength;
             @memset(out, F.zero());
             out[0] = F.one();
             var len: usize = 1;
@@ -180,7 +186,7 @@ test "univariate mul" {
     var out: [3]M31 = undefined;
     const a = [_]M31{ M31.one(), M31.one() };
     const b = [_]M31{ M31.one(), M31.one().neg() };
-    Univariate.mul(&a, &b, &out);
+    try Univariate.mul(&a, &b, &out);
     try std.testing.expect(out[0].eq(M31.one()));
     try std.testing.expect(out[1].eq(M31.zero()));
     try std.testing.expect(out[2].eq(M31.one().neg()));
@@ -190,15 +196,15 @@ test "univariate add/sub/scale" {
     var out: [3]M31 = undefined;
     const a = [_]M31{ M31.fromInt(2), M31.fromInt(3) };
     const b = [_]M31{ M31.fromInt(1), M31.fromInt(0), M31.fromInt(5) };
-    Univariate.add(&a, &b, &out);
+    try Univariate.add(&a, &b, &out);
     try std.testing.expect(out[0].eq(M31.fromInt(3)));
     try std.testing.expect(out[1].eq(M31.fromInt(3)));
     try std.testing.expect(out[2].eq(M31.fromInt(5)));
-    Univariate.sub(&a, &b, &out);
+    try Univariate.sub(&a, &b, &out);
     try std.testing.expect(out[0].eq(M31.fromInt(1)));
     try std.testing.expect(out[1].eq(M31.fromInt(3)));
     try std.testing.expect(out[2].eq(M31.fromInt(5).neg()));
-    Univariate.scale(&b, M31.fromInt(2), &out);
+    try Univariate.scale(&b, M31.fromInt(2), &out);
     try std.testing.expect(out[0].eq(M31.fromInt(2)));
     try std.testing.expect(out[2].eq(M31.fromInt(10)));
 }
@@ -234,10 +240,64 @@ test "univariate interpolate recovers linear" {
 test "univariate vanish poly" {
     const xs = [_]M31{ M31.fromInt(1), M31.fromInt(2), M31.fromInt(3) };
     var v: [4]M31 = undefined;
-    Univariate.vanishPoly(&xs, &v);
+    try Univariate.vanishPoly(&xs, &v);
     for (xs) |x| {
         try std.testing.expect(Univariate.eval(&v, x).eq(M31.zero()));
     }
     // leading coefficient is 1
     try std.testing.expect(v[3].eq(M31.one()));
+}
+
+test "univariate refuses buffers of the wrong length" {
+    const a = [_]M31{ M31.fromInt(1), M31.fromInt(2), M31.fromInt(3) };
+    const b = [_]M31{ M31.fromInt(4), M31.fromInt(5) };
+    var three: [3]M31 = undefined;
+    var two: [2]M31 = undefined;
+    var five: [5]M31 = undefined;
+
+    // add and sub need room for the longer input, so a short out is refused and
+    // a long one is not: the extra entries are the zero padding.
+    try std.testing.expectError(error.OutputLength, Univariate.add(&a, &b, &two));
+    try std.testing.expectError(error.OutputLength, Univariate.sub(&a, &b, &two));
+    try Univariate.add(&a, &b, &five);
+    try Univariate.sub(&a, &b, &five);
+
+    // mul needs the exact size, in both directions.
+    var four: [4]M31 = undefined;
+    try std.testing.expectError(error.OutputLength, Univariate.mul(&a, &b, &five));
+    try std.testing.expectError(error.OutputLength, Univariate.mul(&a, &b, &three));
+    try Univariate.mul(&a, &b, &four);
+    // a * b for a of length 3 and b of length 2 is 3 + 2 - 1 = 4.
+    try std.testing.expect(four[0].eq(a[0].mul(b[0])));
+    try std.testing.expect(four[3].eq(a[2].mul(b[1])));
+
+    try std.testing.expectError(error.OutputLength, Univariate.scale(&a, M31.one(), &two));
+    try Univariate.scale(&a, M31.one(), &three);
+
+    // vanishPoly wants points.len + 1, no more and no less.
+    const xs = [_]M31{ M31.fromInt(1), M31.fromInt(2) };
+    var v3: [3]M31 = undefined;
+    try std.testing.expectError(error.OutputLength, Univariate.vanishPoly(&xs, &two));
+    try Univariate.vanishPoly(&xs, &v3);
+}
+
+test "interpolate refuses inputs that disagree and a coeffs buffer of the wrong size" {
+    const xs = [_]M31{ M31.fromInt(1), M31.fromInt(2), M31.fromInt(3) };
+    const ys = [_]M31{ M31.fromInt(4), M31.fromInt(5), M31.fromInt(6) };
+    var coeffs: [3]M31 = undefined;
+    var four: [4]M31 = undefined;
+
+    // ys has to be as long as xs: two different mistakes, two errors.
+    try std.testing.expectError(
+        error.InputLengthMismatch,
+        Univariate.interpolate(std.testing.allocator, &xs, ys[0..2], &coeffs),
+    );
+    try std.testing.expectError(
+        error.OutputLength,
+        Univariate.interpolate(std.testing.allocator, &xs, &ys, &four),
+    );
+    try Univariate.interpolate(std.testing.allocator, &xs, &ys, &coeffs);
+    for (xs, ys) |x, y| {
+        try std.testing.expect(Univariate.eval(&coeffs, x).eq(y));
+    }
 }
