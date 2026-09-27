@@ -1,5 +1,5 @@
 const std = @import("std");
-const SumcheckMod = @import("sumcheck.zig");
+const SumcheckMod = @import("zig-binary-field").sumcheck;
 const PcsMod = @import("pcs.zig");
 const FriPcsMod = @import("fripcs.zig");
 const CoreHash = @import("../core/hash/hash.zig");
@@ -40,7 +40,7 @@ pub fn BiniusArg(comptime F: type, comptime E: type) type {
 /// `verifyEval`). `BiniusArgFri` picks the sub-linear FRI-Binius PCS.
 pub fn BiniusArgWith(comptime F: type, comptime E: type, comptime CP: type) type {
     return struct {
-        const SC = SumcheckMod.Sumcheck(E);
+        const SC = SumcheckMod.SumcheckUnsafe(E);
         const Hash = CoreHash.Hash;
 
         pub const EvalProof = struct {
@@ -198,7 +198,7 @@ test "binius arg round trip for m=1 and m=2, k=1..3" {
         // m=1: sum of a single committed column
         {
             const tables = [_][]const Gf16{t0[0..n]};
-            const expected = SumcheckMod.Sumcheck(Gf16).computeClaimedSum(n, &tables);
+            const expected = SumcheckMod.SumcheckUnsafe(Gf16).computeClaimedSum(n, &tables);
             var proof = try A.prove(alloc, k, &tables);
             defer proof.deinit(alloc);
 
@@ -214,7 +214,7 @@ test "binius arg round trip for m=1 and m=2, k=1..3" {
         // m=2: product-sum of two committed columns
         {
             const tables = [_][]const Gf16{ t0[0..n], t1[0..n] };
-            const expected = SumcheckMod.Sumcheck(Gf16).computeClaimedSum(n, &tables);
+            const expected = SumcheckMod.SumcheckUnsafe(Gf16).computeClaimedSum(n, &tables);
             var proof = try A.prove(alloc, k, &tables);
             defer proof.deinit(alloc);
 
@@ -244,7 +244,7 @@ test "binius arg rejects wrong claimed sum and wrong root" {
         t1[i] = fe((i * 3 + 11) % 16);
     }
     const tables = [_][]const Gf16{ &t0, &t1 };
-    const expected = SumcheckMod.Sumcheck(Gf16).computeClaimedSum(8, &tables);
+    const expected = SumcheckMod.SumcheckUnsafe(Gf16).computeClaimedSum(8, &tables);
     var proof = try A.prove(alloc, k, &tables);
     defer proof.deinit(alloc);
 

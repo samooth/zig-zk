@@ -554,7 +554,7 @@ test "e2e: parallel prover matches sequential (4-bit adder batch)" {
     const columns = try Adder.generateWitness(alloc, x, y);
     defer Adder.freeWitness(alloc, &columns);
 
-    var pool = zig_stark.core.pool.Pool.init(4);
+    var pool = @import("zig-parallel").Pool.init(4);
     var proof = try Stark.proveParallel(alloc, k, &columns, &Adder.constraints, &.{}, "", &pool);
     defer proof.deinit(alloc);
 

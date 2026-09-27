@@ -29,7 +29,7 @@ const Hash = @import("../core/hash/hash.zig").Hash;
 const MerkleTree = @import("../core/merkle/merkle.zig").MerkleTree;
 const MerkleVerify = @import("../core/merkle/merkle.zig").verify;
 const Tower = @import("zig-binary-field").tower;
-const Sumcheck = @import("sumcheck.zig").Sumcheck;
+const Sumcheck = @import("zig-binary-field").SumcheckUnsafe;
 
 pub fn AdditiveFri(comptime F: type) type {
     return struct {

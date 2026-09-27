@@ -1,11 +1,11 @@
 const std = @import("std");
-const SumcheckMod = @import("sumcheck.zig");
+const SumcheckMod = @import("zig-binary-field").sumcheck;
 const PcsMod = @import("pcs.zig");
 const FriPcsMod = @import("fripcs.zig");
 const BatchPcsMod = @import("batchpcs.zig");
 const CoreHash = @import("../core/hash/hash.zig");
 const Channel = @import("zig-transcript").Channel;
-const Pool = @import("../core/pool.zig").Pool;
+const Pool = @import("zig-parallel").Pool;
 
 /// Binius STARK over a binary field `F` (the witness/base field) with the
 /// protocol run over the extension field `E` (take `E = F` for the plain
@@ -80,7 +80,7 @@ pub fn BiniusStarkWith(comptime F: type, comptime E: type, comptime CP: type) ty
 
 fn StarkInner(comptime F: type, comptime E: type, comptime CP: type) type {
     return struct {
-        const SC = SumcheckMod.Sumcheck(E);
+        const SC = SumcheckMod.SumcheckUnsafe(E);
         const M = PcsMod.MlePcs(F, E);
         const Hash = CoreHash.Hash;
 

@@ -2,7 +2,7 @@ const std = @import("std");
 
 pub const field = @import("zig-binary-field").field;
 pub const polynomial = @import("zig-binary-field").polynomial;
-pub const sumcheck = @import("sumcheck.zig");
+pub const sumcheck = @import("zig-binary-field").sumcheck;
 pub const pcs = @import("pcs.zig");
 pub const arg = @import("arg.zig");
 pub const stark = @import("stark.zig");

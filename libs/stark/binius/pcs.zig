@@ -1,6 +1,6 @@
 const std = @import("std");
 const Polynomial = @import("zig-binary-field").polynomial;
-const SumcheckMod = @import("sumcheck.zig");
+const SumcheckMod = @import("zig-binary-field").sumcheck;
 const CoreHash = @import("../core/hash/hash.zig");
 const CoreMerkle = @import("../core/merkle/merkle.zig");
 
@@ -32,7 +32,7 @@ pub fn MlePcs(comptime F: type, comptime E: type) type {
     return struct {
         const Self = @This();
         const Multilinear = Polynomial.Multilinear(E);
-        const SC = SumcheckMod.Sumcheck(E);
+        const SC = SumcheckMod.SumcheckUnsafe(E);
 
         pub const Proof = struct {
             value: E,
@@ -204,7 +204,7 @@ pub fn MlePcs(comptime F: type, comptime E: type) type {
 /// the extension `E`.
 pub fn CommittedMlePcs(comptime F: type, comptime E: type) type {
     return struct {
-        const SC = SumcheckMod.Sumcheck(E);
+        const SC = SumcheckMod.SumcheckUnsafe(E);
         const M = MlePcs(F, E);
         const Hash = CoreHash.Hash;
         const MerkleTree = CoreMerkle.MerkleTree;

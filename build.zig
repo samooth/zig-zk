@@ -44,6 +44,7 @@ pub fn build(b: *std.Build) void {
     const binary_field = algebra_dep.module("zig-binary-field");
     const curve = algebra_dep.module("zig-curve");
     const merkle = algebra_dep.module("zig-merkle");
+    const parallel = algebra_dep.module("zig-parallel");
     const poly = algebra_dep.module("zig-poly");
     const pairing = algebra_dep.module("zig-pairing");
 
@@ -168,6 +169,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "zig-field", .module = field },
         .{ .name = "zig-transcript", .module = transcript_mod },
         .{ .name = "zig-binary-field", .module = binary_field },
+        .{ .name = "zig-parallel", .module = parallel },
     });
     addTests(b, test_step, "zig-snark-tests", b.path("libs/snark/src/root.zig"), target, optimize, &.{
         .{ .name = "zig-field", .module = field },
@@ -184,6 +186,9 @@ pub fn build(b: *std.Build) void {
             .{ .name = "zig-field", .module = field },
             .{ .name = "zig-transcript", .module = transcript_mod },
             .{ .name = "zig-binary-field", .module = binary_field },
+            // The parallel pool is consumed from zig-algebra: the sum-check that
+            // takes it is upstream's, and it takes that type, not ours.
+            .{ .name = "zig-parallel", .module = parallel },
         },
     });
 
@@ -209,6 +214,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "zig-stark", .module = stark_lib_mod },
             .{ .name = "zig-transcript", .module = transcript_mod },
+            .{ .name = "zig-parallel", .module = parallel },
             .{ .name = "zig-field", .module = field },
         },
     });
@@ -231,6 +237,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "zig-stark", .module = stark_lib_mod },
             .{ .name = "zig-field", .module = field },
+            .{ .name = "zig-parallel", .module = parallel },
         },
     });
     fuzz_mod.addOptions("fuzz_options", fuzz_opts);

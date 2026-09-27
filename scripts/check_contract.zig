@@ -102,18 +102,20 @@ const ledger = [_]Zone{
         .path = "libs/stark/binius",
         .kind = .api,
         .upstream = "zig-algebra/libs/binary-field @ 0.5.2",
-        .asserts = 68,
+        .asserts = 61,
         .invariants = &.{},
         .reason = "the field layer is upstream's, adopted from 0.5.2: field, " ++
             "tower, pack, polynomial and clmul come from zig-binary-field and " ++
-            "this zone no longer carries them. Fifteen files import them from " ++
-            "there now, so the reason this zone still exists is pcs.zig and " ++
-            "sumcheck.zig alone, which diverge from upstream by 435 lines. " ++
-            "accel.zig stays because the local sumcheck imports it and " ++
-            "zig-binary-field does not re-export it, so it goes with them. " ++
-            "What remains is 68 asserts, none of them classified: the zone has " ++
-            "no declared invariants, so every one of them counts as reachable " ++
-            "and overstates the work.",
+            "this zone no longer carries them. The sum-check went with a " ++
+            "differential that compared proof bytes, not verdicts: value, " ++
+            "claimed sum and six rounds matched upstream's exactly, so the " ++
+            "local file was a pure deletion. Two more forks went with it: " ++
+            "core/pool.zig, which upstream's sum-check refused because it " ++
+            "takes zig-algebra's Pool and not ours, and accel.zig, whose only " ++
+            "consumer was the local sum-check. What is left of the fork here " ++
+            "is pcs.zig alone. 61 asserts, none of them classified: the zone " ++
+            "has no declared invariants, so every one of them counts as " ++
+            "reachable and overstates the work.",
         .revisit = "the differential harness ran, and the answer is split. The " ++
             "sum-check is byte-identical to upstream's over value, claimed sum " ++
             "and six rounds, so sumcheck.zig is a pure deletion. The PCS is not: " ++
@@ -274,6 +276,7 @@ const declared_algebra_modules = [_][]const u8{
     "zig-hash",
     "zig-merkle",
     "zig-pairing",
+    "zig-parallel",
     "zig-poly",
 };
 
@@ -298,7 +301,7 @@ const declared_algebra_pin = "0.5.2";
 /// to the carved one without failing anything. That is a known property rather
 /// than an oversight, and this constant is the second half of the answer, since
 /// every carve out has to be paid for here.
-const declared_reachable: usize = 71;
+const declared_reachable: usize = 64;
 
 const max_detail = 512;
 
@@ -850,7 +853,7 @@ test "the ledger's own numbers add up" {
     // headline is lying in a way a reader cannot see.
     try std.testing.expectEqual(declared, reachable + invariant + fixture + internal_only);
     try std.testing.expectEqual(declared_reachable, reachable);
-    try std.testing.expectEqual(@as(usize, 71), declared_reachable);
+    try std.testing.expectEqual(@as(usize, 64), declared_reachable);
     // transcript is the zone that proves reachability is a declared claim: both
     // of its asserts are `pub fn` inside something private.
     var fixture_zones: usize = 0;
