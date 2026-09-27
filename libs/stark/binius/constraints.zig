@@ -98,7 +98,7 @@ pub fn shiftInto(comptime B: type, b: *B, comptime t0: usize, comptime col_offse
 // ---------------------------------------------------------------------------
 
 const StarkMod = @import("stark.zig");
-const Gf256 = @import("tower.zig").Gf256;
+const Gf256 = @import("zig-binary-field").tower.Gf256;
 const Hash = @import("../core/hash/hash.zig").Hash;
 const Pcs = @import("pcs.zig").CommittedMlePcs;
 

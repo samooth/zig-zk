@@ -101,35 +101,26 @@ const ledger = [_]Zone{
     .{
         .path = "libs/stark/binius",
         .kind = .api,
-        .upstream = "zig-algebra/libs/binary-field @ 0.3.2",
-        .asserts = 81,
+        .upstream = "zig-algebra/libs/binary-field @ 0.5.1",
+        .asserts = 68,
         .invariants = &.{},
-        .reason = "binius is the original. zig-algebra/libs/binary-field/src/root.zig " ++
-            "says it was 'Extracted from zig-stark's binius implementation'. Three " ++
-            "files are byte-identical to 0.3.2 (accel, clmul, polynomial); field, " ++
-            "pack and tower differ only by the invChecked work this repository " ++
-            "did, which 0.4.0 also carries. Twenty of the 81 sit in private " ++
-            "helpers and are invariants by construction, since only the same file " ++
-            "calls them; they are deliberately left unclassified. The default " ++
-            "treats an unclassified assert as caller-facing, so this zone's " ++
-            "reachable count overstates the work on purpose, and the zone is " ++
-            "deleted by the adoption that this entry points at.",
-        .revisit = "replaced-by-upstream: adopt zig-binary-field and delete this " ++
-            "zone, but adoption does not close the characteristic-2 hole, it " ++
-            "moves the zone. Four functions in four files assume characteristic " ++
-            "two: polynomial.zig eval and extend fold a pair as a + r*(a + b) " ++
-            "where the identity is a + r*(b - a), sumcheck.zig interpolateCoeffs " ++
-            "builds the Lagrange denominator with points[i] + points[j], pack.zig " ++
-            "lagrangeBasis divides by (x + x_i), and pcs.zig builds the kernel as " ++
-            "t + (1 + r_j). Over a prime field of 128 bits or more all four " ++
-            "compile and return garbage, and the fold is the entry point, so a " ++
-            "misuse hits it before the interpolation. The PR in flight upstream " ++
-            "fixes interpolateCoeffs and lagrangeBasis, which are no-ops in " ++
-            "characteristic two; the fold and the kernel are not in it. Treat " ++
-            "that as an input to the adoption decision, not as a detail. " ++
-            "Separately, the local invChecked returns error.DivideByZero where " ++
-            "upstream returns error.InverseOfZero, so the six call sites follow " ++
-            "upstream's name. Nothing here is waiting to become an error union.",
+        .reason = "the field layer is upstream's, adopted from 0.5.1: field, " ++
+            "tower, pack, polynomial and clmul come from zig-binary-field and " ++
+            "this zone no longer carries them. Fifteen files import them from " ++
+            "there now, so the reason this zone still exists is pcs.zig and " ++
+            "sumcheck.zig alone, which diverge from upstream by 435 lines. " ++
+            "accel.zig stays because the local sumcheck imports it and " ++
+            "zig-binary-field does not re-export it, so it goes with them. " ++
+            "What remains is 68 asserts, none of them classified: the zone has " ++
+            "no declared invariants, so every one of them counts as reachable " ++
+            "and overstates the work.",
+        .revisit = "the differential harness, then delete pcs and sumcheck. The " ++
+            "harness proves that the local pair and upstream's produce the same " ++
+            "proof bytes on random witnesses, because a comparison of verdicts " ++
+            "passes while the proofs differ, and the proof is what has to " ++
+            "interoperate. Until that runs, the zone is a field layer from " ++
+            "upstream with two local files on top, and that is a state with a " ++
+            "named task in it, not a half-finished fork.",
     },
     .{
         .path = "libs/stark/core",
@@ -259,6 +250,7 @@ const ledger = [_]Zone{
 /// being imported is an edge the build resolves for nothing.
 const declared_algebra_modules = [_][]const u8{
     "zig-algebra-traits",
+    "zig-binary-field",
     "zig-curve",
     "zig-field",
     "zig-hash",
@@ -288,7 +280,7 @@ const declared_algebra_pin = "0.5.1";
 /// to the carved one without failing anything. That is a known property rather
 /// than an oversight, and this constant is the second half of the answer, since
 /// every carve out has to be paid for here.
-const declared_reachable: usize = 84;
+const declared_reachable: usize = 71;
 
 const max_detail = 512;
 
@@ -840,7 +832,7 @@ test "the ledger's own numbers add up" {
     // headline is lying in a way a reader cannot see.
     try std.testing.expectEqual(declared, reachable + invariant + fixture + internal_only);
     try std.testing.expectEqual(declared_reachable, reachable);
-    try std.testing.expectEqual(@as(usize, 84), declared_reachable);
+    try std.testing.expectEqual(@as(usize, 71), declared_reachable);
     // transcript is the zone that proves reachability is a declared claim: both
     // of its asserts are `pub fn` inside something private.
     var fixture_zones: usize = 0;

@@ -1,5 +1,5 @@
 const std = @import("std");
-const tower = @import("../tower.zig");
+const tower = @import("zig-binary-field");
 const p2b = @import("poseidon2b.zig");
 
 /// Host (non-gadget) reference implementation of the Poseidon2b friendly hash

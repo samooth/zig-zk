@@ -1,7 +1,7 @@
 const std = @import("std");
-const Pack = @import("pack.zig");
+const Pack = @import("zig-binary-field").pack;
 const Ntt = @import("fripcs.zig").Ntt;
-const Polynomial = @import("polynomial.zig");
+const Polynomial = @import("zig-binary-field").polynomial;
 const CoreHash = @import("../core/hash/hash.zig");
 const CoreMerkle = @import("../core/merkle/merkle.zig");
 
@@ -433,7 +433,7 @@ pub fn PackedPcsStark(comptime F: type, comptime E: type, comptime config: Stark
 // Tests
 // ---------------------------------------------------------------------------
 
-const Tower = @import("tower.zig");
+const Tower = @import("zig-binary-field").tower;
 const Gf16 = Tower.Gf16;
 const Gf256 = Tower.Gf256;
 const Gf2_128 = Tower.TowerField(7);

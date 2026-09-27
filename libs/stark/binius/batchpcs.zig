@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const Tower = @import("tower.zig");
+const Tower = @import("zig-binary-field").tower;
 const FriMod = @import("fripcs.zig");
 const CoreHash = @import("../core/hash/hash.zig");
 const CoreMerkle = @import("../core/merkle/merkle.zig");
@@ -483,7 +483,7 @@ pub fn BatchFriPcsStark(
 const Gf16 = Tower.Gf16;
 const Gf256 = Tower.Gf256;
 const Gf2_128 = Tower.Gf2_128;
-const Polynomial = @import("polynomial.zig");
+const Polynomial = @import("zig-binary-field").polynomial;
 
 fn prng(seed: u64) std.Random.DefaultPrng {
     return std.Random.DefaultPrng.init(seed);

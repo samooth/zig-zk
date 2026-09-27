@@ -1,10 +1,10 @@
 const std = @import("std");
 
-const Tower = @import("tower.zig");
-const pack = @import("pack.zig");
+const Tower = @import("zig-binary-field").tower;
+const pack = @import("zig-binary-field").pack;
 const CoreHash = @import("../core/hash/hash.zig");
 const CoreMerkle = @import("../core/merkle/merkle.zig");
-const Polynomial = @import("polynomial.zig");
+const Polynomial = @import("zig-binary-field").polynomial;
 
 /// DP24 / LCH14 "novel polynomial basis" additive NTT + FRI twiddle-fold,
 /// scalar (unpacked) form, restricted to our tower fields.

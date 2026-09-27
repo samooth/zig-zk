@@ -41,6 +41,7 @@ pub fn build(b: *std.Build) void {
     const hash = algebra_dep.module("zig-hash");
     const rng = algebra_dep.module("zig-rng");
     const field = algebra_dep.module("zig-field");
+    const binary_field = algebra_dep.module("zig-binary-field");
     const curve = algebra_dep.module("zig-curve");
     const merkle = algebra_dep.module("zig-merkle");
     const poly = algebra_dep.module("zig-poly");
@@ -95,6 +96,9 @@ pub fn build(b: *std.Build) void {
     });
     stark_mod.addImport("zig-transcript", transcript_mod);
     stark_mod.addImport("zig-field", field);
+    // The binary-field layer is consumed from zig-algebra, not vendored: the
+    // binius zone adopted field, tower, pack, polynomial and clmul from 0.5.1.
+    stark_mod.addImport("zig-binary-field", binary_field);
 
     // Documentation invariants: every markdown file is paired across the two
     // languages, declares its language, and has not mixed the two.
@@ -163,6 +167,7 @@ pub fn build(b: *std.Build) void {
     addTests(b, test_step, "zig-stark-tests", b.path("libs/stark/root.zig"), target, optimize, &.{
         .{ .name = "zig-field", .module = field },
         .{ .name = "zig-transcript", .module = transcript_mod },
+        .{ .name = "zig-binary-field", .module = binary_field },
     });
     addTests(b, test_step, "zig-snark-tests", b.path("libs/snark/src/root.zig"), target, optimize, &.{
         .{ .name = "zig-field", .module = field },
@@ -178,6 +183,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "zig-field", .module = field },
             .{ .name = "zig-transcript", .module = transcript_mod },
+            .{ .name = "zig-binary-field", .module = binary_field },
         },
     });
 

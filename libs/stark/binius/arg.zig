@@ -175,7 +175,7 @@ pub fn BiniusArgFri(comptime F: type, comptime E: type, comptime log_blowup: u8,
 // Tests
 // ---------------------------------------------------------------------------
 
-const Gf16 = @import("field.zig").Gf16;
+const Gf16 = @import("zig-binary-field").field.Gf16;
 const A = BiniusArg(Gf16, Gf16);
 
 fn fe(x: u128) Gf16 {
@@ -274,7 +274,7 @@ test "binius arg rejects wrong claimed sum and wrong root" {
     try std.testing.expect(!try A.verify(alloc, k, &bad_root, expected, proof));
 }
 
-const Tower = @import("tower.zig");
+const Tower = @import("zig-binary-field").tower;
 
 /// Hypercube sum of the product of E tables (matches `Sumcheck(E)` on the
 /// lifted tables, the value the prover commits to).

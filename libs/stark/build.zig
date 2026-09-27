@@ -25,6 +25,7 @@ pub fn build(b: *std.Build) void {
     });
     stark_mod.addImport("zig-transcript", transcript_mod);
     stark_mod.addImport("zig-field", field_mod);
+    stark_mod.addImport("zig-binary-field", algebra_dep.module("zig-binary-field"));
 
     const test_module = b.createModule(.{
         .root_source_file = b.path("root.zig"),
@@ -33,6 +34,7 @@ pub fn build(b: *std.Build) void {
     });
     test_module.addImport("zig-transcript", transcript_mod);
     test_module.addImport("zig-field", field_mod);
+    test_module.addImport("zig-binary-field", algebra_dep.module("zig-binary-field"));
     const tests = b.addTest(.{
         .name = "zig-stark-tests",
         .root_module = test_module,

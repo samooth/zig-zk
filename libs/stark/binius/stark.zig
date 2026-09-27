@@ -698,11 +698,11 @@ fn StarkInner(comptime F: type, comptime E: type, comptime CP: type) type {
 // Tests
 // ---------------------------------------------------------------------------
 
-const Gf16 = @import("tower.zig").Gf16;
-const Gf256 = @import("tower.zig").Gf256;
-const TowerField = @import("tower.zig").TowerField;
+const Gf16 = @import("zig-binary-field").tower.Gf16;
+const Gf256 = @import("zig-binary-field").tower.Gf256;
+const TowerField = @import("zig-binary-field").tower.TowerField;
 const Gf2_128 = TowerField(7);
-const ScriptGf16 = @import("field.zig").Gf16;
+const ScriptGf16 = @import("zig-binary-field").field.Gf16;
 const S = BiniusStark(Gf16, Gf16);
 
 fn fe(x: u128) Gf16 {

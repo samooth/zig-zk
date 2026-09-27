@@ -164,9 +164,9 @@ pub fn AdderWith(comptime F: type, comptime E: type, comptime CP: type) type {
 // Tests
 // ---------------------------------------------------------------------------
 
-const Gf16 = @import("tower.zig").Gf16;
-const Gf256 = @import("tower.zig").Gf256;
-const TowerField = @import("tower.zig").TowerField;
+const Gf16 = @import("zig-binary-field").tower.Gf16;
+const Gf256 = @import("zig-binary-field").tower.Gf256;
+const TowerField = @import("zig-binary-field").tower.TowerField;
 const Gf2_128 = TowerField(7);
 
 test "adder witness satisfies the constraints for all 256 input pairs" {

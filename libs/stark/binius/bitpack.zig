@@ -110,8 +110,8 @@ pub fn BitPackWith(comptime F: type, comptime E: type, comptime CP: type) type {
 // Tests
 // ---------------------------------------------------------------------------
 
-const Gf16 = @import("tower.zig").Gf16;
-const Gf256 = @import("tower.zig").Gf256;
+const Gf16 = @import("zig-binary-field").tower.Gf16;
+const Gf256 = @import("zig-binary-field").tower.Gf256;
 const Hash = @import("../core/hash/hash.zig").Hash;
 const Pcs = @import("pcs.zig").CommittedMlePcs;
 

@@ -1,5 +1,5 @@
 const std = @import("std");
-const Polynomial = @import("polynomial.zig");
+const Polynomial = @import("zig-binary-field").polynomial;
 const SumcheckMod = @import("sumcheck.zig");
 const CoreHash = @import("../core/hash/hash.zig");
 const CoreMerkle = @import("../core/merkle/merkle.zig");
@@ -318,9 +318,9 @@ pub fn CommittedMlePcs(comptime F: type, comptime E: type) type {
 // Tests
 // ---------------------------------------------------------------------------
 
-const Gf16 = @import("field.zig").Gf16;
-const Tg16 = @import("tower.zig").Gf16;
-const TowerField = @import("tower.zig").TowerField;
+const Gf16 = @import("zig-binary-field").field.Gf16;
+const Tg16 = @import("zig-binary-field").tower.Gf16;
+const TowerField = @import("zig-binary-field").tower.TowerField;
 const Gf2_128 = TowerField(7);
 const P = MlePcs(Gf16, Gf16);
 const Pg = MlePcs(Tg16, Tg16);
@@ -347,7 +347,7 @@ test "kernel identity equals multilinear extension at a point" {
     for (0..8) |i| table[i] = fe((i * 5 + 2) % 16);
 
     const r = [_]Gf16{ fe(3), fe(7), fe(1) };
-    const mle = @import("polynomial.zig").Multilinear(Gf16){ .evals = &table };
+    const mle = @import("zig-binary-field").polynomial.Multilinear(Gf16){ .evals = &table };
     const expected = try mle.eval(alloc, &r);
 
     // Direct boolean-hypercube sum of f(x)·β_r(x)

@@ -306,8 +306,8 @@ pub fn PermutationWith(comptime F: type, comptime E: type, comptime CP: type) ty
 // Tests
 // ---------------------------------------------------------------------------
 
-const Gf2_64 = @import("../tower.zig").Gf2_64;
-const Gf2_128 = @import("../tower.zig").Gf2_128;
+const Gf2_64 = @import("zig-binary-field").Gf2_64;
+const Gf2_128 = @import("zig-binary-field").Gf2_128;
 const CoreHash = @import("../../core/hash/hash.zig");
 
 fn elementsFromBytes(comptime F: type, bytes: []const u8) [state_size]F {

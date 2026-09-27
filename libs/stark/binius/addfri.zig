@@ -28,7 +28,7 @@ const std = @import("std");
 const Hash = @import("../core/hash/hash.zig").Hash;
 const MerkleTree = @import("../core/merkle/merkle.zig").MerkleTree;
 const MerkleVerify = @import("../core/merkle/merkle.zig").verify;
-const Tower = @import("tower.zig");
+const Tower = @import("zig-binary-field").tower;
 const Sumcheck = @import("sumcheck.zig").Sumcheck;
 
 pub fn AdditiveFri(comptime F: type) type {

@@ -1,8 +1,8 @@
 const std = @import("std");
-const Polynomial = @import("polynomial.zig");
+const Polynomial = @import("zig-binary-field").polynomial;
 const Pool = @import("../core/pool.zig").Pool;
 const Accel = @import("accel.zig");
-const Tower = @import("tower.zig");
+const Tower = @import("zig-binary-field").tower;
 
 /// Sum-check protocol over a binary field `F` for the claim
 ///
@@ -589,7 +589,7 @@ pub fn Sumcheck(comptime F: type) type {
 // Tests
 // ---------------------------------------------------------------------------
 
-const Gf16 = @import("field.zig").Gf16;
+const Gf16 = @import("zig-binary-field").field.Gf16;
 const T = Sumcheck(Gf16);
 
 fn fe(x: u128) Gf16 {
@@ -694,7 +694,7 @@ test "combination sum-check round trips" {
     try std.testing.expect(direct.eq(sp.claimed_sum));
 
     // final round value equals g at the challenge point
-    const Multilinear = @import("polynomial.zig").Multilinear(Gf16);
+    const Multilinear = @import("zig-binary-field").polynomial.Multilinear(Gf16);
     const p0 = Multilinear{ .evals = &t0 };
     const p1 = Multilinear{ .evals = &t1 };
     const p2 = Multilinear{ .evals = &t2 };
@@ -708,7 +708,7 @@ test "combination sum-check round trips" {
 test "challenges span the full GF(256) field" {
     // Regression for the 4-bit mask bug: for a 1-byte field the challenge must
     // use the full BITS bits, not just the low 4.
-    const Gf256 = @import("tower.zig").Gf256;
+    const Gf256 = @import("zig-binary-field").tower.Gf256;
     var t = Sumcheck(Gf256).Transcript.initBytes("challenge-space");
     var seen = [_]bool{false} ** 256;
     var count: usize = 0;
@@ -754,7 +754,7 @@ fn g256CombinationEval(
     t1: []const Tower.Gf256,
 ) !Tower.Gf256 {
     const G = Tower.Gf256;
-    const Multilinear = @import("polynomial.zig").Multilinear(G);
+    const Multilinear = @import("zig-binary-field").polynomial.Multilinear(G);
     const v0 = try (Multilinear{ .evals = t0 }).eval(allocator, ch);
     const v1 = try (Multilinear{ .evals = t1 }).eval(allocator, ch);
     return G.fromInt(2).mul(v0.mul(v1)).add(G.fromInt(3).mul(v0));
