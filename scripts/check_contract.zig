@@ -275,7 +275,7 @@ const declared_own_modules = [_][]const u8{
 };
 
 /// The version every manifest that declares `zig_algebra` must pin.
-const declared_algebra_pin = "0.3.2";
+const declared_algebra_pin = "0.5.1";
 
 /// The number of asserts a caller can actually reach, summed over the zones
 /// whose kind is `api` and left after the carved out private helpers. It is
@@ -500,7 +500,11 @@ pub fn main(init: std.process.Init) !u8 {
     {
         const manifests = [_][]const u8{
             "build.zig.zon",
+            "libs/commitment/build.zig.zon",
+            "libs/signature/build.zig.zon",
+            "libs/snark/build.zig.zon",
             "libs/stark/build.zig.zon",
+            "libs/transcript/build.zig.zon",
         };
         for (manifests) |path| {
             const text = readOrNull(alloc, io, path) orelse continue;
