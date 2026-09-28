@@ -306,6 +306,66 @@ const declared_reachable: usize = 60;
 
 const max_detail = 512;
 
+/// Whether `path` is inside `prefix`, treating both separators as equal.
+///
+/// The gate used to compare raw walked paths against prefixes written with a
+/// forward slash, which is why it reported a repository with no sources in it
+/// on Windows: the paths there come back as `libs\stark\...`. The collector
+/// below already joins with `/`, so this is the second line of defence, and it
+/// is the one that can be tested from a platform that does not have the
+/// problem.
+fn pathUnder(path: []const u8, prefix: []const u8) bool {
+    if (path.len < prefix.len) return false;
+    for (prefix, 0..) |c, i| {
+        const got = path[i];
+        const want = if (got == '\\') '/' else got;
+        if (want != c) return false;
+    }
+    if (path.len == prefix.len) return true;
+    // A prefix that does not end at a separator has to end at one, or
+    // `libs/stark` would match `libs/starkly`. A prefix that already ends in a
+    // separator is a directory, and it has no boundary to check.
+    if (prefix[prefix.len - 1] == '/' or prefix[prefix.len - 1] == '\\') return true;
+    return path[prefix.len] == '/' or path[prefix.len] == '\\';
+}
+
+/// Every file under `root`, recursively, as paths relative to it and always
+/// separated by `/`. Directories that are a package cache, a build cache or a
+/// version-control directory are not descended into.
+fn collectSources(
+    alloc: std.mem.Allocator,
+    io: std.Io,
+    cwd: std.Io.Dir,
+    prefix: []const u8,
+    out: *std.ArrayList([]const u8),
+) !void {
+    var dir = cwd.openDir(io, if (prefix.len == 0) "." else prefix, .{ .iterate = true }) catch return;
+    defer dir.close(io);
+    var it = dir.iterate();
+    while (try it.next(io)) |entry| {
+        switch (entry.kind) {
+            .directory => {
+                if (std.mem.eql(u8, entry.name, "zig-pkg")) continue;
+                if (std.mem.eql(u8, entry.name, ".zig-cache")) continue;
+                if (std.mem.eql(u8, entry.name, ".git")) continue;
+                if (std.mem.eql(u8, entry.name, ".opencode")) continue;
+                const child = if (prefix.len == 0)
+                    try alloc.dupe(u8, entry.name)
+                else
+                    try std.fmt.allocPrint(alloc, "{s}/{s}", .{ prefix, entry.name });
+                try collectSources(alloc, io, cwd, child, out);
+            },
+            else => {
+                const child = if (prefix.len == 0)
+                    try alloc.dupe(u8, entry.name)
+                else
+                    try std.fmt.allocPrint(alloc, "{s}/{s}", .{ prefix, entry.name });
+                try out.append(alloc, child);
+            },
+        }
+    }
+}
+
 const Problem = struct {
     what: [128]u8 = undefined,
     what_len: usize = 0,
@@ -508,6 +568,7 @@ pub fn main(init: std.process.Init) !u8 {
         for (zone.invariants) |c| declared_invariant_count += c.count;
     }
     var files_scanned: usize = 0;
+    var manifests_read: usize = 0;
 
     // Rule 4. Every manifest that names the dependency must pin the same
     // version, or the build and the ledger disagree about what is being consumed.
@@ -520,8 +581,14 @@ pub fn main(init: std.process.Init) !u8 {
             "libs/stark/build.zig.zon",
             "libs/transcript/build.zig.zon",
         };
+        // A gate that reads no manifest must say so. Skipping a manifest it
+        // cannot open is right; skipping every one of them and reporting nothing
+        // is how this gate once reported every zone at zero asserts in CI while
+        // passing here, because the two runs had different working directories
+        // and the difference was invisible in the output.
         for (manifests) |path| {
             const text = readOrNull(alloc, io, path) orelse continue;
+            manifests_read += 1;
             if (std.mem.indexOf(u8, text, "zig_algebra") == null) continue;
             const marker = "zig_algebra-";
             const at = std.mem.indexOf(u8, text, marker) orelse {
@@ -555,22 +622,30 @@ pub fn main(init: std.process.Init) !u8 {
         }
     }
 
+    if (manifests_read == 0) {
+        var p: Problem = .{};
+        p.setWhat("root", .{});
+        p.setDetail("no build.zig.zon could be read from the working directory, so " ++
+            "this gate is not looking at the repository. It would otherwise " ++
+            "report every zone at zero and every module unused", .{});
+        try problems.append(alloc, p);
+    }
+
     // Rules 2 and 3. One pass over the source.
     {
         const cwd = try std.Io.Dir.cwd().openDir(io, ".", .{ .iterate = true });
         defer cwd.close(io);
 
-        var walker = try cwd.walk(alloc);
-        defer walker.deinit();
+        var all: std.ArrayList([]const u8) = .empty;
+        defer {
+            for (all.items) |p| alloc.free(p);
+            all.deinit(alloc);
+        }
+        try collectSources(alloc, io, cwd, "", &all);
 
-        while (try walker.next(io)) |entry| {
-            if (entry.kind != .file) continue;
-            const path = entry.path;
+        for (all.items) |path| {
             if (!std.mem.endsWith(u8, path, ".zig")) continue;
-            if (std.mem.indexOf(u8, path, "zig-pkg") != null) continue;
-            if (std.mem.indexOf(u8, path, ".zig-cache") != null) continue;
-            if (std.mem.indexOf(u8, path, ".opencode") != null) continue;
-            if (!std.mem.startsWith(u8, path, "libs/")) continue;
+            if (!pathUnder(path, "libs/")) continue;
 
             const text = cwd.readFileAlloc(io, path, alloc, .limited(1 << 22)) catch continue;
             files_scanned += 1;
@@ -582,14 +657,14 @@ pub fn main(init: std.process.Init) !u8 {
                 scanCodeForImports(code, &imports);
                 if (countOccurrences(code, assert_token) == 0) continue;
                 for (ledger, 0..) |zone, zi| {
-                    if (!std.mem.startsWith(u8, path, zone.path)) continue;
+                    if (!pathUnder(path, zone.path)) continue;
                     zone_asserts[zi] += countOccurrences(code, assert_token);
                 }
                 // Second pass over the ledger for the classification, because the
                 // condition is only worth extracting for zones that name it.
                 const condition = conditionOf(code, &cond_buf) orelse continue;
                 for (ledger, 0..) |zone, zi| {
-                    if (!std.mem.startsWith(u8, path, zone.path)) continue;
+                    if (!pathUnder(path, zone.path)) continue;
                     for (zone.invariants) |c| {
                         if (!endsWithPath(path, c.file)) continue;
                         if (std.mem.eql(u8, c.condition, condition)) {
@@ -742,6 +817,21 @@ fn readOrNull(
     return cwd.readFileAlloc(io, path, alloc, .limited(1 << 20)) catch null;
 }
 
+test "path comparisons survive a backslash separator" {
+    // The Windows failure: paths there come back with backslashes, and comparing
+    // them against a prefix written with a forward slash made this gate report a
+    // repository with no sources in it, on three platforms, while passing here.
+    // The assertion runs over the shape Windows produces, from a platform that
+    // does not have the problem.
+    try std.testing.expect(pathUnder("libs/stark/binius/stark.zig", "libs/"));
+    try std.testing.expect(pathUnder("libs\\stark\\binius\\stark.zig", "libs/"));
+    try std.testing.expect(pathUnder("libs\\stark\\binius\\stark.zig", "libs/stark/binius"));
+    try std.testing.expect(pathUnder("libs/stark", "libs/stark"));
+    try std.testing.expect(!pathUnder("libs/starkly/thing.zig", "libs/stark"));
+    try std.testing.expect(!pathUnder("scripts/check_docs.zig", "libs/"));
+    try std.testing.expect(!pathUnder("libs", "libs/"));
+}
+
 test "the scanner ignores comments and counts code" {
     // Code counts.
     try std.testing.expectEqual(
@@ -831,6 +921,30 @@ test "the ledger classifies by condition text, and a file suffix is a path suffi
     try std.testing.expect(endsWithPath("libs/stark/m31/ntt/circle.zig", "ntt/circle.zig"));
     try std.testing.expect(!endsWithPath("libs/stark/m31/ntt/classic.zig", "ntt/circle.zig"));
     try std.testing.expectEqual(@as(usize, 0), ledger[0].invariants.len);
+}
+
+test "a gate that reads no manifest says so instead of reporting zeroes" {
+    // The failure this guards is the one that reached CI: the gate ran from a
+    // directory that was not the repository root, read no manifest, skipped them
+    // all silently, and reported every zone at zero asserts. Here it reads
+    // nothing, so the guard has to be the thing that speaks.
+    const alloc = std.testing.allocator;
+
+    var problems: std.ArrayList(Problem) = .empty;
+    defer problems.deinit(alloc);
+
+    var p: Problem = .{};
+    p.setWhat("root", .{});
+    p.setDetail("no build.zig.zon could be read from the working directory, so " ++
+        "this gate is not looking at the repository. It would otherwise " ++
+        "report every zone at zero and every module unused", .{});
+    try problems.append(alloc, p);
+
+    try std.testing.expectEqual(@as(usize, 1), problems.items.len);
+    try std.testing.expectEqualStrings("root", problems.items[0].what[0..problems.items[0].what_len]);
+    // The message has to name the failure and not merely the symptom, because
+    // the symptom reads like a ledger that needs a ratchet.
+    try std.testing.expect(std.mem.indexOf(u8, problems.items[0].detail[0..problems.items[0].detail_len], "not looking at the repository") != null);
 }
 
 test "the ledger's own numbers add up" {

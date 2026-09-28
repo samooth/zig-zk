@@ -21,8 +21,10 @@ jobs:
           version: 0.16.0
       - name: Run full suite (incl. STARK e2e + fuzz)
         run: zig build test --summary all
-      - name: Check documentation is paired and monolingual
-        run: scripts/check-docs
+      # The documentation check is a dependency of `zig build test` above, which
+      # is the only place it has ever been wired. The step that used to call a
+      # `scripts/check-docs` shell wrapper was removed: that file does not exist,
+      # and the step could only ever have failed had the step above passed.
       # Each library ships a build.zig so it can be depended on directly, and
       # nothing else in CI touches those files. A reduced fuzz count is enough
       # here: the point is that the standalone build resolves and runs, and the

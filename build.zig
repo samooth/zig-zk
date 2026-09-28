@@ -112,6 +112,12 @@ pub fn build(b: *std.Build) void {
         }),
     });
     const run_docs_check = b.addRunArtifact(docs_check);
+    // Both gates locate the repository by walking from their working directory,
+    // so the working directory is theirs to guarantee and not to inherit. Without
+    // this, a run step that starts anywhere else reports a gate that found no
+    // sources: the contract gate fails with every zone at zero, and the docs
+    // gate passes on whatever handful of files it happened to see.
+    run_docs_check.setCwd(b.path("."));
     const docs_step = b.step("check-docs", "Verify the documentation is paired and monolingual");
     docs_step.dependOn(&run_docs_check.step);
 
@@ -127,6 +133,7 @@ pub fn build(b: *std.Build) void {
         }),
     });
     const run_contract_check = b.addRunArtifact(contract_check);
+    run_contract_check.setCwd(b.path("."));
     const contract_step = b.step("check-contract", "Verify the declared contract with zig-algebra");
     contract_step.dependOn(&run_contract_check.step);
 

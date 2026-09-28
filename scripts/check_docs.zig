@@ -41,6 +41,42 @@ const anglicisms = [_][]const u8{
 };
 
 const max_detail = 224;
+/// Every file under `root`, recursively, as paths relative to it and always
+/// separated by `/`.
+///
+/// This replaces `Dir.walk`, which returned almost nothing on Windows and took
+/// the documentation gate with it: it reported "2 files, all paired" while the
+/// repository has 22 documents. Owning the recursion means the path separator
+/// the platform uses never reaches a comparison, and the directories that are a
+/// package cache or a version-control directory are never entered.
+fn collectFiles(
+    alloc: std.mem.Allocator,
+    io: std.Io,
+    cwd: std.Io.Dir,
+    prefix: []const u8,
+    out: *std.ArrayList([]const u8),
+) !void {
+    var dir = cwd.openDir(io, if (prefix.len == 0) "." else prefix, .{ .iterate = true }) catch return;
+    defer dir.close(io);
+    var it = dir.iterate();
+    while (try it.next(io)) |entry| {
+        const child = if (prefix.len == 0)
+            try alloc.dupe(u8, entry.name)
+        else
+            try std.fmt.allocPrint(alloc, "{s}/{s}", .{ prefix, entry.name });
+        switch (entry.kind) {
+            .directory => {
+                if (std.mem.eql(u8, entry.name, "zig-pkg")) continue;
+                if (std.mem.eql(u8, entry.name, ".zig-cache")) continue;
+                if (std.mem.eql(u8, entry.name, ".git")) continue;
+                if (std.mem.eql(u8, entry.name, ".opencode")) continue;
+                try collectFiles(alloc, io, cwd, child, out);
+            },
+            else => try out.append(alloc, child),
+        }
+    }
+}
+
 const Problem = struct {
     path: [512]u8 = undefined,
     path_len: usize = 0,
@@ -183,16 +219,15 @@ pub fn main(init: std.process.Init) !u8 {
     defer problems.deinit(alloc);
     var checked: usize = 0;
 
-    var walker = try cwd.walk(alloc);
-    defer walker.deinit();
+    var all: std.ArrayList([]const u8) = .empty;
+    defer {
+        for (all.items) |p| alloc.free(p);
+        all.deinit(alloc);
+    }
+    try collectFiles(alloc, io, cwd, "", &all);
 
-    while (try walker.next(io)) |entry| {
-        if (entry.kind != .file) continue;
-        const path = entry.path;
+    for (all.items) |path| {
         if (!std.mem.endsWith(u8, path, ".md")) continue;
-        if (std.mem.indexOf(u8, path, ".zig-cache") != null) continue;
-        if (std.mem.indexOf(u8, path, "zig-pkg") != null) continue;
-        if (std.mem.indexOf(u8, path, ".opencode") != null) continue;
 
         const base = std.fs.path.basename(path);
 
@@ -291,6 +326,22 @@ pub fn main(init: std.process.Init) !u8 {
         return 1;
     }
 
+    // A gate that verified a handful of files is not a gate that passed, it is a
+    // gate that looked at the wrong directory. This one reported "2 files, all
+    // paired" in CI while the repository has 22 documents, because the working
+    // directory was not the repository root and the walk found whatever markdown
+    // happened to be below it. The root has markers; require them.
+    inline for (.{ "README.md", "build.zig.zon", "AGENTS.md", "CHANGELOG.md" }) |marker| {
+        std.Io.Dir.cwd().access(io, marker, .{}) catch {
+            std.debug.print(
+                "documentation check failed: {s} is not in the working directory, so this " ++
+                    "gate is not looking at the repository root. It saw {d} files, which " ++
+                    "is not a verification of anything\n",
+                .{ marker, checked },
+            );
+            return error.NotRepositoryRoot;
+        };
+    }
     std.debug.print("documentation check passed: {d} files, all paired, no language mixing\n", .{checked});
     return 0;
 }
