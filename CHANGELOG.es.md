@@ -9,7 +9,7 @@ los cambios incompatibles y el PATCH solo cambios aditivos y correcciones. La
 política está desarrollada en
 [docs/architecture.es.md](docs/architecture.es.md#versionado).
 
-## [0.5.0] - sin publicar
+## [0.5.0] - 2026-09-28
 
 Véase [SECURITY.es.md](SECURITY.es.md) para el hallazgo de solidez que corrige
 esta versión. Es un aviso y no una línea del changelog, y la razón está al final

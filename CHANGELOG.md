@@ -8,7 +8,7 @@ versioning follows [SemVer](https://semver.org/): in `0.y.z` the MINOR carries
 incompatible changes and the PATCH carries additive changes and fixes only. The
 policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning).
 
-## [0.5.0] - unreleased
+## [0.5.0] - 2026-09-28
 
 See [SECURITY.md](SECURITY.md) for the soundness finding that this release
 fixes. It is an advisory rather than a changelog line, and the reason is at the
