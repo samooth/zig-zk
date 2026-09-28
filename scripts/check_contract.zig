@@ -116,22 +116,37 @@ const ledger = [_]Zone{
             "batchpcs, no arg: a zone can stop being a fork without ceasing to " ++
             "exist, and this is that case. 57 asserts, none of them classified, " ++
             "so every one counts as reachable and overstates the work.",
-        .revisit = "the 128-bit gate is on the extension field, not the base " ++
-            "one, because the sum-check runs over the extension: SC = " ++
-            "Sumcheck(E). Gf256 as an extension is eight bits, so the " ++
-            "end-to-end and fuzz paths need the Unsafe variants, and a " ++
-            "sum-check round there has a soundness error of order 1/|F|, " ++
-            "about 0.4%, composing over the rounds. Read that suite as " ++
-            "coverage of plumbing, not of soundness: it shows the prover runs " ++
-            "and the commitments commit, not that a proof is hard to forge. " ++
-            "TowerField(7) is 128 bits and is instantiated -- the whole " ++
-            "prover runs as BiniusStark(Gf16, Gf2_128), and so do the packed " ++
-            "PCS and the recursion -- and those call sites use the secure " ++
-            "entry points, because they pass the gate. So the destination " ++
-            "exists and is exercised; what is missing is that it is the " ++
-            "exception. The default the suite reads is the one that cannot be " ++
-            "sound. Revisit when a default changes, and record which field " ++
-            "the default is over.",
+        .revisit = "two entries, both about coverage rather than code. " ++
+            "The 128-bit gate is on the extension field, not the base one, " ++
+            "because the sum-check runs over the extension: SC = Sumcheck(E). " ++
+            "Gf256 as an extension is eight bits, so the gadget fuzz needs the " ++
+            "Unsafe variants and a sum-check round there has a soundness error " ++
+            "of order 1/|F|, about 0.4%, composing over the rounds. Read that " ++
+            "suite as coverage of plumbing, not of soundness. TowerField(7) is " ++
+            "128 bits, is instantiated -- the whole prover runs as " ++
+            "BiniusStark(Gf16, Gf2_128), and so do the packed PCS and the " ++
+            "recursion -- and those call sites use the secure entry points, " ++
+            "because they pass the gate. The destination is exercised; what is " ++
+            "missing is that it is the exception, since the fuzz a reader runs " ++
+            "is over eight bits. It now runs a second, smaller pass over the " ++
+            "128-bit pair, and the claim that makes is that the path gets " ++
+            "random witnesses, not that it is sound. " ++
+            "Which multiplication the tower runs is a property of the host: " ++
+            "mulFast on x86_64 with PCLMULQDQ, mulRec everywhere else, decided " ++
+            "at comptime. So the CI matrix is the only thing covering both, by " ++
+            "its shape: ubuntu-latest and windows-latest are x86_64 and take " ++
+            "mulFast, macos-latest is arm64 and takes mulRec. Change a runner " ++
+            "and that coverage narrows with nothing failing, which is why it is " ++
+            "here. Note the two are less independent than it looks: mulFast " ++
+            "builds its conversion and reduction tables by calling mulRec, so " ++
+            "the Karatsuba is on the path of the bit-sliced multiply on every " ++
+            "host, and a defect in it reaches both. The cross-implementation " ++
+            "test in tests/tower_mul.zig therefore buys one narrow thing -- " ++
+            "catching a defect one has and the other does not, at the level of " ++
+            "the product -- and cannot catch the two being wrong together, " ++
+            "because agreement is not correctness. Removing that test does not " ++
+            "lose a check; it loses the only place the two are compared. Revisit " ++
+            "if the matrix changes, and record the new geometry.",
     },
     .{
         .path = "libs/stark/core",

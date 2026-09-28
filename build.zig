@@ -226,6 +226,19 @@ pub fn build(b: *std.Build) void {
     const merkle_kat_tests = b.addTest(.{ .name = "zig-stark-merkle-kat-tests", .root_module = merkle_kat_mod });
     test_step.dependOn(&b.addRunArtifact(merkle_kat_tests).step);
 
+    // The two tower multiplications, compared. Which one runs depends on the
+    // host CPU, so this is also the only place `mulRec` is entered on x86-64.
+    const tower_mul_mod = b.createModule(.{
+        .root_source_file = b.path("libs/stark/tests/tower_mul.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "zig-binary-field", .module = binary_field },
+        },
+    });
+    const tower_mul_tests = b.addTest(.{ .name = "zig-stark-tower-mul-tests", .root_module = tower_mul_mod });
+    test_step.dependOn(&b.addRunArtifact(tower_mul_tests).step);
+
     const e2e_mod = b.createModule(.{
         .root_source_file = b.path("libs/stark/tests/e2e_tests.zig"),
         .target = target,
@@ -249,6 +262,11 @@ pub fn build(b: *std.Build) void {
         "fuzz-iters",
         "Rounds of the Binius gadget fuzz suite (default 2000)",
     ) orelse 2000);
+    fuzz_opts.addOption(usize, "wide_iters", b.option(
+        usize,
+        "fuzz-wide-iters",
+        "Rounds of the Binius gadget fuzz suite over the 128-bit extension (default 20; each round is orders of magnitude costlier than the 8-bit one)",
+    ) orelse 20);
     const fuzz_mod = b.createModule(.{
         .root_source_file = b.path("libs/stark/tests/fuzz.zig"),
         .target = target,
