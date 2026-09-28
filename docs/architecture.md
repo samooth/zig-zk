@@ -149,12 +149,20 @@ a bare checkout. The per-library `build.zig` files exist for standalone work
 (`cd libs/<name> && zig build test`) and resolve zig-algebra from the same
 pinned tarball, so they build from a bare checkout too.
 
-The root `test` step compiles and runs every suite: 242 tests across transcript
+The root `test` step compiles and runs every suite: 248 tests across transcript
 (20), commitment (16), signature (6), stark (162), snark (11), the contract
-check (5), the two known-answer suites that guard the layer consumed from
-zig-algebra (3 and 2), plus the stark e2e (16) and fuzz (1) suites. `libs/stark/tests/fuzz.zig` runs 2000 iterations
-over three gadgets under a leak-checking allocator and asserts accept and
-reject on every round, which takes about three minutes.
+check (7), the three known-answer suites that guard the layer consumed from
+zig-algebra (3, 2 and 3), plus the stark e2e (16) and fuzz (2) suites.
+`libs/stark/tests/fuzz.zig` runs 2000 rounds over three gadgets under a
+leak-checking allocator and asserts accept and reject on every round; the second
+of its two suites does the same over a 128-bit extension in far fewer rounds,
+because a 128-bit tower product is expensive enough to be avoided in Debug
+elsewhere in this file. Together they take about three minutes.
+
+That total is checked rather than written. `zig build check-contract` fails if
+either architecture document states a different one, so the number lives in
+`scripts/check_contract.zig` and moves only when someone edits the ledger and
+says why.
 
 A test in a new file only runs if something forces that file to be analysed: a
 `test { std.testing.refAllDecls(@This()); }` block in the module root, or a

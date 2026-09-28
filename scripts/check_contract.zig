@@ -319,6 +319,17 @@ const declared_algebra_pin = "0.5.2";
 /// every carve out has to be paid for here.
 const declared_reachable: usize = 60;
 
+/// The total the root `test` step runs, as the architecture documents state it.
+///
+/// A number written by hand in a document goes stale and the next reader takes
+/// it as true: this repository has had to correct a stale total here, a README
+/// listing four files that no longer existed, and a ledger entry claiming nobody
+/// had instantiated a field three call sites were instantiating. The fix is not
+/// updating the figure, it is the figure not being hand-written. So the number
+/// lives here, moves only when someone edits this line and says why, and the
+/// documents are checked against it rather than trusted.
+const declared_root_tests: usize = 248;
+
 const max_detail = 512;
 
 /// Whether `path` is inside `prefix`, treating both separators as equal.
@@ -549,6 +560,31 @@ fn reportUndeclared(
 }
 
 /// Report a declared module that nothing imports any more.
+/// The test total a document states, if it states one.
+///
+/// Deliberately narrow: it looks for the total the root step runs, written as
+/// the count right before the word for "tests" followed by the enumeration of the
+/// suites, or its Spanish counterpart. A document that stops saying it is a
+/// failure for the caller to hear about, not something to treat as zero.
+fn statedTestTotal(text: []const u8) ?usize {
+    // Both documents say the same thing at the same point in the sentence, and
+    // the figure is what immediately follows it: "runs every suite: 248 tests"
+    // and "todas las suites: 248 pruebas". Anchoring there rather than on the
+    // enumeration keeps it independent of where either one wraps, which is what
+    // let the Spanish figure drift while the English one was corrected.
+    const markers = [_][]const u8{ "every suite:", "las suites:" };
+    for (markers) |marker| {
+        const at = std.mem.lastIndexOf(u8, text, marker) orelse continue;
+        var i = at + marker.len;
+        while (i < text.len and (text[i] == ' ' or text[i] == '\n')) i += 1;
+        const start = i;
+        while (i < text.len and std.ascii.isDigit(text[i])) i += 1;
+        if (i == start) continue;
+        return std.fmt.parseInt(usize, text[start..i], 10) catch null;
+    }
+    return null;
+}
+
 fn reportUnused(
     problems: *std.ArrayList(Problem),
     alloc: std.mem.Allocator,
@@ -777,6 +813,43 @@ pub fn main(init: std.process.Init) !u8 {
     try reportUnused(&problems, alloc, imports.algebra.items, &declared_algebra_modules, "algebra");
     try reportUnused(&problems, alloc, imports.own.items, &declared_own_modules, "own");
 
+    // Rule 6. The total the architecture documents quote is this constant, not
+    // a figure typed into prose. A document that disagrees is a claim that has
+    // gone stale, which is the failure this exists to catch rather than to
+    // report.
+    for ([_][]const u8{ "docs/architecture.md", "docs/architecture.es.md" }) |doc_path| {
+        const text = readOrNull(alloc, io, doc_path) orelse {
+            var p: Problem = .{};
+            p.setWhat("doc", .{});
+            p.setDetail("{s} is missing, so the test total it states cannot be " ++
+                "checked", .{doc_path});
+            try problems.append(alloc, p);
+            continue;
+        };
+        const found = statedTestTotal(text) orelse {
+            var p: Problem = .{};
+            p.setWhat("doc", .{});
+            p.setDetail("{s} no longer states a test total, so this rule has " ++
+                "nothing to compare: either the sentence moved or the figure " ++
+                "was removed by hand", .{doc_path});
+            try problems.append(alloc, p);
+            continue;
+        };
+        if (found != declared_root_tests) {
+            var p: Problem = .{};
+            p.setWhat("doc", .{});
+            p.setDetail("{s} states {d} tests, the ledger says {d}: the figure " ++
+                "lives in scripts/check_contract.zig and the document is " ++
+                "checked against it, so this is the pair disagreeing rather " ++
+                "than a number to update in two places", .{
+                doc_path,
+                found,
+                declared_root_tests,
+            });
+            try problems.append(alloc, p);
+        }
+    }
+
     if (problems.items.len > 0) {
         std.debug.print("contract check failed:\n", .{});
         for (problems.items) |*p| {
@@ -830,6 +903,31 @@ fn readOrNull(
     const cwd = std.Io.Dir.cwd().openDir(io, ".", .{}) catch return null;
     defer cwd.close(io);
     return cwd.readFileAlloc(io, path, alloc, .limited(1 << 20)) catch null;
+}
+
+test "the test total is read out of a document, in either language and across a line wrap" {
+    // The figure in the architecture documents is the one this repository has
+    // let go stale four times, and the second time it went stale it did so in one
+    // language only while the other was corrected. So the extraction is
+    // exercised on both shapes here rather than on the document that happens to
+    // be current.
+    const english =
+        "The root `test` step compiles and runs every suite: 248 tests across transcript" ++
+        "\n(20), commitment (16)";
+    try std.testing.expectEqual(@as(?usize, 248), statedTestTotal(english));
+
+    // The same sentence with the figure pushed onto the next line by wrapping,
+    // which is what the Spanish document does and what an English-only reader
+    // would never notice.
+    const spanish =
+        "El paso `test` de la raíz compila y ejecuta todas las suites: 248 pruebas" ++
+        "\nrepartidas en transcript (20)";
+    try std.testing.expectEqual(@as(?usize, 248), statedTestTotal(spanish));
+
+    // A document that stops stating a total is a failure for the caller to hear
+    // about, not a figure of zero to be compared.
+    try std.testing.expectEqual(@as(?usize, null), statedTestTotal("nothing to see here"));
+    try std.testing.expectEqual(@as(?usize, null), statedTestTotal("runs every suite: "));
 }
 
 test "path comparisons survive a backslash separator" {
