@@ -154,9 +154,11 @@ de fuzz de stark, y trae zig-algebra desde el tarball pinneado, así que funcion
 desde un clon limpio. Los `build.zig` por librería existen para el trabajo
 aislado y resuelven zig-algebra desde el mismo tarball pinneado.
 
-El paso `test` de la raíz compila y ejecuta todas las suites: 273 pruebas
-repartidas en transcript (20), commitment (11), signature (6), stark (208),
-snark (11), más las suites e2e (16) y de fuzz (1) de stark.
+El paso `test` de la raíz compila y ejecuta todas las suites: 242 pruebas
+repartidas en transcript (20), commitment (16), signature (6), stark (162),
+snark (11), el control del contrato (5), las dos suites de respuesta conocida
+que vigilan la capa consumida de zig-algebra (3 y 2), más las suites e2e (16) y
+de fuzz (1) de stark.
 `libs/stark/tests/fuzz.zig` da 2000 vueltas sobre tres gadgets con un asignador
 que detecta fugas, y afirma que acepta y que rechaza en cada vuelta; tarda unos
 tres minutos.

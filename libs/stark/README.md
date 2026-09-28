@@ -131,8 +131,10 @@ preprocessed tables. They double as the reference for what a real AIR looks like
 zig build test --summary all
 ```
 
-208 unit tests here, plus 16 end-to-end tests and a fuzz suite that lives in
-`tests/`. The end-to-end tests do not just round-trip: they check that a
+162 unit tests here, plus 16 end-to-end tests and a fuzz suite that lives in
+`tests/`, and two small known-answer suites: one guards the identities of the
+field layer consumed from zig-algebra, the other pins the Merkle commitment
+root, which is the convention a differential found had been getting wrong. The end-to-end tests do not just round-trip: they check that a
 tampered committed witness is rejected, that a proof survives serialisation and
 deserialisation, and that the parallel prover matches the sequential one. The
 fuzz suite runs 2000 iterations over three gadgets and asserts accept and reject

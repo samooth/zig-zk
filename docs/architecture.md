@@ -149,9 +149,10 @@ a bare checkout. The per-library `build.zig` files exist for standalone work
 (`cd libs/<name> && zig build test`) and resolve zig-algebra from the same
 pinned tarball, so they build from a bare checkout too.
 
-The root `test` step compiles and runs every suite: 273 tests across transcript
-(20), commitment (11), signature (6), stark (208), snark (11), plus the stark
-e2e (16) and fuzz (1) suites. `libs/stark/tests/fuzz.zig` runs 2000 iterations
+The root `test` step compiles and runs every suite: 242 tests across transcript
+(20), commitment (16), signature (6), stark (162), snark (11), the contract
+check (5), the two known-answer suites that guard the layer consumed from
+zig-algebra (3 and 2), plus the stark e2e (16) and fuzz (1) suites. `libs/stark/tests/fuzz.zig` runs 2000 iterations
 over three gadgets under a leak-checking allocator and asserts accept and
 reject on every round, which takes about three minutes.
 

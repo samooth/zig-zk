@@ -134,8 +134,11 @@ tablas preprocesadas. Sirven además de referencia de cómo es un AIR de verdad.
 zig build test --summary all
 ```
 
-208 pruebas unitarias aquí, más 16 de extremo a extremo y una suite de fuzz que
-vive en `tests/`. Las pruebas de extremo a extremo no se limitan al ciclo
+162 pruebas unitarias aquí, más 16 de extremo a extremo y una suite de fuzz que
+vive en `tests/`, y dos suites pequeñas de respuesta conocida: una vigila las
+identidades de la capa de campo consumida de zig-algebra, la otra fija la raíz
+del compromiso del Merkle, que era la convención que un diferencial descubrió
+que se estaba equivocando. Las pruebas de extremo a extremo no se limitan al ciclo
 completo: comprueban que un testigo comprometido y manipulado se rechaza, que
 una prueba sobrevive a serializar y deserializar, y que el prover paralelo da el
 mismo resultado que el secuencial. La suite de fuzz da 2000 vueltas sobre tres
