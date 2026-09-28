@@ -330,6 +330,22 @@ const declared_reachable: usize = 60;
 /// documents are checked against it rather than trusted.
 const declared_root_tests: usize = 248;
 
+/// The unit-test count the stark README states, which is the other figure a
+/// reader looks at. It is the root build's `zig-stark-tests` step and not the
+/// standalone library build, which runs more: the standalone build also carries
+/// the end-to-end, fuzz and known-answer suites, so it totals 185. Two plausible
+/// numbers for the same library is how a figure like this goes stale without
+/// anyone noticing, so the distinction is written here rather than left to the
+/// sentence that uses it.
+const declared_stark_unit_tests: usize = 162;
+
+/// What the standalone stark build totals, which is the same library plus the
+/// end-to-end, fuzz and known-answer suites. Declared so that the difference
+/// between the two numbers is a fact here rather than an arithmetic coincidence
+/// in a message: a reader who runs `cd libs/stark && zig build test` sees 185 and
+/// a README that says 162, and the honest answer is which step each counts.
+const declared_stark_standalone_tests: usize = 185;
+
 const max_detail = 512;
 
 /// Whether `path` is inside `prefix`, treating both separators as equal.
@@ -560,6 +576,21 @@ fn reportUndeclared(
 }
 
 /// Report a declared module that nothing imports any more.
+/// The unit-test count the stark README states, if it states one.
+fn statedUnitTestTotal(text: []const u8) ?usize {
+    const markers = [_][]const u8{ " unit tests here", " pruebas unitarias aquí" };
+    for (markers) |marker| {
+        const at = std.mem.indexOf(u8, text, marker) orelse continue;
+        var i = at;
+        while (i > 0 and (text[i - 1] == ' ' or text[i - 1] == '\n')) i -= 1;
+        const end = i;
+        while (i > 0 and std.ascii.isDigit(text[i - 1])) i -= 1;
+        if (i == end) continue;
+        return std.fmt.parseInt(usize, text[i..end], 10) catch null;
+    }
+    return null;
+}
+
 /// The test total a document states, if it states one.
 ///
 /// Deliberately narrow: it looks for the total the root step runs, written as
@@ -620,6 +651,8 @@ pub fn main(init: std.process.Init) !u8 {
     }
     var files_scanned: usize = 0;
     var manifests_read: usize = 0;
+    var test_files: std.ArrayList([]const u8) = .empty;
+    defer test_files.deinit(alloc);
 
     // Rule 4. Every manifest that names the dependency must pin the same
     // version, or the build and the ledger disagree about what is being consumed.
@@ -697,6 +730,13 @@ pub fn main(init: std.process.Init) !u8 {
         for (all.items) |path| {
             if (!std.mem.endsWith(u8, path, ".zig")) continue;
             if (!pathUnder(path, "libs/")) continue;
+            if (pathUnder(path, "libs/stark/tests/")) {
+                // The path itself belongs to the collector's arena, which is
+                // released with that block. Keep the name, not the slice into a
+                // buffer that is about to go: the first version of this rule
+                // printed freed memory.
+                try test_files.append(alloc, try alloc.dupe(u8, std.fs.path.basename(path)));
+            }
 
             const text = cwd.readFileAlloc(io, path, alloc, .limited(1 << 22)) catch continue;
             files_scanned += 1;
@@ -850,6 +890,65 @@ pub fn main(init: std.process.Init) !u8 {
         }
     }
 
+    // Rule 7. The stark README's unit-test count, checked the same way and for
+    // the same reason as the total: a figure typed into prose has no way of
+    // knowing the build moved.
+    for ([_][]const u8{ "libs/stark/README.md", "libs/stark/README.es.md" }) |doc_path| {
+        const text = readOrNull(alloc, io, doc_path) orelse {
+            var p: Problem = .{};
+            p.setWhat("readme", .{});
+            p.setDetail("{s} is missing, so the count it states cannot be " ++
+                "checked", .{doc_path});
+            try problems.append(alloc, p);
+            continue;
+        };
+        const found = statedUnitTestTotal(text) orelse {
+            var p: Problem = .{};
+            p.setWhat("readme", .{});
+            p.setDetail("{s} no longer states a unit-test count, so this rule " ++
+                "has nothing to compare: the sentence moved or the figure was " ++
+                "removed by hand", .{doc_path});
+            try problems.append(alloc, p);
+            continue;
+        };
+        if (found != declared_stark_unit_tests) {
+            var p: Problem = .{};
+            p.setWhat("readme", .{});
+            p.setDetail("{s} states {d} unit tests, the ledger says {d}: the " ++
+                "figure lives in scripts/check_contract.zig and the README is " ++
+                "checked against it. Note the standalone library build totals " ++
+                "{d}, because it also runs the end-to-end, fuzz and " ++
+                "known-answer suites; the figure stated here is the root " ++
+                "build's unit-test step", .{
+                doc_path,
+                found,
+                declared_stark_unit_tests,
+                declared_stark_unit_tests + 23,
+            });
+            try problems.append(alloc, p);
+        }
+    }
+
+    // Rule 8. Every file under `libs/stark/tests/` is named in the stark README,
+    // in both languages. A figure can be checked against the build; a description
+    // cannot be checked against anything, and the way that shows is a suite
+    // existing without the README mentioning it. This one caught the README
+    // saying two known-answer suites while there were three, and no count could
+    // have, because both the count and the build were individually right.
+    for ([_][]const u8{ "libs/stark/README.md", "libs/stark/README.es.md" }) |readme| {
+        const text = readOrNull(alloc, io, readme) orelse continue;
+        for (test_files.items) |path| {
+            const base = std.fs.path.basename(path);
+            if (std.mem.indexOf(u8, text, base) != null) continue;
+            var p: Problem = .{};
+            p.setWhat("readme", .{});
+            p.setDetail("{s} runs {s} and {s} does not mention it: a suite " ++
+                "that exists and is not named in the README is one nobody " ++
+                "reading the documentation learns about", .{ readme, path, base });
+            try problems.append(alloc, p);
+        }
+    }
+
     if (problems.items.len > 0) {
         std.debug.print("contract check failed:\n", .{});
         for (problems.items) |*p| {
@@ -903,6 +1002,20 @@ fn readOrNull(
     const cwd = std.Io.Dir.cwd().openDir(io, ".", .{}) catch return null;
     defer cwd.close(io);
     return cwd.readFileAlloc(io, path, alloc, .limited(1 << 20)) catch null;
+}
+
+test "the README's unit-test count is read in either language" {
+    const english = "162 unit tests here, plus 16 end-to-end tests and three fuzz suites";
+    try std.testing.expectEqual(@as(?usize, 162), statedUnitTestTotal(english));
+
+    // The Spanish figure sits at the start of a sentence and the same marker
+    // shape has to find it, which is the half that drifted last time.
+    const spanish = "162 pruebas unitarias aquí, más 16 de extremo a extremo";
+    try std.testing.expectEqual(@as(?usize, 162), statedUnitTestTotal(spanish));
+
+    // A missing figure is a failure for the caller to hear about, not a zero.
+    try std.testing.expectEqual(@as(?usize, null), statedUnitTestTotal("nothing here"));
+    try std.testing.expectEqual(@as(?usize, null), statedUnitTestTotal(" unit tests here"));
 }
 
 test "the test total is read out of a document, in either language and across a line wrap" {

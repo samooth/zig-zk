@@ -60,6 +60,11 @@ variante:
 | `binius/arg.zig` | La capa de argumentos |
 | `binius/recursion/` | Poseidon2 sobre GF(2) |
 | `binius/adder.zig`, `rangecheck.zig`, `compare.zig`, `bitpack.zig`, `pack.zig` | Gadgets de restricciones que usa la suite de fuzz |
+| `tests/e2e_tests.zig` | De extremo a extremo: probar, verificar, rechazar un testigo manipulado, sobrevivir a la serialización |
+| `tests/fuzz.zig` | Las dos suites de fuzz de gadgets, sobre 8 bits y sobre una extensión de 128 bits |
+| `tests/field_layer.zig` | Respuestas conocidas para las identidades de la capa de campo consumida de zig-algebra |
+| `tests/merkle_kat.zig` | Respuestas conocidas para la raíz del compromiso del Merkle, calculadas fuera de Zig |
+| `tests/tower_mul.zig` | Las dos multiplicaciones de la torre, comparadas; cuál corre depende de la CPU del anfitrión |
 
 `core/` contiene las piezas compartidas: `core/hash` (Blake3 más el tipo
 `Digest`), `core/merkle`, `bit_utils`, ayudas SIMD y serialización.
@@ -145,10 +150,11 @@ zig build test --summary all
 ```
 
 162 pruebas unitarias aquí, más 16 de extremo a extremo y tres suites de fuzz
-que viven en `tests/`, y dos suites pequeñas de respuesta conocida: una vigila las
-identidades de la capa de campo consumida de zig-algebra, la otra fija la raíz
-del compromiso del Merkle, que era la convención que un diferencial descubrió
-que se estaba equivocando. Las pruebas de extremo a extremo no se limitan al ciclo
+que viven en `tests/`, y tres suites pequeñas de respuesta conocida en `tests/`:
+una vigila las identidades de la capa de campo consumida de zig-algebra, una
+fija la raíz del compromiso del Merkle, que era la convención que un diferencial
+descubrió que se estaba equivocando, y una compara las dos multiplicaciones de
+la torre, que dependen de la CPU del anfitrión. Las pruebas de extremo a extremo no se limitan al ciclo
 completo: comprueban que un testigo comprometido y manipulado se rechaza, que
 una prueba sobrevive a serializar y deserializar, y que el prover paralelo da el
 mismo resultado que el secuencial. Las tres suites de fuzz son dos de gadgets y

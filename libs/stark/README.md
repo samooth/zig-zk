@@ -59,6 +59,11 @@ rather than a variant:
 | `binius/arg.zig` | The argument layer |
 | `binius/recursion/` | Poseidon2 over GF(2) |
 | `binius/adder.zig`, `rangecheck.zig`, `compare.zig`, `bitpack.zig`, `pack.zig` | Constraint gadgets used by the fuzz suite |
+| `tests/e2e_tests.zig` | End-to-end: prove, verify, reject a tampered witness, survive serialisation |
+| `tests/fuzz.zig` | The two gadget fuzz suites, over 8 bits and over a 128-bit extension |
+| `tests/field_layer.zig` | Known answers for the identities of the field layer consumed from zig-algebra |
+| `tests/merkle_kat.zig` | Known answers for the Merkle commitment root, computed outside Zig |
+| `tests/tower_mul.zig` | The tower's two multiplications, compared; which one runs depends on the host CPU |
 
 `core/` holds the shared pieces: `core/hash` (Blake3 plus the `Digest` type),
 `core/merkle`, `bit_utils`, SIMD helpers and serialisation.
@@ -141,9 +146,11 @@ zig build test --summary all
 ```
 
 162 unit tests here, plus 16 end-to-end tests and three fuzz suites that live
-in `tests/`, and two small known-answer suites: one guards the identities of the
-field layer consumed from zig-algebra, the other pins the Merkle commitment
-root, which is the convention a differential found had been getting wrong. The end-to-end tests do not just round-trip: they check that a
+in `tests/`, and three small known-answer suites in `tests/`: one guards the
+identities of the field layer consumed from zig-algebra, one pins the Merkle
+commitment root, which is the convention a differential found had been getting
+wrong, and one compares the tower's two multiplications, which run depending on
+the host CPU. The end-to-end tests do not just round-trip: they check that a
 tampered committed witness is rejected, that a proof survives serialisation and
 deserialisation, and that the parallel prover matches the sequential one. The
 three fuzz suites: two gadget suites and one that compares the tower's two
