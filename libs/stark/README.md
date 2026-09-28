@@ -63,6 +63,15 @@ rather than a variant:
 `core/` holds the shared pieces: `core/hash` (Blake3 plus the `Digest` type),
 `core/merkle`, `bit_utils`, SIMD helpers and serialisation.
 
+`core/hash` and `core/merkle` are here on purpose and the reason is in
+`ARCHITECTURE.md`, but they are also a fork pair against `zig-hash` and
+`zig-merkle` and that has not been settled: adopting them is the same decision
+the field layer was, and it waits on the same check that one took — a hash of
+the files, and no signature changes. Until that runs, "kept here" is a decision
+recorded, not a question closed. `core/hash` wraps `std.crypto.hash.Blake3`, so
+it is correct today and is pinned with known-answer vectors; `core/merkle`
+carries a GPU accelerator hook that has no counterpart upstream.
+
 ## Quick Start
 
 ```zig
@@ -131,14 +140,28 @@ preprocessed tables. They double as the reference for what a real AIR looks like
 zig build test --summary all
 ```
 
-162 unit tests here, plus 16 end-to-end tests and a fuzz suite that lives in
-`tests/`, and two small known-answer suites: one guards the identities of the
+162 unit tests here, plus 16 end-to-end tests and three fuzz suites that live
+in `tests/`, and two small known-answer suites: one guards the identities of the
 field layer consumed from zig-algebra, the other pins the Merkle commitment
 root, which is the convention a differential found had been getting wrong. The end-to-end tests do not just round-trip: they check that a
 tampered committed witness is rejected, that a proof survives serialisation and
 deserialisation, and that the parallel prover matches the sequential one. The
-fuzz suite runs 2000 iterations over three gadgets and asserts accept and reject
-on every round, with a leak-checking allocator.
+three fuzz suites: two gadget suites and one that compares the tower's two
+multiplications. All three run under a leak-checking allocator, and the gadget
+suites assert accept and reject on every round.
+
+The two gadget suites differ in the field and nothing else. The quick one runs
+2000 rounds over three gadgets with `Gf256` on both sides of the field pair,
+chosen for speed, and a sum-check over an eight-bit field has a per-round
+soundness error of order 1/|F| that composes over the rounds: what it stresses is
+the plumbing, the witness shapes and the tamper rejection, and it says nothing
+about soundness. The wide one runs the same rounds over a 128-bit extension, in
+far fewer of them, because a 128-bit tower product is expensive enough that
+Debug avoids it elsewhere in this file.
+
+The wide suite's claim is the narrow one, and it is the only thing it can make:
+that the 128-bit path gets random witnesses. No number of rounds would make it
+say that the path is sound.
 
 ## Design Notes
 

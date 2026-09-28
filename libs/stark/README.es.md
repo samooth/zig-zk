@@ -64,6 +64,16 @@ variante:
 `core/` contiene las piezas compartidas: `core/hash` (Blake3 más el tipo
 `Digest`), `core/merkle`, `bit_utils`, ayudas SIMD y serialización.
 
+`core/hash` y `core/merkle` están aquí a propósito y la razón está en
+`ARCHITECTURE.md`, pero también son un par fork frente a `zig-hash` y
+`zig-merkle`, y eso no está resuelto: adoptarlos es la misma decisión que fue la
+de la capa de campo, y espera la misma comprobación que aquella — un hash de los
+ficheros, y ningún cambio de firma. Hasta que corra, "aquí se quedan" es una
+decisión registrada, no una pregunta cerrada. `core/hash` envuelve
+`std.crypto.hash.Blake3`, así que hoy es correcto y está fijado con vectores de
+respuesta conocida; `core/merkle` lleva un hook de acelerador de GPU que no
+tiene contraparte aguas arriba.
+
 ## Primeros pasos
 
 ```zig
@@ -134,16 +144,31 @@ tablas preprocesadas. Sirven además de referencia de cómo es un AIR de verdad.
 zig build test --summary all
 ```
 
-162 pruebas unitarias aquí, más 16 de extremo a extremo y una suite de fuzz que
-vive en `tests/`, y dos suites pequeñas de respuesta conocida: una vigila las
+162 pruebas unitarias aquí, más 16 de extremo a extremo y tres suites de fuzz
+que viven en `tests/`, y dos suites pequeñas de respuesta conocida: una vigila las
 identidades de la capa de campo consumida de zig-algebra, la otra fija la raíz
 del compromiso del Merkle, que era la convención que un diferencial descubrió
 que se estaba equivocando. Las pruebas de extremo a extremo no se limitan al ciclo
 completo: comprueban que un testigo comprometido y manipulado se rechaza, que
 una prueba sobrevive a serializar y deserializar, y que el prover paralelo da el
-mismo resultado que el secuencial. La suite de fuzz da 2000 vueltas sobre tres
-gadgets y afirma que acepta y que rechaza en cada una, con un asignador que
-detecta fugas.
+mismo resultado que el secuencial. Las tres suites de fuzz son dos de gadgets y
+una que compara las dos multiplicaciones de la torre. Las tres corren bajo un
+asignador que detecta fugas, y las de gadgets afirman que aceptan y que rechazan
+en cada vuelta.
+
+Las dos suites de gadgets se diferencian en el campo y en nada más. La rápida da
+2000 vueltas sobre tres gadgets con `Gf256` en los dos lados del par de campos,
+elegido por velocidad, y el error de solidez de una ronda de suma-producto sobre
+un campo de ocho bits es del orden de 1/|F| y se compone a lo largo de las
+rondas: lo que presiona es la fontanería, las formas de testigo y el rechazo
+de una manipulación. No dice nada sobre solidez. La ancha da las mismas vueltas
+sobre una extensión de 128 bits, con muchas menos, porque un producto en una
+torre de 128 bits es lo bastante caro como para que Debug lo evite en otros
+puntos de este fichero.
+
+La afirmación de la suite ancha es la estrecha, y es lo único que puede hacer:
+que el camino de 128 recibe testigos aleatorios. Ningún número de vueltas
+haría que dijera que el camino es sound.
 
 ## Notas de diseño
 
