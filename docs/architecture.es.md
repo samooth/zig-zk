@@ -154,13 +154,16 @@ de fuzz de stark, y trae zig-algebra desde el tarball pinneado, así que funcion
 desde un clon limpio. Los `build.zig` por librería existen para el trabajo
 aislado y resuelven zig-algebra desde el mismo tarball pinneado.
 
-El paso `test` de la raíz compila y ejecuta todas las suites: 242 pruebas
+El paso `test` de la raíz compila y ejecuta todas las suites: 248 pruebas
 repartidas en transcript (20), commitment (16), signature (6), stark (162),
-snark (11), el control del contrato (5), las dos suites de respuesta conocida
-que vigilan la capa consumida de zig-algebra (3 y 2), más las suites e2e (16) y
-de fuzz (1) de stark.
+snark (11), el control del contrato (7), las tres suites de respuesta conocida
+que vigilan la capa consumida de zig-algebra (3, 2 y 3), más las suites e2e
+(16) y de fuzz (2) de stark.
 `libs/stark/tests/fuzz.zig` da 2000 vueltas sobre tres gadgets con un asignador
-que detecta fugas, y afirma que acepta y que rechaza en cada vuelta; tarda unos
+que detecta fugas, y afirma que acepta y que rechaza en cada vuelta; la segunda
+de sus dos suites hace lo mismo sobre una extensión de 128 bits con muchas menos
+vueltas, porque un producto en una torre de 128 bits es lo bastante caro como
+para evitarlo en Debug en otros puntos de este mismo fichero. Juntas tardan unos
 tres minutos.
 
 Una prueba en un fichero nuevo solo se ejecuta si algo fuerza que ese fichero
@@ -170,6 +173,31 @@ compila un binario sin ninguna prueba y reporta un aprobado en milisegundos. El
 canal de transcript y la suite de fuzz de Binius estaban los dos en ese estado,
 así que las cifras de arriba son las que hay que comparar, no el número de
 declaraciones `test` del árbol.
+
+### Lo que un verde no demuestra
+
+Un aprobado es una afirmación sobre lo que se ejecutó, no sobre lo que era
+cierto. Éstas son las formas en que este repositorio ha encontrado un verde que
+significaba menos de lo que parecía, cada una con lo que de verdad la cierra.
+
+| Fallo | Qué parece | Qué lo cierra |
+|---|---|---|
+| La prueba nunca se ejecutó | Se añade un fichero, se declara su prueba, y el corredor informa un aprobado en milisegundos porque nada forzó el análisis del fichero | Un `test { std.testing.refAllDecls(@This()); }` en la raíz del módulo, o una referencia desde otra prueba |
+| El código se ejecuta, pero ninguna entrada toma esa rama | Una función a la que se llama constantemente, y nunca por la ruta que importa. `mulRec` se llama en toda máquina, porque `mulFast` construye con ella sus tablas, y sin embargo en x86-64 ningún *producto* llega a ella por `mul`, que despacha a `mulFast` | Una prueba que recorra esa ruta concreta, no una que pase por donde pase. `libs/stark/tests/tower_mul.zig` |
+| La comprobación miró en otro sitio | Todas las zonas informan cero y todos los módulos declarados sin usar, porque el directorio de trabajo no era la raíz del repositorio y el recorrido no encontró nada | Fallar cuando la entrada es inverosímil, y no sólo cuando discrepa: una puerta que no lee ningún manifiesto, o no encuentra ninguna marca del repositorio, lo dice |
+| La comprobación pasó sobre menos entrada | "2 files, all paired" leído como documentación verificada, desde un recorrido que vio dos ficheros en un directorio que tiene dos | Decir qué ha mirado, y no llegar a aprobado por debajo de un mínimo |
+
+La cuarta fila es la que menos palabras necesita para seguir siendo cierta: una
+cifra en la salida es una afirmación, y una cifra que nadie compara no decora
+nada.
+
+El alcance de cada comprobación se enuncia una vez, junto a la comprobación, y no
+se copia aquí. `tests/tower_mul.zig` es el ejemplo trabajado de una comprobación
+deliberadamente estrecha que lo dice arriba del todo: compara las dos
+multiplicaciones de la torre, y no puede cazar un defecto que ambas compartan,
+porque el acuerdo entre dos implementaciones no es corrección. Repetir esa frase
+en un segundo sitio sería una segunda copia de una afirmación, y este
+repositorio lleva una versión borrando esas.
 
 La CI ejecuta la suite en Debug sobre Linux, macOS y Windows mediante
 `.github/actions/setup-zig`, que descarga el compilador desde ziglang.org

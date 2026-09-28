@@ -164,6 +164,30 @@ channel and the Binius fuzz suite were both in that state, so the counts above
 are the ones to compare against, not the number of `test` declarations in the
 tree.
 
+### What a green run does not establish
+
+A pass is a claim about what ran, not about what was true. These are the ways
+this repository has found a green run that meant less than it looked, each with
+what actually closes it.
+
+| Failure | What it looks like | What closes it |
+|---|---|---|
+| The test never ran | A file added, its test declared, and the runner reports a pass in milliseconds because nothing forced the file to be analysed | A `test { std.testing.refAllDecls(@This()); }` in the module root, or a reference from another test |
+| The code runs, but no input takes the branch | A function that is called constantly, and never through the route that matters. `mulRec` is called on every host, because `mulFast` builds its tables with it, yet on x86-64 no *product* reaches it through `mul`, which dispatches to `mulFast` | A test that drives that specific route, not one that passes through wherever. `libs/stark/tests/tower_mul.zig` |
+| The check looked somewhere else | Every zone reports zero and every declared module unused, because the working directory was not the repository root and the walk found nothing | Failing when the input is implausible, not only when it disagrees: a gate that reads no manifest, or finds no repository marker, says so |
+| The check passed on a smaller input | "2 files, all paired" read as documentation verified, from a walk that saw two files in a directory that holds two | Printing what it looked at, and refusing to succeed below a floor |
+
+The fourth row is the one that needs the fewest words to stay true: a count in
+the output is a claim, and a count nobody compares against is decoration.
+
+The scope of any individual check is stated once, next to the check, and not
+copied here. `tests/tower_mul.zig` is the worked example of a check that is
+deliberately narrow and says so at the top of the file: it compares the two
+tower multiplications, and it cannot catch a defect both share, because
+agreement between two implementations is not correctness. Repeating that
+sentence in a second place would be a second copy of a claim, and this
+repository has spent a release deleting those.
+
 CI runs the Debug suite on Linux, macOS and Windows via
 `.github/actions/setup-zig`, which downloads the compiler from ziglang.org
 (resolving `master` through `download/index.json`).
