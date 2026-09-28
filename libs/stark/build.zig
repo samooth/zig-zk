@@ -99,6 +99,11 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_e2e.step);
 
     const fuzz_opts = b.addOptions();
+    fuzz_opts.addOption(usize, "wide_iters", b.option(
+        usize,
+        "fuzz-wide-iters",
+        "Rounds of the Binius gadget fuzz suite over the 128-bit extension (default 20; each round is orders of magnitude costlier than the 8-bit one)",
+    ) orelse 20);
     fuzz_opts.addOption(usize, "iters", b.option(
         usize,
         "fuzz-iters",

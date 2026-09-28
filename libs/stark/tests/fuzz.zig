@@ -5,27 +5,49 @@
 //!     modified proof is rejected deterministically, unlike a witness tamper
 //!     whose zero-check can miss a single-point violation in a small field).
 //! Runs under the leak-checking DebugAllocator, as part of `zig build test`.
+//!
+//! Two field pairs, and the second one exists for a reason that is not
+//! thoroughness. The quick suite is single-field over `Gf256`, chosen for
+//! speed, and a sum-check over an eight-bit field has a soundness error of order
+//! 1/|F| that composes over the rounds: what it stresses is the plumbing, the
+//! witness shapes and the tamper rejection, and it says nothing about soundness.
+//! The wide suite runs the same gadgets with a 128-bit extension, where the
+//! prover is the one production instantiation uses (`BiniusStark(Gf16, Gf2_128)`,
+//! which the end-to-end tests also run), and it is what puts random witnesses
+//! through that width. It runs far fewer rounds, because a 128-bit tower
+//! product is a software fallback the repository already records as slow at
+//! `tests/e2e_tests.zig`, where a Debug build avoids it for that reason.
+//!
+//! The claim this file can support is "the 128-bit path gets random witnesses".
+//! It is not "the 128-bit path is sound", and no number of rounds would make it
+//! that.
 
 const std = @import("std");
 const zs = @import("zig-stark");
 
-const F = zs.binius.tower.Gf256;
-const E = zs.binius.tower.Gf256; // single-field for speed; structure is identical
 const Hash = zs.hash.Hash;
 const Ser = zs.core.serialization;
 
-const Stark = zs.binius.stark.BiniusStark(F, E);
-const CommittedPcs = zs.binius.pcs.CommittedMlePcsUnsafe(F, E);
+const FastF = zs.binius.tower.Gf256;
+const FastE = zs.binius.tower.Gf256; // single-field for speed; structure is identical
+
+// The pair the prover is instantiated over in the end-to-end suite.
+const WideF = zs.binius.tower.Gf16;
+const WideE = zs.binius.tower.Gf2_128;
 
 const Rng = std.Random.DefaultPrng;
 
 /// Prove the witness, commit the roots, and verify. Returns accept/reject.
 fn proveVerify(
+    comptime F: type,
+    comptime E: type,
     alloc: std.mem.Allocator,
     k: usize,
     columns: []const []const F,
-    constraints: []const Stark.Constraint,
+    constraints: anytype,
 ) !bool {
+    const Stark = zs.binius.stark.BiniusStark(F, E);
+    const CommittedPcs = zs.binius.pcs.CommittedMlePcsUnsafe(F, E);
     const roots = try alloc.alloc(Hash.Digest, columns.len);
     defer alloc.free(roots);
     for (0..columns.len) |c| {
@@ -39,13 +61,15 @@ fn proveVerify(
 }
 
 /// The valid witness must be accepted.
-fn expectAccept(alloc: std.mem.Allocator, k: usize, columns: []const []const F, constraints: []const Stark.Constraint) !void {
-    if (!try proveVerify(alloc, k, columns, constraints)) return error.FuzzValidRejected;
+fn expectAccept(comptime F: type, comptime E: type, alloc: std.mem.Allocator, k: usize, columns: []const []const F, constraints: anytype) !void {
+    if (!try proveVerify(F, E, alloc, k, columns, constraints)) return error.FuzzValidRejected;
 }
 
 /// A proof with one flipped byte must be rejected (deterministic: the sum-check
 /// and Merkle checks fail on any modified value).
-fn expectRejectTamperedProof(alloc: std.mem.Allocator, k: usize, columns: []const []const F, constraints: []const Stark.Constraint) !void {
+fn expectRejectTamperedProof(comptime F: type, comptime E: type, alloc: std.mem.Allocator, k: usize, columns: []const []const F, constraints: anytype) !void {
+    const Stark = zs.binius.stark.BiniusStark(F, E);
+    const CommittedPcs = zs.binius.pcs.CommittedMlePcsUnsafe(F, E);
     const roots = try alloc.alloc(Hash.Digest, columns.len);
     defer alloc.free(roots);
     for (0..columns.len) |c| {
@@ -68,7 +92,7 @@ fn expectRejectTamperedProof(alloc: std.mem.Allocator, k: usize, columns: []cons
 }
 
 /// RangeCheck: valid values in [0, 2^m).
-fn roundRange(alloc: std.mem.Allocator, rnd: std.Random) !void {
+fn roundRange(comptime F: type, comptime E: type, alloc: std.mem.Allocator, rnd: std.Random) !void {
     const m = 3;
     const k = 3;
     const n: usize = @as(usize, 1) << @intCast(k);
@@ -81,12 +105,12 @@ fn roundRange(alloc: std.mem.Allocator, rnd: std.Random) !void {
     defer RC.freeWitness(alloc, &cols);
     const cols_slice: []const []const F = cols[0..];
 
-    try expectAccept(alloc, k, cols_slice, RC.constraints[0..]);
-    try expectRejectTamperedProof(alloc, k, cols_slice, RC.constraints[0..]);
+    try expectAccept(F, E, alloc, k, cols_slice, RC.constraints[0..]);
+    try expectRejectTamperedProof(F, E, alloc, k, cols_slice, RC.constraints[0..]);
 }
 
 /// Compare: random pairs with x < y.
-fn roundCompare(alloc: std.mem.Allocator, rnd: std.Random) !void {
+fn roundCompare(comptime F: type, comptime E: type, alloc: std.mem.Allocator, rnd: std.Random) !void {
     const m = 3;
     const k = 3;
     const n: usize = @as(usize, 1) << @intCast(k);
@@ -106,12 +130,12 @@ fn roundCompare(alloc: std.mem.Allocator, rnd: std.Random) !void {
     defer Cmp.freeWitness(alloc, &cols);
     const cols_slice: []const []const F = cols[0..];
 
-    try expectAccept(alloc, k, cols_slice, Cmp.constraints[0..]);
-    try expectRejectTamperedProof(alloc, k, cols_slice, Cmp.constraints[0..]);
+    try expectAccept(F, E, alloc, k, cols_slice, Cmp.constraints[0..]);
+    try expectRejectTamperedProof(F, E, alloc, k, cols_slice, Cmp.constraints[0..]);
 }
 
 /// Adder: random 4-bit pairs.
-fn roundAdder(alloc: std.mem.Allocator, rnd: std.Random) !void {
+fn roundAdder(comptime F: type, comptime E: type, alloc: std.mem.Allocator, rnd: std.Random) !void {
     const k = 3;
     const n: usize = @as(usize, 1) << @intCast(k);
     const Adder = zs.binius.adder.Adder(F, E);
@@ -129,8 +153,18 @@ fn roundAdder(alloc: std.mem.Allocator, rnd: std.Random) !void {
     defer Adder.freeWitness(alloc, &cols);
     const cols_slice: []const []const F = cols[0..];
 
-    try expectAccept(alloc, k, cols_slice, Adder.constraints[0..]);
-    try expectRejectTamperedProof(alloc, k, cols_slice, Adder.constraints[0..]);
+    try expectAccept(F, E, alloc, k, cols_slice, Adder.constraints[0..]);
+    try expectRejectTamperedProof(F, E, alloc, k, cols_slice, Adder.constraints[0..]);
+}
+
+/// The three gadgets under one field pair. Split out so both suites below run
+/// exactly the same rounds, and differ only in the field and the count.
+fn runGadgets(comptime F: type, comptime E: type, alloc: std.mem.Allocator, rnd: std.Random, rounds: usize) !void {
+    for (0..rounds) |_| {
+        try roundRange(F, E, alloc, rnd);
+        try roundCompare(F, E, alloc, rnd);
+        try roundAdder(F, E, alloc, rnd);
+    }
 }
 
 test "binius gadgets: randomised accept, and reject a tampered proof" {
@@ -145,9 +179,26 @@ test "binius gadgets: randomised accept, and reject a tampered proof" {
     var prng = Rng.init(0x5eed_c0de);
     const rnd = prng.random();
 
-    for (0..iters) |_| {
-        try roundRange(alloc, rnd);
-        try roundCompare(alloc, rnd);
-        try roundAdder(alloc, rnd);
+    try runGadgets(FastF, FastE, alloc, rnd, iters);
+}
+
+test "binius gadgets over a 128-bit extension: the same rounds, random witnesses" {
+    // The claim this makes is narrow and is the one the ledger records: the
+    // 128-bit path gets random witnesses. It is not a soundness claim. The
+    // default is over Gf256, which is eight bits wide, and a sum-check there has
+    // a per-round soundness error of order 1/|F| that composes -- so the quick
+    // suite above is plumbing coverage, and this is the part that puts the same
+    // gadgets through the width the prover actually uses.
+    var gpa = std.heap.DebugAllocator(.{}){};
+    const alloc = gpa.allocator();
+    defer {
+        const check = gpa.deinit();
+        if (check != .ok) @panic("fuzz: memory leaks detected");
     }
+
+    const rounds = @import("fuzz_options").wide_iters;
+    var prng = Rng.init(0x128_b17_5);
+    const rnd = prng.random();
+
+    try runGadgets(WideF, WideE, alloc, rnd, rounds);
 }
