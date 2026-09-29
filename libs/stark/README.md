@@ -66,7 +66,7 @@ rather than a variant:
 | `tests/tower_mul.zig` | The tower's two multiplications, compared; which one runs depends on the host CPU |
 
 `core/` holds the shared pieces: `core/hash` (Blake3 plus the `Digest` type),
-`core/merkle`, `bit_utils`, SIMD helpers and serialisation.
+merkle, `bit_utils`, SIMD helpers and serialisation.
 
 `core/hash` and `core/merkle` are here on purpose and the reason is in
 `ARCHITECTURE.md`, but they are also a fork pair against `zig-hash` and

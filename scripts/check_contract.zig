@@ -949,6 +949,58 @@ pub fn main(init: std.process.Init) !u8 {
         }
     }
 
+    // Rule 9. The two files whose adoption is still open, in both directions.
+    //
+    // Rule 8 covers the test directory, so deleting a library file triggers
+    // nothing and the README keeps naming a path that is gone. That is the
+    // pending decision in this repository -- `core/hash` and `core/merkle` wait
+    // on the same file-hash verification the field layer took -- so the failure
+    // it would leave is the one this repository has been paying for: an open
+    // question presented as settled, or a settled thing described as present.
+    //
+    // The general version of this, a two-directional check over the whole
+    // inventory table, is deliberately not attempted here. That table mixes
+    // directories, files, unprefixed paths, cells naming several files,
+    // identifiers like `m31.stark.FibAir`, and one row that names a file which
+    // does not exist on purpose because it is a signpost to the adopted
+    // upstream. Checking it in both directions means restructuring it first,
+    // which is a change to the documentation and not to a gate.
+    for ([_][]const u8{ "libs/stark/README.md", "libs/stark/README.es.md" }) |readme| {
+        const text = readOrNull(alloc, io, readme) orelse continue;
+        // The token is what the README says, the path is what has to be on disk
+        // for it to be true. The first version of this rule had one string for
+        // both, which was relative to `libs/stark/` while the check ran from the
+        // repository root: both sides read false, the two agreed, and the rule
+        // passed without ever having looked. A gate that is inert looks exactly
+        // like a gate that is satisfied.
+        const pairs = [_]struct { token: []const u8, path: []const u8 }{
+            .{ .token = "core/hash", .path = "libs/stark/core/hash/hash.zig" },
+            .{ .token = "core/merkle", .path = "libs/stark/core/merkle/merkle.zig" },
+        };
+        for (pairs) |pair| {
+            var present = true;
+            std.Io.Dir.cwd().access(io, pair.path, .{}) catch {
+                present = false;
+            };
+            const named = std.mem.indexOf(u8, text, pair.token) != null;
+            if (present == named) continue;
+            var p: Problem = .{};
+            p.setWhat("readme", .{});
+            p.setDetail("{s} {s} {s} but {s} does not say so: {s}", .{
+                readme,
+                if (present) "has" else "no longer has",
+                pair.path,
+                readme,
+                if (present)
+                    "the README does not mention a file that exists"
+                else
+                    "the README still names a file that is gone, and no rule " ++
+                        "will notice except this one",
+            });
+            try problems.append(alloc, p);
+        }
+    }
+
     if (problems.items.len > 0) {
         std.debug.print("contract check failed:\n", .{});
         for (problems.items) |*p| {
