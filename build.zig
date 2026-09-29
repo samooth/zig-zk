@@ -145,6 +145,19 @@ pub fn build(b: *std.Build) void {
     // The gate is the conformance check, so the gate's own scanner gets tested.
     // Test blocks in a file that is only ever built as an executable never run,
     // which is the same mistake this gate exists to make visible.
+    // The documentation gate gets the same treatment, and the reason is the one
+    // above: a rule with no test of its own is the class this repository has been
+    // removing, not one to add.
+    const docs_tests = b.addTest(.{
+        .name = "check-docs-tests",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("scripts/check_docs.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(docs_tests).step);
+
     const contract_tests = b.addTest(.{
         .name = "check-contract-tests",
         .root_module = b.createModule(.{

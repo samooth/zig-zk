@@ -6,6 +6,18 @@
 //!   2. Every file declares its language and links to its pair in its first
 //!      three lines.
 //!   3. The prose of a file does not contain stopwords from the other language.
+//!   4. The prose of a file contains no CJK ideograph or kana. This
+//!      repository writes in two Latin-script languages, so a Han or kana
+//!      character in the prose is contamination that arrived from somewhere
+//!      else, and it is the one kind that no stopword list catches: a CJK
+//!      sequence never equals a Latin entry. The check is a range rather than
+//!      a vocabulary, because a vocabulary of observed strings only fires on
+//!      the strings already observed.
+//!
+//! The range is deliberately narrow. Accented Latin, the em dash, arrows,
+//! `<<` and `>>`, the middle dot and a Greek capital sigma are all used in
+//! this repository's documents and are not contamination, so "not ASCII" is
+//! not the test -- it would fail on the accents on the first file.
 //!
 //! Fenced code blocks and inline code are stripped before rule 3, because
 //! identifiers are the same in both languages. A file without a counterpart is a
@@ -176,6 +188,35 @@ fn containsWord(text: []const u8, word: []const u8) bool {
     return false;
 }
 
+/// The first CJK ideograph or kana in `text`, if there is one.
+///
+/// UTF-8 encodes those as three bytes in 0xE0..0xEF, which `isWordByte` already
+/// treats as word characters, so the tokeniser handles them and no list is
+/// involved. The ranges are Han (unified and extension A), the CJK
+/// compatibility block, and kana, which is what a substitution from a Chinese
+/// model produces. A range rather than a vocabulary of seen strings, because a
+/// vocabulary only fires on what has already been seen.
+fn firstCjk(text: []const u8) ?[]const u8 {
+    var i: usize = 0;
+    while (i < text.len) {
+        const c = text[i];
+        if (c < 0xE0 or c > 0xEF) {
+            i += 1;
+            continue;
+        }
+        if (i + 3 > text.len) return text[i..];
+        const cp = (@as(u21, c & 0x0F) << 12) |
+            (@as(u21, text[i + 1] & 0x3F) << 6) |
+            (@as(u21, text[i + 2] & 0x3F));
+        const han = (cp >= 0x3400 and cp <= 0x4DBF) or (cp >= 0x4E00 and cp <= 0x9FFF);
+        const compat = cp >= 0xF900 and cp <= 0xFAFF;
+        const kana = cp >= 0x3040 and cp <= 0x30FF;
+        if (han or compat or kana) return text[i .. i + 3];
+        i += 1;
+    }
+    return null;
+}
+
 /// Returns the link target of the language banner, or null when there is none.
 /// The banner must be a blockquote naming the language and pointing at the pair.
 fn bannerLink(text: []const u8) ?[]const u8 {
@@ -277,6 +318,13 @@ pub fn main(init: std.process.Init) !u8 {
             try problems.append(alloc, problem);
         }
 
+        // Rule 4. Checked on the prose, so identifiers and fenced code are
+        // exempt like everywhere else here.
+        if (firstCjk(prose.items)) |bad| {
+            problem.setDetail("prose contains the CJK sequence {x}", .{bad});
+            try problems.append(alloc, problem);
+        }
+
         const is_es = std.mem.endsWith(u8, base, ".es.md");
         const foreign = if (is_es) english_stop[0..] else spanish_stop[0..];
 
@@ -344,4 +392,42 @@ pub fn main(init: std.process.Init) !u8 {
     }
     std.debug.print("documentation check passed: {d} files, all paired, no language mixing\n", .{checked});
     return 0;
+}
+
+test "the CJK detector catches the ranges and leaves the Latin punctuation alone" {
+    // The contamination that motivated the rule, both scripts.
+    try std.testing.expect(firstCjk("El texto estaba \u{80A1}\u{6743}\u{6295}\u{8D44} uno.") != null);
+    try std.testing.expect(firstCjk("\u{3053}\u{3093}\u{306B}\u{3061}\u{306F}") != null);
+    try std.testing.expect(firstCjk("a compatibility ideograph \u{F91E}") != null);
+    // Han extension A, which is below the unified block.
+    try std.testing.expect(firstCjk("low \u{3400}") != null);
+
+    // And everything this repository's documents legitimately contain. The range
+    // is narrow on purpose: "not ASCII" would fail on the accents alone, and
+    // this repository uses arrows, dashes, a Greek capital and angle brackets.
+    try std.testing.expect(firstCjk("acentos: n\u{00F3}ble, sesi\u{00F3}n, \u{00BF}qu\u{00E9}?") == null);
+    try std.testing.expect(firstCjk("em dash \u{2014} arrow \u{2192} up \u{2191}") == null);
+    try std.testing.expect(firstCjk("sigma \u{03A3}, angle \u{27E8}x\u{27E9}, minus \u{2212}") == null);
+    try std.testing.expect(firstCjk("powers 2\u{00B2} 3\u{00B3} 8\u{2078}, box \u{2502} dot \u{00B7}") == null);
+    try std.testing.expect(firstCjk("") == null);
+    try std.testing.expect(firstCjk("plain ascii prose") == null);
+}
+
+test "a CJK sequence in the prose is a failure and one in a code fence is not" {
+    // The exemption the other rules make, checked here rather than assumed: a
+    // fenced block and inline code are stripped before the rule runs, so an
+    // identifier in another script is not contamination.
+    const alloc = std.testing.allocator;
+
+    const with_fence = "antes\n```zig\n// \u{80A1}\u{6743} en un identificador\n```\ndespues";
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(alloc);
+    _ = try stripCode(alloc, with_fence, &out);
+    try std.testing.expect(firstCjk(out.items) == null);
+
+    const bare = "El texto estaba \u{80A1}\u{6743} uno.";
+    var out2: std.ArrayList(u8) = .empty;
+    defer out2.deinit(alloc);
+    _ = try stripCode(alloc, bare, &out2);
+    try std.testing.expect(firstCjk(out2.items) != null);
 }
