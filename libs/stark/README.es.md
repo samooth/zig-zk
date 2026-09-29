@@ -165,9 +165,11 @@ en cada vuelta.
 Las dos suites de gadgets se diferencian en el campo y en nada más. La rápida da
 2000 vueltas sobre tres gadgets con `Gf256` en los dos lados del par de campos,
 elegido por velocidad, y el error de solidez de una ronda de suma-producto sobre
-un campo de ocho bits es del orden de 1/|F| y se compone a lo largo de las
-rondas: lo que presiona es la fontanería, las formas de testigo y el rechazo
-de una manipulación. No dice nada sobre solidez. La ancha da las mismas vueltas
+un campo de ocho bits es del orden de 1/|F|, y los errores de las rondas se
+suman en vez de multiplicarse: una cota de suma del orden k/|F| para k rondas,
+no un producto, así que un campo estrecho se paga una vez por ronda. Lo que
+presiona es la fontanería, las formas de testigo y el rechazo de una
+manipulación. No dice nada sobre solidez. La ancha da las mismas vueltas
 sobre una extensión de 128 bits, con muchas menos, porque un producto en una
 torre de 128 bits es lo bastante caro como para que Debug lo evite en otros
 puntos de este fichero.

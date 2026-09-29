@@ -9,14 +9,22 @@
 //! Two field pairs, and the second one exists for a reason that is not
 //! thoroughness. The quick suite is single-field over `Gf256`, chosen for
 //! speed, and a sum-check over an eight-bit field has a soundness error of order
-//! 1/|F| that composes over the rounds: what it stresses is the plumbing, the
-//! witness shapes and the tamper rejection, and it says nothing about soundness.
+//! 1/|F|, and the rounds' errors add rather than compound -- a sum bound of
+//! order k/|F| for k rounds, not a product. What it stresses is the plumbing,
+//! the witness shapes and the tamper rejection, and it says nothing about
+//! soundness.
 //! The wide suite runs the same gadgets with a 128-bit extension, where the
 //! prover is the one production instantiation uses (`BiniusStark(Gf16, Gf2_128)`,
 //! which the end-to-end tests also run), and it is what puts random witnesses
 //! through that width. It runs far fewer rounds, because a 128-bit tower
 //! product is a software fallback the repository already records as slow at
 //! `tests/e2e_tests.zig`, where a Debug build avoids it for that reason.
+//!
+//! The bound is a sum, not a product: a round's error is of order 1/|F| and
+//! k rounds give order k/|F|, so an eight-bit extension is paid for once per
+//! round and no round count rescues it. `k` is not measured here, which is why
+//! no figure appears. And Binius commits in a bilinear algebra rather than a
+//! field, so a prime-field soundness argument does not carry over verbatim.
 //!
 //! The claim this file can support is "the 128-bit path gets random witnesses".
 //! It is not "the 128-bit path is sound", and no number of rounds would make it
@@ -186,9 +194,10 @@ test "binius gadgets over a 128-bit extension: the same rounds, random witnesses
     // The claim this makes is narrow and is the one the ledger records: the
     // 128-bit path gets random witnesses. It is not a soundness claim. The
     // default is over Gf256, which is eight bits wide, and a sum-check there has
-    // a per-round soundness error of order 1/|F| that composes -- so the quick
-    // suite above is plumbing coverage, and this is the part that puts the same
-    // gadgets through the width the prover actually uses.
+    // a per-round soundness error of order 1/|F| whose rounds add, giving
+    // order k/|F| for k rounds -- so the quick suite above is plumbing coverage,
+    // and this is the part that puts the same gadgets through the width the
+    // prover actually uses. k is the prover's round count and is not measured.
     var gpa = std.heap.DebugAllocator(.{}){};
     const alloc = gpa.allocator();
     defer {

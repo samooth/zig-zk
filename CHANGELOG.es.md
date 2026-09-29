@@ -42,8 +42,16 @@ de ese documento.
   declarada.
 - La suite de extremo a extremo de Binius es cobertura de fontanería, no de
   solidez. El error de solidez de una ronda de suma-producto sobre un campo de
-  ocho bits es del orden de 1/|F|, alrededor del 0,4%, y se compone a lo largo
-  de las rondas. Véase la revisit de `binius` en el libro mayor.
+  ocho bits es del orden de 1/|F|, y los errores de las rondas se suman en vez
+  de multiplicarse: el total es una cota de suma del orden k/|F| para k rondas,
+  no un producto. Así que un campo más estrecho se paga una vez por ronda, y
+  ningún número de rondas vuelve adecuada una extensión de ocho bits: el campo
+  tiene que cumplir |F| >= k * 2^lambda. `k` es el número de rondas del prover y
+  aquí no está medido, y por eso no se cita ninguna cifra. Una salvedad más:
+  Binius compromete en un álgebra bilineal y no en un campo, así que un
+  argumento de solidez de campo primo no se traslada sin más. La entrada de
+  `binius` en el libro mayor de divergencia, `scripts/check_contract.zig`,
+  lleva la misma afirmación y el destino.
 
 ### Fixed
 - **stark/core/hash** queda fijado con vectores de respuesta conocida calculados

@@ -120,9 +120,16 @@ const ledger = [_]Zone{
             "The 128-bit gate is on the extension field, not the base one, " ++
             "because the sum-check runs over the extension: SC = Sumcheck(E). " ++
             "Gf256 as an extension is eight bits, so the gadget fuzz needs the " ++
-            "Unsafe variants and a sum-check round there has a soundness error " ++
-            "of order 1/|F|, about 0.4%, composing over the rounds. Read that " ++
-            "suite as coverage of plumbing, not of soundness. TowerField(7) is " ++
+            "Unsafe variants, and a sum-check round there has a soundness " ++
+            "error of order 1/|F|. The rounds add rather than compound: the " ++
+            "total is a sum bound of order k/|F| for k rounds, not a product, " ++
+            "so a narrow field is paid for once per round and no round count " ++
+            "rescues an eight-bit extension. k is the prover's round count and " ++
+            "is not measured, which is why no figure is quoted. Binius also " ++
+            "commits in a bilinear algebra rather than a field, so a " ++
+            "prime-field soundness argument does not carry over verbatim. " ++
+            "Read that suite as coverage of plumbing, not of soundness. " ++
+            "TowerField(7) is " ++
             "128 bits, is instantiated -- the whole prover runs as " ++
             "BiniusStark(Gf16, Gf2_128), and so do the packed PCS and the " ++
             "recursion -- and those call sites use the secure entry points, " ++
@@ -130,7 +137,15 @@ const ledger = [_]Zone{
             "missing is that it is the exception, since the fuzz a reader runs " ++
             "is over eight bits. It now runs a second, smaller pass over the " ++
             "128-bit pair, and the claim that makes is that the path gets " ++
-            "random witnesses, not that it is sound. " ++
+            "random witnesses, not that it is sound. The bound is a sum and not " ++
+            "a product: a round's error is of order 1/|F| and k rounds give " ++
+            "order k/|F|, so an eight-bit extension is paid for once per round " ++
+            "and no round count rescues it. k is the prover's round count, it " ++
+            "is not measured here, and no figure is quoted for that reason. One " ++
+            "further caveat, and it applies to the argument above rather than " ++
+            "to the code: Binius commits in a bilinear algebra rather than a " ++
+            "field, so a prime-field soundness argument does not carry over " ++
+            "verbatim. " ++
             "Which multiplication the tower runs is a property of the host: " ++
             "mulFast on x86_64 with PCLMULQDQ, mulRec everywhere else, decided " ++
             "at comptime. So the CI matrix is the only thing covering both, by " ++

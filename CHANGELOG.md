@@ -39,7 +39,15 @@ end of that document.
   a copy of `zig-algebra`'s. `zig-parallel` is now a declared import.
 - The Binius end-to-end suite is coverage of plumbing, not of soundness. A
   sum-check round's soundness error over an eight-bit field is of order 1/|F|,
-  about 0.4%, and it composes over the rounds. See the ledger's `binius` revisit.
+  and the rounds' errors add rather than compound: the total is a sum bound of
+  order k/|F| for k rounds, not a product. So a narrower field is paid for once
+  per round, and no number of rounds makes an eight-bit extension adequate --
+  the field has to satisfy |F| >= k * 2^lambda. `k` is the prover's round count
+  and is not measured here, which is why no figure is quoted. One further
+  caveat: Binius commits in a bilinear algebra rather than a field, so a
+  prime-field soundness argument does not transfer verbatim. The `binius` entry
+  in the divergence ledger, `scripts/check_contract.zig`, carries the same
+  statement and the destination.
 
 ### Fixed
 - **stark/core/hash** is pinned with known-answer vectors computed with an
