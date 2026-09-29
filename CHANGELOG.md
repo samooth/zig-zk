@@ -8,6 +8,51 @@ versioning follows [SemVer](https://semver.org/): in `0.y.z` the MINOR carries
 incompatible changes and the PATCH carries additive changes and fixes only. The
 policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning).
 
+## [Unreleased]
+
+### Added
+
+- Groth16 interoperability, in the direction that decides whether this
+  repository's verifier is usable on other people's proofs. `libs/snark` now
+  carries a verification key, a proof and a public signal produced by **snarkjs
+  0.7.6** on BN254, and the suite verifies that proof with `verify`. The
+  negative case is asserted too: the same vector under a public input of 22
+  rather than 21 must be rejected, without which a verifier that returns true
+  for everything would look identical from the outside.
+
+  The vectors are `@embedFile`d rather than read at runtime, so the test cannot
+  come to depend on a working directory, and the parsers divide by the
+  projective `z` rather than assuming it is one -- an assumption that happens to
+  hold on the committed file is exactly what breaks on someone else's proof.
+  `libs/snark/src/vectors/regenerate.mjs` is the recipe, and it is deliberately
+  not a byte-for-byte reproducer: `powersoftau new` draws fresh randomness, so
+  what a re-run guarantees is the shape, which is the part that keeps the test's
+  parser from having been fitted to one lucky file.
+
+  The reverse direction -- this repository's prover producing a proof snarkjs
+  accepts -- has been checked once and holds, including the convention that
+  `ic[0]` is the point at infinity. It is not enforced by `zig build test`,
+  because that would make a Node runtime a test dependency.
+
+### Fixed
+
+- The soundness note added in 0.5.1 claimed that `k` is the prover's round count
+  and that it was unmeasured. It is neither: `k` is supplied by the caller, the
+  prover runs exactly that many sum-check rounds, the verifier checks the count,
+  and the count does not depend on the field. Measured over an eight-bit and a
+  128-bit extension it is the same, which is the point -- the extension field is
+  the binding constraint rather than the round count, since one round over eight
+  bits already costs 2^-8 and no choice of `k` turns that into 2^-128. The same
+  false claim appeared in eight places across both languages, and the note in
+  0.5.0 carried it too.
+
+  Those released entries are left as they were published rather than rewritten,
+  so the record shows what each release said; the correction lives here. The
+  entries under `README.md`, `libs/stark/README.md` and `fuzz.zig`, which
+  describe the current code, carry the corrected statement.
+
+254 tests in 30 steps.
+
 ## [0.5.1] - 2026-09-29
 
 252 tests in 30 steps, up from 242 at 0.5.0 with no line of library source
@@ -56,18 +101,9 @@ side effect of it.
 - The soundness bound on an eight-bit extension is stated as a sum and not a
   product in all eight places it appeared, and the per-round figure is gone: the
   rounds' errors add, so a narrow field is paid for once per round and no round
-  count rescues it. `k` turned out to belong to the caller rather than to the
-  prover: the prover runs exactly that many sum-check rounds, the verifier
-  checks the count, and measured over an eight-bit and a 128-bit extension the
-  round count is the same, because it comes from the call and not from the
-  field. So there is no single `k` to quote, and the extension field is the
-  binding constraint rather than the round count -- one round over eight bits
-  already costs 2^-8, which no choice of `k` turns into 2^-128. That is why the
-  secure entry point gates on 128 bits of field and not on a round count. The
-  measurement that corrected this is the first thing here that was a fact rather
-  than an assurance, and it is in the record. Binius commits in a bilinear
-  algebra rather than a field, which the text now says rather than assuming a
-  prime-field argument.
+  count rescues it. `k` is the prover's round count and is not measured here, so
+  no number is quoted. Binius commits in a bilinear algebra rather than a field,
+  which the text now says rather than assuming a prime-field argument.
 
 ## [0.5.0] - 2026-09-28
 
@@ -103,10 +139,9 @@ end of that document.
   and the rounds' errors add rather than compound: the total is a sum bound of
   order k/|F| for k rounds, not a product. So a narrower field is paid for once
   per round, and no number of rounds makes an eight-bit extension adequate --
-  the field has to satisfy |E| >= k * 2^lambda, and it is the field that binds:
-  one round over eight bits already costs 2^-8. `k` belongs to the caller, the
-  prover runs exactly that many rounds, the verifier checks the count, and the
-  count does not depend on the field. One further caveat: Binius commits in a bilinear algebra rather than a field, so a
+  the field has to satisfy |F| >= k * 2^lambda. `k` is the prover's round count
+  and is not measured here, which is why no figure is quoted. One further
+  caveat: Binius commits in a bilinear algebra rather than a field, so a
   prime-field soundness argument does not transfer verbatim. The `binius` entry
   in the divergence ledger, `scripts/check_contract.zig`, carries the same
   statement and the destination.

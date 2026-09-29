@@ -132,11 +132,26 @@ configuración degenerada, y la bilinealidad del emparejamiento comprobada contr
 `powFast` — porque si el emparejamiento no fuera bilineal, todo lo demás sería
 decorado.
 
-Lo que la suite **aún no** hace es comprobar la interoperabilidad con otra
-implementación de Groth16. Todo lo que demuestra hoy es que el prover y el
-verificador de este repositorio concuerdan entre sí. Un verificador cuyo trabajo
-es comprobar las pruebas de otros necesita vectores producidos fuera, y
-añadirlos es el siguiente trabajo pendiente.
+La interoperabilidad está cubierta en la dirección que le importa a un
+verificador. `src/vectors/` contiene una clave de verificación, una prueba y una
+señal pública producidas por **snarkjs 0.7.6** sobre BN254, y la suite verifica
+esa prueba con `verify`. Los vectores se incrustan con `@embedFile` en vez de
+leerse en tiempo de ejecución, para que la comprobación no dependa del directorio de
+trabajo, y los analizadores dividen por la `z` proyectiva en vez de suponer que
+es uno, porque un supuesto que por casualidad se cumple en el fichero versionado
+es justo lo que falla con la prueba de otro.
+
+`src/vectors/regenerate.mjs` es la receta. No reproduce el fichero byte a byte:
+`powersoftau new` sortea aleatoriedad nueva, así que un zkey regenerado, y con
+él `vk.json` y `proof.json`, difieren de los versionados. Lo que sí garantiza una
+repetición es la forma, que es la parte que importa, y por eso el analizador de la
+comprobación no puede haber sido ajustado a un fichero afortunado.
+
+La dirección inversa -- que el prover de este repositorio produzca una prueba
+que snarkjs acepte -- se ha comprobado una vez y se cumple, incluida la
+convención de que `ic[0]` es el punto en el infinito. **No** la impone
+`zig build test`, porque convertiría un intérprete de Node en una dependencia de
+la suite: trátalo como un resultado registrado, no como un trinquete.
 
 ## Notas de diseño
 

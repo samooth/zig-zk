@@ -558,7 +558,6 @@ test "groth16: rejects off-curve proof elements" {
     // (1, 1) is not on BN254's G1, and (1 + u, 1 + u) is not on its G2. The
     // pairing would map both to the identity; the verifier must not let a
     // bogus element quietly cancel a term of the equation.
-    const Fp = zc.bn254.Fp;
     const bogus_g1: G1 = .{
         .x = Fp.one(),
         .y = Fp.one(),
@@ -566,7 +565,6 @@ test "groth16: rejects off-curve proof elements" {
     };
     try testing.expect(!bogus_g1.isOnCurve());
 
-    const Fp2 = zc.bn254.Fp2;
     const bogus_f2 = Fp2.new(Fp.one(), Fp.one());
     const bogus_g2: G2 = .{
         .x = bogus_f2,
@@ -599,4 +597,156 @@ test "pairing: bilinearity on the BN254 tower" {
     // Additive structure is respected too.
     const sum = smG1(g1_gen, a.add(b));
     try testing.expect(tp.pairing(sum, g2_gen).eql(gt.powFast(a.add(b).toU512())));
+}
+
+// --- interoperability with snarkjs -----------------------------------------
+//
+// The vectors in `vectors/` are produced by snarkjs 0.7.6, not by anything in
+// this repository, and `vectors/regenerate.mjs` is the recipe. They are
+// embedded rather than read at runtime: a test that resolves a path at runtime
+// depends on the working directory, and a fixture that cannot be found is a
+// failure that looks like a pass when the step is skipped.
+//
+// snarkjs writes G1 as [x, y, z] and G2 as [[x1, x2], [y1, y2], [z1, z2]] in
+// projective form. Both are z == 1 here, but the parsers divide by z instead of
+// assuming it, because an assumption that happens to hold on the committed file
+// is exactly the kind of thing that breaks on someone else's proof.
+const Fp = zc.bn254.Fp;
+const Fp2 = zc.bn254.Fp2;
+
+/// A decimal string as snarkjs writes field elements: no exponent, no sign.
+fn fieldFromJson(comptime T: type, s: []const u8) !T {
+    return T.fromInt(std.fmt.parseInt(u512, s, 10) catch return error.BadVector);
+}
+
+fn g1FromJson(v: std.json.Value) !G1 {
+    const xs = v.array;
+    if (xs.items.len != 3) return error.BadVector;
+    const x = try fieldFromJson(Fp, xs.items[0].string);
+    const y = try fieldFromJson(Fp, xs.items[1].string);
+    const z = try fieldFromJson(Fp, xs.items[2].string);
+    if (z.isZero()) return error.BadVector;
+    // Projective to affine. snarkjs emits z == 1, so this is a division by one
+    // for the committed vectors; the code is here so a z != 1 vector from
+    // another producer is read correctly rather than silently misread.
+    const zi = z.inv();
+    return .{ .x = x.mul(zi), .y = y.mul(zi), .infinity = false };
+}
+
+fn g2FromJson(v: std.json.Value) !G2 {
+    const cs = v.array;
+    if (cs.items.len != 3) return error.BadVector;
+    var coord: [2]Fp = undefined;
+    for (cs.items[0].array.items, 0..) |c, i| {
+        if (i >= 2) return error.BadVector;
+        coord[i] = try fieldFromJson(Fp, c.string);
+    }
+    const x = Fp2.new(coord[0], coord[1]);
+    var yc: [2]Fp = undefined;
+    for (cs.items[1].array.items, 0..) |c, i| {
+        if (i >= 2) return error.BadVector;
+        yc[i] = try fieldFromJson(Fp, c.string);
+    }
+    const y = Fp2.new(yc[0], yc[1]);
+    var zc_: [2]Fp = undefined;
+    for (cs.items[2].array.items, 0..) |c, i| {
+        if (i >= 2) return error.BadVector;
+        zc_[i] = try fieldFromJson(Fp, c.string);
+    }
+    const z = Fp2.new(zc_[0], zc_[1]);
+    if (z.isZero()) return error.BadVector;
+    const zi = z.inv();
+    return .{ .x = x.mul(zi), .y = y.mul(zi), .infinity = false };
+}
+
+const SnarkjsVec = struct {
+    alpha1: G1,
+    beta2: G2,
+    gamma2: G2,
+    delta2: G2,
+    ic: []G1,
+    a: G1,
+    b: G2,
+    c: G1,
+    public: []Fr,
+};
+
+fn loadSnarkjsVector(alloc: std.mem.Allocator) !SnarkjsVec {
+    const vk_text = @embedFile("vectors/vk.json");
+    const pr_text = @embedFile("vectors/proof.json");
+    const pub_text = @embedFile("vectors/public.json");
+
+    const vk = try std.json.parseFromSlice(std.json.Value, alloc, vk_text, .{});
+    defer vk.deinit();
+    const pr = try std.json.parseFromSlice(std.json.Value, alloc, pr_text, .{});
+    defer pr.deinit();
+    const pub_v = try std.json.parseFromSlice(std.json.Value, alloc, pub_text, .{});
+    defer pub_v.deinit();
+
+    const o = vk.value.object;
+    const ic_json = o.get("IC").?.array;
+    const ic = try alloc.alloc(G1, ic_json.items.len);
+    for (ic_json.items, ic) |item, *slot| slot.* = try g1FromJson(item);
+
+    const public = try alloc.alloc(Fr, pub_v.value.array.items.len);
+    for (pub_v.value.array.items, public) |item, *slot| {
+        slot.* = try fieldFromJson(Fr, item.string);
+    }
+
+    return .{
+        .alpha1 = try g1FromJson(o.get("vk_alpha_1").?),
+        .beta2 = try g2FromJson(o.get("vk_beta_2").?),
+        .gamma2 = try g2FromJson(o.get("vk_gamma_2").?),
+        .delta2 = try g2FromJson(o.get("vk_delta_2").?),
+        .ic = ic,
+        .a = try g1FromJson(pr.value.object.get("pi_a").?),
+        .b = try g2FromJson(pr.value.object.get("pi_b").?),
+        .c = try g1FromJson(pr.value.object.get("pi_c").?),
+        .public = public,
+    };
+}
+
+test "groth16: verifies a proof produced by snarkjs" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const v = try loadSnarkjsVector(arena.allocator());
+
+    // The circuit is c = a * b with c the one public signal, so `IC` holds the
+    // constant-one wire plus that single input.
+    try testing.expectEqual(@as(usize, 2), v.ic.len);
+    try testing.expectEqual(@as(usize, 1), v.public.len);
+    try testing.expectEqual(Fr.fromInt(21), v.public[0]);
+
+    try testing.expect(verify(
+        v.alpha1,
+        v.beta2,
+        v.gamma2,
+        v.delta2,
+        v.ic,
+        v.a,
+        v.b,
+        v.c,
+        v.public,
+    ));
+}
+
+test "groth16: the snarkjs vector is only accepted for its own public input" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const v = try loadSnarkjsVector(arena.allocator());
+
+    // Without this, the test above could be passing because the verifier
+    // returns true for anything, which is a different bug with the same
+    // green build.
+    try testing.expect(!verify(
+        v.alpha1,
+        v.beta2,
+        v.gamma2,
+        v.delta2,
+        v.ic,
+        v.a,
+        v.b,
+        v.c,
+        &.{Fr.fromInt(22)},
+    ));
 }

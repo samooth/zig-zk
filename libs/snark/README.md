@@ -126,11 +126,25 @@ an unsatisfied witness, a degenerate setup, and pairing bilinearity checked
 against `powFast` — because if the pairing were not bilinear, the rest would be
 decoration.
 
-What the suite does *not* yet do is check interoperability against another
-Groth16 implementation. Everything it proves today is that the prover and the
-verifier in this repository agree with each other. A verifier whose job is to
-check other people's proofs needs vectors produced elsewhere, and adding them is
-the next piece of work.
+Interoperability is covered in the direction that matters for a verifier.
+`src/vectors/` holds a verification key, a proof and a public signal produced by
+**snarkjs 0.7.6** on BN254, and the suite verifies that proof with `verify`. The
+vectors are `@embedFile`d rather than read at runtime so the test cannot depend
+on a working directory, and the parsers divide by the projective `z` instead of
+assuming it is one, because an assumption that happens to hold on the committed
+file is exactly what breaks on someone else's proof.
+
+`src/vectors/regenerate.mjs` is the recipe. It is not a byte-for-byte
+reproducer: `powersoftau new` draws fresh randomness, so a regenerated zkey, and
+therefore `vk.json` and `proof.json`, differ from the committed ones. What a
+re-run guarantees is the shape, which is the part that matters -- it is why the
+test's parser cannot have been fitted to one lucky file.
+
+The reverse direction -- this repository's prover producing a proof that snarkjs
+accepts -- has been checked once and holds, including the convention that `ic[0]`
+is the point at infinity. It is **not** enforced by `zig build test`, because it
+would make a Node runtime a test dependency; treat it as a recorded result, not
+a ratchet.
 
 ## Design Notes
 

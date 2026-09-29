@@ -9,6 +9,54 @@ los cambios incompatibles y el PATCH solo cambios aditivos y correcciones. La
 política está desarrollada en
 [docs/architecture.es.md](docs/architecture.es.md#versionado).
 
+## [Sin publicar]
+
+### Añadido
+
+- Interoperabilidad de Groth16, en la dirección que decide si el verificador de
+  este repositorio sirve para las pruebas de otros. `libs/snark` lleva ahora una
+  clave de verificación, una prueba y una señal pública producidas por **snarkjs
+  0.7.6** sobre BN254, y la suite verifica esa prueba con `verify`. También se
+  comprueba el caso negativo: el mismo vector con una señal pública de 22 en vez
+  de 21 debe rechazarse, sin lo cual un verificador que aceptase cualquier cosa
+  sería indistinguible desde fuera.
+
+  Los vectores se incrustan con `@embedFile` en vez de leerse en tiempo de
+  ejecución, para que la comprobación no llegue a depender del directorio de
+  trabajo, y los analizadores dividen por la `z` proyectiva en vez de suponer que
+  es uno: un supuesto que por casualidad se cumple en el fichero versionado es
+  justo lo que falla con la prueba de otro. `libs/snark/src/vectors/regenerate.mjs`
+  es la receta, y deliberadamente no reproduce el fichero byte a byte, porque
+  `powersoftau new` sortea aleatoriedad nueva; lo que una repetición garantiza es
+  la forma, que es la parte que impide que el analizador se haya ajustado a un
+  fichero afortunado.
+
+  La dirección inversa -- que el prover de este repositorio produzca una prueba
+  que snarkjs acepte -- se ha comprobado una vez y se cumple, incluida la
+  convención de que `ic[0]` es el punto en el infinito. No la impone
+  `zig build test`, porque convertiría un intérprete de Node en una dependencia
+  de la suite.
+
+### Corregido
+
+- La nota de solidez añadida en 0.5.1 afirmaba que `k` es el número de rondas del
+  prover y que no estaba medido. No es ninguna de las dos cosas: `k` lo
+  proporciona quien llama, el prover hace exactamente muchas rondas, el
+  verificador comprueba la cuenta, y la cuenta no depende del campo. Medido
+  sobre una extensión de ocho bits y otra de 128 es el mismo, que es el punto:
+  el campo de extensión es la restricción que ata y no el número de rondas, ya
+  que una sola ronda sobre ocho bits cuesta 2^-8 y ninguna elección de `k` la
+  convierte en 2^-128. La misma afirmación falsa aparecía en ocho sitios entre
+  los dos idiomas, y la nota de 0.5.0 también la arrastraba.
+
+  Esas entradas publicadas se dejan tal como se publicaron en vez de
+  reescribirlas, para que el registro muestre qué dijo cada versión; la
+  corrección vive aquí. Las entradas de `README.md`, `libs/stark/README.md` y
+  `fuzz.zig`, que describen el código actual, sí llevan la formulación
+  corregida.
+
+254 pruebas en 30 pasos.
+
 ## [0.5.1] - 2026-09-29
 
 252 pruebas en 30 pasos, frente a 242 en 0.5.0 y sin tocar una sola línea de
@@ -61,18 +109,10 @@ consecuencia.
 - La cota de solidez sobre una extensión de ocho bits se enuncia como suma y no
   como producto en los ocho sitios en que aparecía, y la cifra por ronda ha
   desaparecido: los errores de las rondas se suman, así que un campo estrecho se
-  paga una vez por ronda y ningún número de rondas lo rescata. `k` resultó ser
-  de quien llama y no del prover: el prover hace exactamente muchas rondas,
-  el verificador comprueba la cuenta, y medido sobre una extensión de ocho bits
-  y otra de 128 el número de rondas es el mismo, porque viene de la llamada y
-  no del campo. Así que no hay un único `k` que citar, y el campo de extensión
-  es la restricción que ata y no el número de rondas: una sola ronda sobre
-  ocho bits ya cuesta 2^-8, que ninguna elección de `k` convierte en 2^-128.
-  Por eso la entrada segura exige 128 bits de campo y no un número de rondas.
-  La medición que corrigió esto es lo primero de aquí que fue un hecho y no una
-  garantía, y está en el registro. Binius compromete en un álgebra bilineal y no
-  en un campo, que es lo que el texto dice ahora en vez de suponer un argumento
-  de campo primo.
+  paga una vez por ronda y ningún número de rondas lo rescata. `k` es el número
+  de rondas del prover y aquí no está medido, así que no se cita ninguna cifra.
+  Binius compromete en un álgebra bilineal y no en un campo, que es lo que el
+  texto dice ahora en vez de suponer un argumento de campo primo.
 
 ## [0.5.0] - 2026-09-28
 
@@ -111,10 +151,7 @@ de ese documento.
   de multiplicarse: el total es una cota de suma del orden k/|F| para k rondas,
   no un producto. Así que un campo más estrecho se paga una vez por ronda, y
   ningún número de rondas vuelve adecuada una extensión de ocho bits: el campo
-  tiene que cumplir |E| >= k * 2^lambda, y el que ata es el campo: una sola
-  ronda sobre ocho bits ya cuesta 2^-8. `k` pertenece a quien llama, el prover
-  hace exactamente esas rondas, el verificador comprueba la cuenta, y la cuenta
-  no depende del campo. Una salvedad más:y
+  tiene que cumplir |F| >= k * 2^lambda. `k` es el número de rondas del prover y
   aquí no está medido, y por eso no se cita ninguna cifra. Una salvedad más:
   Binius compromete en un álgebra bilineal y no en un campo, así que un
   argumento de solidez de campo primo no se traslada sin más. La entrada de
