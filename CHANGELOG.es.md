@@ -9,6 +9,63 @@ los cambios incompatibles y el PATCH solo cambios aditivos y correcciones. La
 política está desarrollada en
 [docs/architecture.es.md](docs/architecture.es.md#versionado).
 
+## [0.5.1] - 2026-09-29
+
+252 pruebas en 30 pasos, frente a 242 en 0.5.0 y sin tocar una sola línea de
+código de biblioteca: el diff desde `v0.5.0` son nueve ficheros y ninguno está
+bajo `libs/*/src`. Así que esto es un parche, y la medición es la razón y no una
+consecuencia.
+
+### Corregido
+- **La puerta de documentación** recorría el árbol con `Dir.walk`, cuyas rutas
+  llevan el separador de la plataforma mientras que todos los prefijos de la
+  puerta están escritos con barra, así que en Windows no encontraba casi nada y
+  reportaba éxito sobre dos ficheros. El build ahora fija el directorio de
+  trabajo de los dos pasos de puerta, y las dos puertas se niegan a hablar cuando
+  no ven: la del contrato falla si no leyó ningún manifiesto, la de
+  documentación falla salvo que encuentre las marcas de una raíz de repositorio
+  e imprimir cuántos ficheros ha visto. Una puerta que encoge su entrada y sigue
+  informando verde es peor que no tener puerta, porque parece una prueba.
+- **Las reglas propias de la puerta de documentación no tenían pruebas.** Sólo
+  corría como ejecutable, así que sus reglas sólo se ejercitaban con el fallo que
+  pasara por allí. Ahora tiene binario de pruebas, como la del contrato de antes.
+- **El total de pruebas de los documentos de arquitectura** estaba escrito a mano
+  en dos sitios, y caducó en un idioma mientras el otro se corregía. Vive ahora
+  como constante con trinquete en el libro mayor de la puerta del contrato, con
+  los dos documentos comprobados contra ella, y las dos formas de fallo vistas
+  caer.
+- **Las entradas de Binius en el README de stark** describían una suite de fuzz
+  cuando hay tres, dos de ellas diferenciándose sólo en el campo, y_presentaban
+  `core/hash` y `core/merkle` como decididas cuando su adopción es una pregunta
+  abierta esperando la misma comprobación de hash de ficheros que tardó la capa
+  de campo.
+
+### Añadido
+- **Una segunda vuelta de fuzz de gadgets** sobre una extensión de 128 bits, junto
+  a la rápida, sin tocar el default ni las 2000 vueltas. La afirmación de la
+  suite ancha es la estrecha: el camino de 128 recibe testigos aleatorios, no que
+  sea sound.
+- **`-Dfuzz-wide-iters`**, para el número de vueltas de esa pasada. Cada vuelta es
+  órdenes de magnitud más cara que la de ocho bits, que el repositorio ya
+  registra como lenta en un comentario de las pruebas de extremo a extremo.
+- **Una comparación de las dos multiplicaciones de la torre**, que dependen de la
+  CPU del anfitrión. Su alcance está escrito en el fichero y no resumido en otro
+  sitio, porque no puede cazar un defecto que ambas implementaciones compartan:
+  el acuerdo no es corrección.
+- **Una regla de documentación para CJK en la prosa.** Un rango, no un
+  vocabulario, así que se dispara sobre la clase y no sobre las cadenas ya vistas.
+
+### Docs
+- `docs/architecture` tiene una tabla de lo que un verde no demuestra, con las
+  cuatro formas en que este repositorio ha encontrado uno, y qué cierra cada una.
+- La cota de solidez sobre una extensión de ocho bits se enuncia como suma y no
+  como producto en los ocho sitios en que aparecía, y la cifra por ronda ha
+  desaparecido: los errores de las rondas se suman, así que un campo estrecho se
+  paga una vez por ronda y ningún número de rondas lo rescata. `k` es el número
+  de rondas del prover y aquí no está medido, así que no se cita ninguna cifra.
+  Binius compromete en un álgebra bilineal y no en un campo, que es lo que el
+  texto dice ahora en vez de suponer un argumento de campo primo.
+
 ## [0.5.0] - 2026-09-28
 
 Véase [SECURITY.es.md](SECURITY.es.md) para el hallazgo de solidez que corrige

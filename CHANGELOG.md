@@ -8,6 +8,58 @@ versioning follows [SemVer](https://semver.org/): in `0.y.z` the MINOR carries
 incompatible changes and the PATCH carries additive changes and fixes only. The
 policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning).
 
+## [0.5.1] - 2026-09-29
+
+252 tests in 30 steps, up from 242 at 0.5.0 with no line of library source
+touched: the diff since `v0.5.0` is nine files and none of them is under
+`libs/*/src`. So this is a patch, and the measurement is the reason rather than a
+side effect of it.
+
+### Fixed
+- **the documentation gate** walked the tree with `Dir.walk`, whose paths carry
+  the platform's separator while every prefix in the gate is written with a
+  forward slash, so on Windows it found almost nothing and reported success on
+  two files. The build now sets the working directory of both gate steps, and
+  both gates refuse to speak when they cannot see: the contract gate fails if it
+  read no manifest, the documentation gate fails unless it finds the markers of a
+  repository root and prints how many files it saw. A gate that shrinks its input
+  and still reports green is worse than no gate, because it looks like a proof.
+- **the documentation gate's own rules had no tests.** It ran only as an
+  executable, so its rules were exercised only by whatever failure happened to
+  come along. It has a test binary now, like the contract gate already had.
+- **the test total in the architecture documents** was hand-written in two
+  places, and went stale in one language while the other was corrected. It lives
+  in the contract gate's ledger as a ratcheted constant now, with both documents
+  checked against it, and both failure shapes have been seen to fail.
+- **the Binius entries in the stark README** described one fuzz suite when there
+  are three, two of them differing only in the field, and presented
+  `core/hash` and `core/merkle` as settled when their adoption is an open
+  question waiting on the same file-hash check the field layer took.
+
+### Added
+- **a second gadget fuzz pass** over a 128-bit extension, next to the fast one,
+  with the default and the 2000 rounds untouched. The wide suite's claim is the
+  narrow one: the 128-bit path gets random witnesses, not that it is sound.
+- **`-Dfuzz-wide-iters`**, for the count of that pass. Each round is orders of
+  magnitude costlier than the eight-bit one, which the repository already records
+  as slow in a comment in the end-to-end tests.
+- **a comparison of the tower's two multiplications**, which run depending on the
+  host CPU. Its scope is written in the file rather than summarised anywhere
+  else, because it cannot catch a defect both implementations share: agreement
+  is not correctness.
+- **a documentation rule for CJK in the prose.** A range, not a vocabulary, so
+  it fires on the class and not on the strings already observed.
+
+### Docs
+- `docs/architecture` has a table of what a green run does not establish, with
+  the four ways this repository has found one, and what closes each.
+- The soundness bound on an eight-bit extension is stated as a sum and not a
+  product in all eight places it appeared, and the per-round figure is gone: the
+  rounds' errors add, so a narrow field is paid for once per round and no round
+  count rescues it. `k` is the prover's round count and is not measured here, so
+  no number is quoted. Binius commits in a bilinear algebra rather than a field,
+  which the text now says rather than assuming a prime-field argument.
+
 ## [0.5.0] - 2026-09-28
 
 See [SECURITY.md](SECURITY.md) for the soundness finding that this release
