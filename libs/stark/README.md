@@ -160,9 +160,13 @@ suites assert accept and reject on every round.
 The two gadget suites differ in the field and nothing else. The quick one runs
 2000 rounds over three gadgets with `Gf256` on both sides of the field pair,
 chosen for speed, and a sum-check over an eight-bit field has a per-round
-soundness error of order 1/|F|, and the rounds' errors add rather than compound
--- a sum bound of order k/|F| for k rounds, not a product, so a narrow field is
-paid for once per round. What it stresses is the plumbing, the witness shapes
+soundness error of order 1/|E| over the extension, and the rounds' errors add
+rather than compound -- a sum bound of order k/|E| for k rounds, not a product.
+`k` comes from the caller, the prover runs exactly that many rounds and the
+verifier checks the count, and the count does not depend on the field: measured
+over eight bits and 128 it is the same. So the field is what binds. One round
+over eight bits costs 2^-8, and no choice of k makes that 2^-128, which is why
+a narrow field is paid for once per round. What it stresses is the plumbing, the witness shapes
 and the tamper rejection, and it says nothing about soundness. The wide one runs the same rounds over a 128-bit extension, in
 far fewer of them, because a 128-bit tower product is expensive enough that
 Debug avoids it elsewhere in this file.

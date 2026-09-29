@@ -22,9 +22,12 @@
 //!
 //! The bound is a sum, not a product: a round's error is of order 1/|F| and
 //! k rounds give order k/|F|, so an eight-bit extension is paid for once per
-//! round and no round count rescues it. `k` is not measured here, which is why
-//! no figure appears. And Binius commits in a bilinear algebra rather than a
-//! field, so a prime-field soundness argument does not carry over verbatim.
+//! round and no round count rescues it. `k` belongs to the caller: the prover
+//! runs exactly that many sum-check rounds, the verifier checks the count, and
+//! the count does not depend on the field. The field is what binds: one round
+//! over eight bits costs 2^-8. And Binius commits in a bilinear algebra rather
+//! than a field, so a prime-field soundness argument does not carry over
+//! verbatim.
 //!
 //! The claim this file can support is "the 128-bit path gets random witnesses".
 //! It is not "the 128-bit path is sound", and no number of rounds would make it
@@ -197,7 +200,7 @@ test "binius gadgets over a 128-bit extension: the same rounds, random witnesses
     // a per-round soundness error of order 1/|F| whose rounds add, giving
     // order k/|F| for k rounds -- so the quick suite above is plumbing coverage,
     // and this is the part that puts the same gadgets through the width the
-    // prover actually uses. k is the prover's round count and is not measured.
+    // prover actually uses. k belongs to the caller, not to the prover.
     var gpa = std.heap.DebugAllocator(.{}){};
     const alloc = gpa.allocator();
     defer {

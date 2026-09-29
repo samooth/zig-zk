@@ -124,8 +124,14 @@ const ledger = [_]Zone{
             "error of order 1/|F|. The rounds add rather than compound: the " ++
             "total is a sum bound of order k/|F| for k rounds, not a product, " ++
             "so a narrow field is paid for once per round and no round count " ++
-            "rescues an eight-bit extension. k is the prover's round count and " ++
-            "is not measured, which is why no figure is quoted. Binius also " ++
+            "rescues an eight-bit extension. k belongs to the caller: the prover " ++
+            "runs exactly that many sum-check rounds, the verifier checks the " ++
+            "count, and measured over eight bits and 128 the count is the same, " ++
+            "because it comes from the call and not from the field. So there is " ++
+            "no single k to quote, and the field is what binds: one round over " ++
+            "eight bits costs 2^-8, which no choice of k makes 2^-128. That is " ++
+            "why the secure entry point gates on bits of field and not on a " ++
+            "round count. Binius also " ++
             "commits in a bilinear algebra rather than a field, so a " ++
             "prime-field soundness argument does not carry over verbatim. " ++
             "Read that suite as coverage of plumbing, not of soundness. " ++
@@ -140,9 +146,12 @@ const ledger = [_]Zone{
             "random witnesses, not that it is sound. The bound is a sum and not " ++
             "a product: a round's error is of order 1/|F| and k rounds give " ++
             "order k/|F|, so an eight-bit extension is paid for once per round " ++
-            "and no round count rescues it. k is the prover's round count, it " ++
-            "is not measured here, and no figure is quoted for that reason. One " ++
-            "further caveat, and it applies to the argument above rather than " ++
+            "and no round count rescues it. k belongs to the caller rather than " ++
+            "to the prover, the verifier checks the round count against it, and " ++
+            "the count does not depend on the field: measured over eight bits " ++
+            "and 128 it is the same. There is no single k to quote, and the " ++
+            "field is the constraint that binds. One further caveat, and it " ++
+            "applies to the argument above rather than " ++
             "to the code: Binius commits in a bilinear algebra rather than a " ++
             "field, so a prime-field soundness argument does not carry over " ++
             "verbatim. " ++

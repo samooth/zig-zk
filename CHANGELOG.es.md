@@ -61,10 +61,18 @@ consecuencia.
 - La cota de solidez sobre una extensión de ocho bits se enuncia como suma y no
   como producto en los ocho sitios en que aparecía, y la cifra por ronda ha
   desaparecido: los errores de las rondas se suman, así que un campo estrecho se
-  paga una vez por ronda y ningún número de rondas lo rescata. `k` es el número
-  de rondas del prover y aquí no está medido, así que no se cita ninguna cifra.
-  Binius compromete en un álgebra bilineal y no en un campo, que es lo que el
-  texto dice ahora en vez de suponer un argumento de campo primo.
+  paga una vez por ronda y ningún número de rondas lo rescata. `k` resultó ser
+  de quien llama y no del prover: el prover hace exactamente muchas rondas,
+  el verificador comprueba la cuenta, y medido sobre una extensión de ocho bits
+  y otra de 128 el número de rondas es el mismo, porque viene de la llamada y
+  no del campo. Así que no hay un único `k` que citar, y el campo de extensión
+  es la restricción que ata y no el número de rondas: una sola ronda sobre
+  ocho bits ya cuesta 2^-8, que ninguna elección de `k` convierte en 2^-128.
+  Por eso la entrada segura exige 128 bits de campo y no un número de rondas.
+  La medición que corrigió esto es lo primero de aquí que fue un hecho y no una
+  garantía, y está en el registro. Binius compromete en un álgebra bilineal y no
+  en un campo, que es lo que el texto dice ahora en vez de suponer un argumento
+  de campo primo.
 
 ## [0.5.0] - 2026-09-28
 
@@ -103,7 +111,10 @@ de ese documento.
   de multiplicarse: el total es una cota de suma del orden k/|F| para k rondas,
   no un producto. Así que un campo más estrecho se paga una vez por ronda, y
   ningún número de rondas vuelve adecuada una extensión de ocho bits: el campo
-  tiene que cumplir |F| >= k * 2^lambda. `k` es el número de rondas del prover y
+  tiene que cumplir |E| >= k * 2^lambda, y el que ata es el campo: una sola
+  ronda sobre ocho bits ya cuesta 2^-8. `k` pertenece a quien llama, el prover
+  hace exactamente esas rondas, el verificador comprueba la cuenta, y la cuenta
+  no depende del campo. Una salvedad más:y
   aquí no está medido, y por eso no se cita ninguna cifra. Una salvedad más:
   Binius compromete en un álgebra bilineal y no en un campo, así que un
   argumento de solidez de campo primo no se traslada sin más. La entrada de

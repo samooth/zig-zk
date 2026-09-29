@@ -165,9 +165,14 @@ en cada vuelta.
 Las dos suites de gadgets se diferencian en el campo y en nada más. La rápida da
 2000 vueltas sobre tres gadgets con `Gf256` en los dos lados del par de campos,
 elegido por velocidad, y el error de solidez de una ronda de suma-producto sobre
-un campo de ocho bits es del orden de 1/|F|, y los errores de las rondas se
-suman en vez de multiplicarse: una cota de suma del orden k/|F| para k rondas,
-no un producto, así que un campo estrecho se paga una vez por ronda. Lo que
+un campo de ocho bits es del orden de 1/|E| sobre la extensión, y los errores
+de las rondas se suman en vez de multiplicarse: una cota de suma del orden
+k/|E| para k rondas, no un producto. `k` lo proporciona quien llama, el prover
+hace exactamente esas rondas, el verificador comprueba la cuenta, y la cuenta no
+depende del campo: medido sobre ocho bits y sobre 128 es el mismo. Así que el
+que ata es el campo. Una ronda sobre ocho bits cuesta 2^-8, y ninguna elección de
+k lo convierte en 2^-128, que es la razón por la que un campo estrecho se paga
+una vez por ronda. Lo que
 presiona es la fontanería, las formas de testigo y el rechazo de una
 manipulación. No dice nada sobre solidez. La ancha da las mismas vueltas
 sobre una extensión de 128 bits, con muchas menos, porque un producto en una

@@ -56,9 +56,18 @@ side effect of it.
 - The soundness bound on an eight-bit extension is stated as a sum and not a
   product in all eight places it appeared, and the per-round figure is gone: the
   rounds' errors add, so a narrow field is paid for once per round and no round
-  count rescues it. `k` is the prover's round count and is not measured here, so
-  no number is quoted. Binius commits in a bilinear algebra rather than a field,
-  which the text now says rather than assuming a prime-field argument.
+  count rescues it. `k` turned out to belong to the caller rather than to the
+  prover: the prover runs exactly that many sum-check rounds, the verifier
+  checks the count, and measured over an eight-bit and a 128-bit extension the
+  round count is the same, because it comes from the call and not from the
+  field. So there is no single `k` to quote, and the extension field is the
+  binding constraint rather than the round count -- one round over eight bits
+  already costs 2^-8, which no choice of `k` turns into 2^-128. That is why the
+  secure entry point gates on 128 bits of field and not on a round count. The
+  measurement that corrected this is the first thing here that was a fact rather
+  than an assurance, and it is in the record. Binius commits in a bilinear
+  algebra rather than a field, which the text now says rather than assuming a
+  prime-field argument.
 
 ## [0.5.0] - 2026-09-28
 
@@ -94,9 +103,10 @@ end of that document.
   and the rounds' errors add rather than compound: the total is a sum bound of
   order k/|F| for k rounds, not a product. So a narrower field is paid for once
   per round, and no number of rounds makes an eight-bit extension adequate --
-  the field has to satisfy |F| >= k * 2^lambda. `k` is the prover's round count
-  and is not measured here, which is why no figure is quoted. One further
-  caveat: Binius commits in a bilinear algebra rather than a field, so a
+  the field has to satisfy |E| >= k * 2^lambda, and it is the field that binds:
+  one round over eight bits already costs 2^-8. `k` belongs to the caller, the
+  prover runs exactly that many rounds, the verifier checks the count, and the
+  count does not depend on the field. One further caveat: Binius commits in a bilinear algebra rather than a field, so a
   prime-field soundness argument does not transfer verbatim. The `binius` entry
   in the divergence ledger, `scripts/check_contract.zig`, carries the same
   statement and the destination.
