@@ -39,7 +39,6 @@ pub fn build(b: *std.Build) void {
 
     const traits = algebra_dep.module("zig-algebra-traits");
     const hash = algebra_dep.module("zig-hash");
-    const rng = algebra_dep.module("zig-rng");
     const field = algebra_dep.module("zig-field");
     const binary_field = algebra_dep.module("zig-binary-field");
     const curve = algebra_dep.module("zig-curve");
@@ -56,7 +55,6 @@ pub fn build(b: *std.Build) void {
     });
     transcript_mod.addImport("zig-algebra-traits", traits);
     transcript_mod.addImport("zig-hash", hash);
-    transcript_mod.addImport("zig-rng", rng);
 
     // Module for commitment library
     const commitment_mod = b.addModule("zig-commitment", .{
@@ -78,7 +76,6 @@ pub fn build(b: *std.Build) void {
     signature_mod.addImport("zig-algebra-traits", traits);
     signature_mod.addImport("zig-curve", curve);
     signature_mod.addImport("zig-hash", hash);
-    signature_mod.addImport("zig-rng", rng);
 
     // Module for snark library (Groth16 verifier; uses pairing)
     const snark_mod = b.addModule("zig-snark", .{
@@ -171,7 +168,6 @@ pub fn build(b: *std.Build) void {
     addTests(b, test_step, "zig-transcript-tests", b.path("libs/transcript/src/root.zig"), target, optimize, &.{
         .{ .name = "zig-algebra-traits", .module = traits },
         .{ .name = "zig-hash", .module = hash },
-        .{ .name = "zig-rng", .module = rng },
     });
     addTests(b, test_step, "zig-commitment-tests", b.path("libs/commitment/src/root.zig"), target, optimize, &.{
         .{ .name = "zig-algebra-traits", .module = traits },
@@ -183,7 +179,6 @@ pub fn build(b: *std.Build) void {
         .{ .name = "zig-algebra-traits", .module = traits },
         .{ .name = "zig-curve", .module = curve },
         .{ .name = "zig-hash", .module = hash },
-        .{ .name = "zig-rng", .module = rng },
     });
     addTests(b, test_step, "zig-stark-tests", b.path("libs/stark/root.zig"), target, optimize, &.{
         .{ .name = "zig-field", .module = field },
