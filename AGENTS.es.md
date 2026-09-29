@@ -89,4 +89,20 @@ archivo trata de cómo trabajar, no de lo que hace el código.
   verifica el emparejamiento, el idioma declarado y que los dos idiomas no se
   hayan mezclado.
 - `CHANGELOG.md` sigue Keep a Changelog, y se versiona junto a las
+  versiones que describe.
+- Una entrada ya publicada no se edita a posteriori, ni siquiera cuando está mal.
+  Lo que dice el tag es lo que se entregó, y quien compara el changelog con un
+  tag está usando esa diferencia para averiguar qué cambió; una entrada corregida
+  en silencio en `main` se lee como un tag movido. La corrección va en la sección
+  sin publicar, nombrando la versión que publicó el texto equivocado.
+- Por eso el objeto de la comprobación viene del tag, no del commit anterior.
+  "No he cambiado la sección publicada" medido contra el commit previo a tu
+  trabajo sólo dice que hace una hora no la empeoraste, y sigue siendo cierto
+  después de una reescritura silenciosa de dos commits antes. Que `git diff
+  v0.5.0 -- CHANGELOG.md` salga con cero líneas borradas es la forma de la
+  afirmación; una base que ya arrastra el daño convierte el número en
+  una cifra sin objeto.
+- Un nombre que ya significaba otra cosa no es una versión más pequeña de un
+  nombre nuevo, y el compilador no lo dice cuando el otro está en otro ámbito. Un
+  `Fp` local que sombrea el tipo de campo es un build en verde.
   publicaciones que describe.

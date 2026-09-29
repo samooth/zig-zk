@@ -39,21 +39,39 @@ política está desarrollada en
 
 ### Corregido
 
-- La nota de solidez añadida en 0.5.1 afirmaba que `k` es el número de rondas del
-  prover y que no estaba medido. No es ninguna de las dos cosas: `k` lo
-  proporciona quien llama, el prover hace exactamente muchas rondas, el
-  verificador comprueba la cuenta, y la cuenta no depende del campo. Medido
-  sobre una extensión de ocho bits y otra de 128 es el mismo, que es el punto:
-  el campo de extensión es la restricción que ata y no el número de rondas, ya
-  que una sola ronda sobre ocho bits cuesta 2^-8 y ninguna elección de `k` la
-  convierte en 2^-128. La misma afirmación falsa aparecía en ocho sitios entre
-  los dos idiomas, y la nota de 0.5.0 también la arrastraba.
+- **Dos afirmaciones de solidez publicadas eran falsas, y se corrigieron en este
+  fichero sin que el registro lo dijera.** Ambas quedan aquí restauradas tal como
+  las dice el tag, para que el registro muestre qué entregó cada versión y no lo
+  que después se creyó que debería haber entregado.
 
-  Esas entradas publicadas se dejan tal como se publicaron en vez de
-  reescribirlas, para que el registro muestre qué dijo cada versión; la
-  corrección vive aquí. Las entradas de `README.md`, `libs/stark/README.md` y
-  `fuzz.zig`, que describen el código actual, sí llevan la formulación
-  corregida.
+  La primera se publicó en **0.5.0**: a una extensión de ocho bits se le daba
+  "alrededor del 0,4%, y se compone a lo largo de las rondas". La cifra por ronda
+  es del orden de 2^-8, y los errores de las rondas se **suman** en vez de
+  componerse, así que una cota escrita como producto era falsa en la dirección
+  que favorece al sistema. La segunda se publicó en **0.5.1**, y también en
+  0.5.0: "`k` es el número de rondas del prover y aquí no está medido, así que no
+  se cita ninguna cifra". `k` lo proporciona quien llama, el prover hace
+  exactamente muchas rondas, el verificador comprueba la cuenta, y la cuenta no
+  depende del campo: medido sobre una extensión de ocho bits y otra de 128 es el
+  mismo, que es el punto. El campo de extensión es la restricción que ata y no
+  el número de rondas, ya que una sola ronda sobre ocho bits cuesta 2^-8 y
+  ninguna elección de `k` la convierte en 2^-128. La misma afirmación falsa
+  aparecía en ocho sitios entre los dos idiomas.
+
+  Ninguna de las dos correcciones la impone una puerta, y ninguna se puede medir
+  desde el árbol: una afirmación sobre solidez es aritmética, y el único
+  instrumento es hacer la aritmética y escribir lo que salió. La formulación
+  corregida está en `README.md`, `libs/stark/README.md`, `fuzz.zig` y en el
+  propio mensaje de fallo de la puerta de contrato, que son los sitios que
+  describen el código actual.
+
+  Lo que estaba mal en las correcciones también merece quedarse escrito. `68645ec`
+  arregló en sitio las entradas de 0.5.0, que es reescribir en silencio un
+  registro publicado, y `bf7b300` revirtió después sólo lo que había hecho
+  `36ab1c7`, dejando el primer arreglo en su sitio. El mensaje del revert
+  informaba de "cero líneas borradas", medido contra `v0.5.1`, una base que ya
+  arrastraba el daño, cuando el objeto era el contenido de la sección publicada
+  de 0.5.0, que es el tag `v0.5.0`.
 
 254 pruebas en 30 pasos.
 
@@ -147,16 +165,8 @@ de ese documento.
   declarada.
 - La suite de extremo a extremo de Binius es cobertura de fontanería, no de
   solidez. El error de solidez de una ronda de suma-producto sobre un campo de
-  ocho bits es del orden de 1/|F|, y los errores de las rondas se suman en vez
-  de multiplicarse: el total es una cota de suma del orden k/|F| para k rondas,
-  no un producto. Así que un campo más estrecho se paga una vez por ronda, y
-  ningún número de rondas vuelve adecuada una extensión de ocho bits: el campo
-  tiene que cumplir |F| >= k * 2^lambda. `k` es el número de rondas del prover y
-  aquí no está medido, y por eso no se cita ninguna cifra. Una salvedad más:
-  Binius compromete en un álgebra bilineal y no en un campo, así que un
-  argumento de solidez de campo primo no se traslada sin más. La entrada de
-  `binius` en el libro mayor de divergencia, `scripts/check_contract.zig`,
-  lleva la misma afirmación y el destino.
+  ocho bits es del orden de 1/|F|, alrededor del 0,4%, y se compone a lo largo
+  de las rondas. Véase la revisit de `binius` en el libro mayor.
 
 ### Fixed
 - **stark/core/hash** queda fijado con vectores de respuesta conocida calculados

@@ -36,20 +36,37 @@ policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning)
 
 ### Fixed
 
-- The soundness note added in 0.5.1 claimed that `k` is the prover's round count
-  and that it was unmeasured. It is neither: `k` is supplied by the caller, the
-  prover runs exactly that many sum-check rounds, the verifier checks the count,
-  and the count does not depend on the field. Measured over an eight-bit and a
-  128-bit extension it is the same, which is the point -- the extension field is
-  the binding constraint rather than the round count, since one round over eight
-  bits already costs 2^-8 and no choice of `k` turns that into 2^-128. The same
-  false claim appeared in eight places across both languages, and the note in
-  0.5.0 carried it too.
+- **Two published soundness claims were false, and they were corrected in this
+  file without the changelog saying so.** Both are restored here to what the tag
+  says, so the record shows what each release shipped rather than what later
+  thought it should have.
 
-  Those released entries are left as they were published rather than rewritten,
-  so the record shows what each release said; the correction lives here. The
-  entries under `README.md`, `libs/stark/README.md` and `fuzz.zig`, which
-  describe the current code, carry the corrected statement.
+  The first was published in **0.5.0**: an eight-bit extension was given as
+  "about 0.4%, and it composes over the rounds". The per-round figure is about
+  2^-8, and the round errors *add* rather than compose, so a bound written as a
+  product was wrong in the direction that flatters the system. The second was
+  published in **0.5.1**, and also in 0.5.0: "`k` is the prover's round count and
+  is not measured here, so no figure is quoted". `k` is supplied by the caller,
+  the prover runs exactly that many sum-check rounds, the verifier checks the
+  count, and the count does not depend on the field -- measured over an
+  eight-bit and a 128-bit extension it is the same, which is the point. The
+  extension field is the binding constraint rather than the round count: one
+  round over eight bits already costs 2^-8, and no choice of `k` turns that into
+  2^-128. The same false `k` claim appeared in eight places across both
+  languages.
+
+  Neither correction is enforced by a gate, and neither is measurable from the
+  tree: a claim about soundness is arithmetic, and the only instrument is doing
+  the arithmetic and writing down what it gave. The corrected statement is in
+  `README.md`, `libs/stark/README.md`, `fuzz.zig` and the contract gate's own
+  failure message, which are the places that describe current code.
+
+  What was wrong with the corrections is also worth recording. `68645ec` fixed
+  the 0.5.0 entries in place, which is a silent rewrite of a published record,
+  and `bf7b300` then reverted only what `36ab1c7` had done, leaving the first
+  rewrite in place. The revert reported "zero deleted lines" measured against
+  `v0.5.1`, a base that already carried the damage, when the object was the
+  content of the published 0.5.0 section, which means the tag `v0.5.0`.
 
 254 tests in 30 steps.
 
@@ -136,15 +153,7 @@ end of that document.
   a copy of `zig-algebra`'s. `zig-parallel` is now a declared import.
 - The Binius end-to-end suite is coverage of plumbing, not of soundness. A
   sum-check round's soundness error over an eight-bit field is of order 1/|F|,
-  and the rounds' errors add rather than compound: the total is a sum bound of
-  order k/|F| for k rounds, not a product. So a narrower field is paid for once
-  per round, and no number of rounds makes an eight-bit extension adequate --
-  the field has to satisfy |F| >= k * 2^lambda. `k` is the prover's round count
-  and is not measured here, which is why no figure is quoted. One further
-  caveat: Binius commits in a bilinear algebra rather than a field, so a
-  prime-field soundness argument does not transfer verbatim. The `binius` entry
-  in the divergence ledger, `scripts/check_contract.zig`, carries the same
-  statement and the destination.
+  about 0.4%, and it composes over the rounds. See the ledger's `binius` revisit.
 
 ### Fixed
 - **stark/core/hash** is pinned with known-answer vectors computed with an

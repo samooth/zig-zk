@@ -86,3 +86,17 @@ how to work, not about what the code does.
   each other.
 - `CHANGELOG.md` follows Keep a Changelog, and is versioned with the releases it
   describes.
+- A released entry is not edited after the fact, even when it is wrong. What the
+  tag says is what shipped, and a reader diffing the changelog against a tag is
+  using that difference to find out what changed; an entry that has been quietly
+  corrected in `main` reads as a moved tag. The correction goes in the
+  unreleased section, naming the version that published the wrong text.
+- So the object of the check comes from the tag, not from the previous commit.
+  "I did not change the published section" measured against the commit before
+  yours only says you did not make it worse an hour ago, and it stays true after
+  a silent rewrite two commits back. `git diff v0.5.0 -- CHANGELOG.md` having
+  zero deleted lines is the shape of the claim; a base that already carries the
+  damage makes the number meaningless.
+- A name that already meant something else is not a smaller version of a new
+  name, and the compiler will not say so when the other one is in another scope.
+  A local `Fp` shadowing the field type is a green build.
