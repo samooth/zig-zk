@@ -58,9 +58,11 @@ justamente aquella sobre la que esta librería ya hace aritmética.
 ### Adaptadores de punto para otras curvas
 
 `root.zig` construye un adaptador para secp256k1. No hay adaptador listo para BN254,
-BLS12-381 o pasta dentro de esta librería. El contrato de `Point` exige `add`,
-`scalarMul`, `toBytes` y `eql`; una curva que no encaje se rechaza en tiempo de
-compilación, que es el comportamiento previsto.
+BLS12-381 o pasta dentro de esta librería. El contrato de `Point` es `add`,
+`scalarMul` y `eql`, más una forma de hashear el punto: o un método `toBytes` o
+campos públicos `x` e `y`. Una curva que no ofrezca ninguna de las dos se rechaza en
+tiempo de compilación con un `@compileError` que nombra el tipo, que es el
+comportamiento previsto, y es el que documenta `libs/signature/README.es.md`.
 
 ---
 
@@ -172,6 +174,9 @@ demás no, y no deberían prometerse en la misma respiración.
 
 ### Un solo repositorio
 
-Tres paquetes, tres números de versión, tres changelogs, para un solo proyecto. Si
-comparten historial sigue abierto. Es una decisión más pequeña de lo que parece,
-porque a `0.1.0` no se le debe compatibilidad a nadie.
+Cinco librerías, cinco `build.zig.zon` y una versión para el proyecto: la raíz está
+en `0.7.0` y cada librería en `0.1.0`. Hay un changelog, en dos lenguas, que cubre
+las cinco. Si comparten historial sigue abierto, y es una decisión más pequeña de lo
+que parece precisamente porque las librerías están en `0.1.0`, donde no se le debe
+compatibilidad a nadie, y la línea `0.x` de la raíz es lo único a lo que hoy puede
+fijarse un consumidor.

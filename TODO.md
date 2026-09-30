@@ -58,9 +58,11 @@ the one this library already does arithmetic over.
 ### Point adapters for other curves
 
 `root.zig` builds an adapter for secp256k1. There is no ready adapter for
-BN254, BLS12-381 or pasta inside this library. The `Point` contract requires
-`add`, `scalarMul`, `toBytes` and `eql`; a curve that does not fit it is
-rejected at compile time, which is the intended behaviour.
+BN254, BLS12-381 or pasta inside this library. The `Point` contract is `add`,
+`scalarMul` and `eql`, plus a way to hash the point: either a `toBytes` method or
+public fields `x` and `y`. A curve that offers neither is rejected at compile time
+with a `@compileError` naming the type, which is the intended behaviour, and it is
+the behaviour that `libs/signature/README.md` documents.
 
 ---
 
@@ -171,6 +173,9 @@ are not, and should not be promised in the same breath.
 
 ### One repository
 
-Three packages, three version numbers, three changelogs, for one project.
-Whether they share a history is still open. It is a smaller decision than it
-looks, because at `0.1.0` no compatibility is owed to anyone.
+Five libraries, five `build.zig.zon`, and one version for the project: the root is
+`0.7.0` and every library is `0.1.0`. There is one changelog, in two languages,
+covering all five. Whether they share a history is still open, and it is a smaller
+decision than it looks precisely because the libraries are at `0.1.0`, where no
+compatibility is owed to anyone, and the root's own `0.x` line is the only thing a
+consumer can currently pin to.
