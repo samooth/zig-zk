@@ -566,3 +566,46 @@ test "e2e: parallel prover matches sequential (4-bit adder batch)" {
     }
     try std.testing.expect(try Stark.verify(alloc, k, &roots, &Adder.constraints, &.{}, proof, ""));
 }
+
+test "the prover path is deterministic, so a proof hash can be pinned" {
+    // This is the measurement that decides whether a proof hash is a usable
+    // invariant or whether only the transcript hash would do.
+    //
+    // The answer turned out to be that the prover has no randomness of its own.
+    // `Stark.prove` takes a `*Channel` and no `std.Random`; the Fiat-Shamir
+    // challenges come out of that channel, and every `std.Random` reachable from
+    // `prove` is inside a test with a fixed seed. So a fixed witness and a fixed
+    // channel label give a fixed proof -- and the proof is therefore hashable
+    // across processes, which is what makes a constant worth pinning.
+    //
+    // Asserted here without the constant on purpose. The pin lives in the
+    // transcript invariant; if it lived here too, a change in either would look
+    // like a change in both, and neither could be moved on purpose to check that
+    // it is still watching something.
+    const F = zig_stark.binius.tower.Gf256;
+    const E = zig_stark.binius.tower.Gf2_128;
+    const Adder = zig_stark.binius.adder.Adder(F, E);
+    const Stark = zig_stark.binius.stark.BiniusStark(F, E);
+
+    var digests: [2]u64 = undefined;
+    for (0..2) |run| {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const alloc = arena.allocator();
+
+        const k = 3;
+        const n = @as(usize, 1) << @intCast(k);
+        const x = try alloc.alloc(u4, n);
+        const y = try alloc.alloc(u4, n);
+        for (0..n) |i| {
+            x[i] = @intCast((i * 3 + 5) % 16);
+            y[i] = @intCast((i * 7 + 2) % 16);
+        }
+        const columns = try Adder.generateWitness(alloc, x, y);
+        var proof = try Stark.prove(alloc, k, &columns, &Adder.constraints, &.{}, "");
+        defer proof.deinit(alloc);
+        const bytes = try ser.serialize(alloc, proof);
+        digests[run] = std.hash.Wyhash.hash(0, bytes);
+    }
+    try std.testing.expectEqual(digests[0], digests[1]);
+}
