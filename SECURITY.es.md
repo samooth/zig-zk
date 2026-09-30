@@ -101,3 +101,108 @@ nadie busca. Este repositorio ya tiene uno, y de más de una forma: una nota de
 publicación que afirmaba una publicación, un vector autogenerado indistinguible
 de uno real, una disciplina de vectores que existía como práctica y no estaba en
 ninguna lista. Una afirmación en prosa caduca; una prueba que se ejecuta no.
+
+---
+
+
+---
+
+# Aviso de seguridad: los retos de Schnorr eran casi siempre cero y nunca ataban la clave
+
+**Advertencia 2 de 2 -- ver arriba.**
+
+**Afectado:** `libs/signature`, el `SchnorrSignature(Point, Scalar)` genérico,
+tal como se publicó en `0.6.0` y en todas las versiones anteriores.
+
+**Corregido en:** la siguiente versión. `0.6.0` está afectado, y este aviso es
+parte de lo que llevará la siguiente.
+
+**Gravedad:** cuatro firmas de cada cinco no comprometen ni la clave ni el
+mensaje, y cualquiera puede producir una firma válida sin clave privada.
+
+Ed25519 **no** está afectado. Va delegado a `std.crypto.sign.Ed25519` y nunca pasa
+por `SchnorrSignature`. "La librería de firmas está rota" y "la mitad lo está" son
+afirmaciones distintas, y ésta es la segunda.
+
+## Dos defectos, independientes
+
+**El reto era cero cuatro de cada cinco veces.** El código era
+
+```zig
+return Scalar.fromBytes(digest) catch Scalar.zero();
+```
+
+Para un campo más estrecho que el resumen, el resumen queda fuera de rango casi
+siempre. El cuerpo escalar de BN254 tiene 254 bits y un resumen SHA-256 tiene
+256, así que la muestra excede el módulo el **81,1%** de las veces, medido y no
+estimado:
+
+```
+P(resumen >= módulo) = 1 - 21888242871839275222246405745257275088548364400416034343698204186575808495617 / 2^256
+                    = 0,810969
+```
+
+La verificación es `s*G == R + e*P`. Con `e = 0` queda `s*G == R`, que cualquiera
+satisface eligiendo `r`, poniendo `R = r*G` y `s = r`. En ninguna parte interviene
+una clave privada. La demostración está en la suite y no usa ningún secreto.
+
+Es peor que una firma falsificable: con `e = 0` el mensaje nunca llegó a la
+aritmética, así que **dos mensajes distintos producen la misma firma byte a
+byte**. Eso no es una firma débil, es una firma ausente.
+
+**El reto nunca contenía la clave.** `hashPoint` comprobaba
+
+```zig
+if (@hasDecl(Point, "toBytes")) { ... }
+else if (@hasDecl(Point, "x") and @hasDecl(Point, "y")) { ... }
+```
+
+`@hasDecl` informa de declaraciones, no de campos. `x` e `y` de un punto afín son
+campos. Así que la segunda rama no podía tomarla ningún tipo, y un punto sin
+declaración `toBytes` tenía las dos ramas falsas y **no hasheaba nada**: ni el
+punto base, ni la clave pública, ni el compromiso del nonce.
+
+## Por qué la suite pasaba
+
+Los fixtures eligieron valores que hacían invisibles los defectos, que es la
+quinta vez que en este repositorio una prueba no cazó nada por eso.
+
+El fixture de `schnorr.zig` era un escalar de módulo 7 cuyo `fromBytes` leía un
+solo byte y **no podía fallar**. Sin rechazo, nunca había reto cero.
+
+La otra instanciación, en `root.zig`, es secp256k1, cuyo orden escalar queda
+justo por debajo de `2^256`. Un resumen aleatorio de 32 bytes está por debajo
+casi siempre -- la probabilidad de rechazo es del orden de `2^-224` -- así que
+tampoco es visible para el segundo defecto.
+
+Así que entre las dos, todas las instanciaciones del repositorio estaban donde
+los defectos no podían mostrarse. La regla que sale de aquí, y que pertenece
+junto a las demás en `AGENTS.md`: **un fixture tiene que elegir el valor que hace
+visible el defecto, no el que hace fácil la prueba.** Un módulo pequeño hace que
+la aritmética real no llegue a ejecutarse nunca.
+
+## Qué es el arreglo, y por qué es de tiempo de compilación
+
+`@hasDecl` pasó a ser `@hasField`, y un punto que no se puede hashear por ninguna
+de las dos vías es ahora un `@compileError` en vez de un grupo que verifica
+firmas en silencio sin la clave en el resumen.
+
+El reto se reduce con `Scalar.fromInt` en vez de analizarse con `fromBytes`.
+`fromInt` reduce y no tiene error que tragarse, así que el `catch` desaparece y
+el fallo no se puede reintroducir por esa línea. Analizar era el contrato
+equivocado desde el principio: un resumen de 32 bytes es una muestra uniforme, no
+una codificación.
+
+Tres pruebas de regresión, cada una confirmada por mutación sobre el código real:
+el reto no es cero, y cambia cuando cambian la clave pública, `R`, el punto base o
+el mensaje. La última es la aserción que faltaba y es la que importa: una
+implementación que atara la clave pero no `R` seguiría permitiendo reutilizar un
+nonce.
+
+## Por qué esto es un aviso y no una línea del changelog
+
+Porque una firma falsificable leída en un changelog es un hallazgo de seguridad
+que nadie busca. `0.6.0` lo registró como "irrepetibilidad rota" y lo aplazó a
+`0.6.1`, lo que se lee como trabajo rutinario. Se encontró desde fuera, por
+alguien que montaba un demo sobre web/wasm, en un fichero donde todas las pruebas
+habían pasado siempre.

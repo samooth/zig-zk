@@ -2,6 +2,8 @@
 
 > English. [Versión en español](SECURITY.es.md)
 
+**Advisory 1 of 2 -- see below.**
+
 **Affected:** zig-zk `0.1.0` through `0.4.0`, that is, every version built
 against `zig-algebra` at pin `<= 0.5.1`.
 
@@ -101,3 +103,100 @@ This repository has one already, in more than one form: a release note asserting
 a publication, a self-generated vector indistinguishable from a real one, a KAT
 discipline that existed as a practice and was not on any list. A claim in prose
 expires; a test that runs does not.
+
+---
+
+# Security advisory: Schnorr challenges were mostly zero, and never bound the key
+
+**Affected:** `libs/signature`, the generic `SchnorrSignature(Point, Scalar)`, as
+published in `0.6.0` and every version before it.
+
+**Fixed in:** the next release. `0.6.0` is affected and this advisory is part of
+what the next one carries.
+
+**Severity:** four signatures in five do not commit to the key or the message, and
+anyone can produce a valid signature without a private key.
+
+Ed25519 is **not** affected. It is delegated to `std.crypto.sign.Ed25519` and
+never goes through `SchnorrSignature`. "The signature library is broken" and
+"half of it is" are different claims, and this is the second.
+
+## Two defects, independent
+
+**The challenge was zero four times out of five.** The code was
+
+```zig
+return Scalar.fromBytes(digest) catch Scalar.zero();
+```
+
+For a field narrower than the digest, a digest is out of range most of the time.
+The BN254 scalar field is 254 bits and a SHA-256 digest is 256, so the draw
+exceeds the modulus **81.1%** of the time — measured, not estimated:
+
+```
+P(digest >= modulus) = 1 - 21888242871839275222246405745257275088548364400416034343698204186575808495617 / 2^256
+                     = 0.810969
+```
+
+Verification is `s*G == R + e*P`. With `e = 0` that is `s*G == R`, which anyone
+satisfies by choosing `r`, setting `R = r*G` and `s = r`. No private key is
+involved anywhere. The demonstration is in the suite and uses no secret.
+
+It is worse than a forgeable signature: `e = 0` means the message never reached
+the arithmetic, so **two different messages produce the same signature byte for
+byte**. That is not a weak signature, it is an absent one.
+
+**The challenge never contained the key.** `hashPoint` tested
+
+```zig
+if (@hasDecl(Point, "toBytes")) { ... }
+else if (@hasDecl(Point, "x") and @hasDecl(Point, "y")) { ... }
+```
+
+`@hasDecl` reports declarations, not struct fields. `x` and `y` on an affine
+point are fields. So the second branch could never be taken by any type at all,
+and a point without a `toBytes` declaration had both branches false and hashed
+**nothing** — no base point, no public key, no nonce commitment.
+
+## Why the suite passed
+
+The fixtures chose values that made the defects invisible, which is the fifth
+time in this repository that a test caught nothing for that reason.
+
+The fixture in `schnorr.zig` was a scalar of modulus 7 whose `fromBytes` read a
+single byte and **could not fail**. No rejection, so no challenge of zero.
+
+The other instantiation, in `root.zig`, is secp256k1, whose scalar order sits just
+below `2^256`. A random 32-byte digest is below it almost always — the rejection
+probability is about `2^-224` — so that one is invisible to defect two as well.
+
+So between them, every instantiation in the repository sat where the defects
+could not show. The rule that follows, and which belongs next to the others in
+`AGENTS.md`: **a fixture has to choose the value that makes the defect visible,
+not the one that makes the test easy.** A small modulus means the real arithmetic
+never runs.
+
+## What the fix is, and why it is a compile-time change
+
+`@hasDecl` became `@hasField`, and a point that can be hashed by neither route is
+now a `@compileError` rather than a group that quietly verifies signatures without
+the key in the hash.
+
+The challenge is reduced through `Scalar.fromInt` instead of parsed with
+`fromBytes`. `fromInt` reduces and has no error to swallow, so `catch` is gone
+and the failure cannot be reintroduced by that line. Parsing was the wrong
+contract for a digest in the first place: a 32-byte digest is a uniform draw, not
+an encoding.
+
+Three regression tests, each confirmed by mutation on the real code: the
+challenge is not zero, and it differs when the public key, `R`, the base point or
+the message differ. The last one is the assertion that was missing and it is the
+one that matters — an implementation that bound the key but not `R` would still
+allow a nonce to be reused.
+
+## Why this is an advisory and not a changelog line
+
+Because a forgeable signature read in a changelog is a security finding nobody
+looks for. `0.6.0` recorded this as "irrepetibilidad rota" and scheduled it for
+`0.6.1`, which reads as routine work. It was found from outside, by someone
+building a demo over web/wasm, in a file where every test had always passed.

@@ -59,6 +59,21 @@ const CurveScalar = struct {
         return .{ .inner = try StdScalar.fromBytes(bytes, .big) };
     }
 
+    /// The challenge is now reduced through `fromInt` rather than parsed with
+    /// `fromBytes`. Parsing is the wrong contract for it: a 32-byte digest is a
+    /// uniform draw, not an encoding, and for a field narrower than the digest
+    /// four draws in five are out of range. `fromInt` reduces, has no error to
+    /// swallow, and so cannot be turned into a challenge of zero by a catch.
+    pub fn fromInt(x: u256) @This() {
+        // `fromBytes64` reduces, so there is no out-of-range case and no error
+        // for a caller to turn into a challenge of zero. Placing the integer in
+        // the low half of a zeroed 64-byte buffer is the reduction of a 512-bit
+        // value whose top half is zero.
+        var wide: [64]u8 = [_]u8{0} ** 64;
+        std.mem.writeInt(u256, wide[0..32], x, .little);
+        return .{ .inner = StdScalar.fromBytes64(wide, .little) };
+    }
+
     pub fn zero() @This() {
         return .{ .inner = StdScalar.zero };
     }

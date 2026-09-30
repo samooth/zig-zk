@@ -69,6 +69,16 @@ archivo trata de cómo trabajar, no de lo que hace el código.
 - Los comentarios, incluidos los de documentación, explican el porqué y lo no
   obvio.
 
+- Un fixture tiene que elegir el valor que hace visible el defecto, no el que hace
+  fácil la prueba. Un escalar de módulo 7 no puede cazar nada sobre un campo de
+  254 bits, y un módulo justo por debajo de 2^256 no puede detectar nada sobre un
+  resumen que lo excede. Ya ha pasado cinco veces aquí: `x^n` en un dominio de
+  orden `n`, `fromInt(64)` en un campo de siete elementos, un `eql` que comparaba
+  un elemento consigo mismo, el `findGenerator` sin mutación, y un `fromBytes` que
+  leía un byte y por eso no podía fallar. La pregunta que hay que hacerle a un
+  fixture no es si la prueba es fácil de escribir, sino qué defectos vuelve
+  inalcanzables.
+
 ## Pruebas
 
 - Aserción, nunca impresión. Una impresión dentro de una prueba no reporta nada

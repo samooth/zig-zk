@@ -9,6 +9,65 @@ los cambios incompatibles y el PATCH solo cambios aditivos y correcciones. La
 política está desarrollada en
 [docs/architecture.es.md](docs/architecture.es.md#versionado).
 
+## [Sin publicar]
+
+### Corregido
+
+- **Los retos de `SchnorrSignature` eran cero cuatro de cada cinco veces, y nunca
+  contenían la clave pública.** Dos defectos independientes en una función,
+  ambos encontrados desde fuera. El aviso está en `SECURITY.md`; esto es la
+  parte que le toca al changelog.
+
+  El reto era `Scalar.fromBytes(digest) catch Scalar.zero()`. El cuerpo escalar de
+  BN254 tiene 254 bits y un resumen SHA-256 tiene 256, así que la muestra queda
+  fuera de rango el 81,1% de las veces, medido: `1 - módulo / 2^256 = 0,810969`.
+  La verificación es `s*G == R + e*P`; con `e = 0` queda `s*G == R`, que cualquiera
+  satisface eligiendo `r`, poniendo `R = r*G` y `s = r`, sin clave privada en
+  ninguna parte. Y no es una firma débil sino una firma ausente: dos mensajes
+  distintos producen la misma firma byte a byte, porque el mensaje nunca llegó a
+  la aritmética. La suite demuestra ahora el forgery sobre la curva real, sin
+  usar ningún secreto.
+
+  `hashPoint` comprobaba `@hasDecl(Point, "toBytes")` y luego
+  `@hasDecl(Point, "x")`. `@hasDecl` informa de declaraciones, no de campos, y `x`
+  e `y` de un punto afín son campos, así que la segunda rama no podía tomarla
+  ningún tipo, y un punto sin declaración `toBytes` no hasheaba **nada**. Ahora es
+  `@hasField`, y un punto que no se puede hashear por ninguna de las dos vías es un
+  `@compileError` en vez de un grupo que verifica firmas sin la clave en el
+  resumen.
+
+  El reto se reduce con `fromInt` en vez de analizarse con `fromBytes`, así que no
+  queda ningún error que tragarse y el `catch` desaparece.
+
+  Ed25519 no está afectado: va delegado a `std.crypto.sign.Ed25519` y nunca pasa
+  por `SchnorrSignature`. "La librería de firmas está rota" y "la mitad lo está"
+  son afirmaciones distintas, y ésta es la segunda.
+
+  `0.6.0` registró esto como "irrepetibilidad rota" y lo aplazó a `0.6.1`, lo que
+  se lee como trabajo rutinario. Era una firma falsificable en una versión
+  publicada, así que el aviso existe aparte del changelog.
+
+### Corregido (pruebas)
+
+- **El fixture de `schnorr.zig` es un campo real de 254 bits y un punto real de
+  la curva.** Era un escalar de módulo 7 cuyo `fromBytes` leía un byte y no podía
+  fallar, así que ningún reto cero era alcanzable y la aritmética corría sobre
+  siete elementos, donde casi todos los retos se colapsan entre sí. La otra
+  instanciación, en `root.zig`, es secp256k1, cuyo orden escalar queda justo por
+  debajo de `2^256`, así que un resumen de 32 bytes está por debajo casi siempre y
+  el mismo defecto tampoco se ve ahí. Entre las dos, todas las instanciaciones
+  estaban donde los defectos no podían mostrarse.
+
+  Es la quinta vez que en este repositorio una prueba no cazó nada porque el
+  fixture era degenerado, después del `x^n` en un dominio de orden `n`, el
+  `fromInt(64)` en un campo de siete elementos, un `eql` que comparaba un elemento
+  consigo mismo, y el `findGenerator` sin mutación. La regla entra en `AGENTS.md`.
+
+  Tres pruebas de regresión, cada una confirmada por mutación: el reto no es cero,
+  y cambia cuando cambian la clave pública, `R`, el punto base o el mensaje. La
+  aserción sobre `R` es la que faltaba: una implementación que atara la clave pero
+  no `R` seguiría permitiendo reutilizar un nonce.
+
 ## [0.6.0] - 2026-09-30
 
 Un minor, y el motivo está en la primera entrada de abajo: `shamir.split` cambia

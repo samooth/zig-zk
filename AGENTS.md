@@ -63,6 +63,15 @@ how to work, not about what the code does.
   edits the ledger and says why. A zone that declares no invariants has had none
   of its asserts classified, so the reachable total the gate prints is an upper
   bound, not a figure for how much work is left.
+- A fixture has to choose the value that makes the defect visible, not the one that
+  makes the test easy. A scalar of modulus 7 cannot catch anything about a 254-bit
+  field, and a modulus just below 2^256 cannot catch anything about a digest that
+  exceeds it. This has now happened five times here: `x^n` in a domain of order
+  `n`, `fromInt(64)` in a field of seven elements, an `eql` that compared an
+  element with itself, `findGenerator` without a mutation, and a `fromBytes` that
+  read one byte so it could not fail. The question to ask of a fixture is not
+  whether the test is easy to write but which defects it makes unreachable.
+
 - Comments and doc-comments explain why, and the non-obvious.
 
 ## Tests

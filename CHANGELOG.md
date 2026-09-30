@@ -8,6 +8,63 @@ versioning follows [SemVer](https://semver.org/): in `0.y.z` the MINOR carries
 incompatible changes and the PATCH carries additive changes and fixes only. The
 policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning).
 
+## [Unreleased]
+
+### Fixed
+
+- **`SchnorrSignature` challenges were zero four times out of five, and never
+  contained the public key.** Two independent defects in one function, both found
+  from outside. `SECURITY.md` has the advisory; this is the changelog's share.
+
+  The challenge was `Scalar.fromBytes(digest) catch Scalar.zero()`. The BN254
+  scalar field is 254 bits and a SHA-256 digest is 256, so the draw is out of
+  range 81.1% of the time -- measured, `1 - modulus / 2^256 = 0.810969`.
+  Verification is `s*G == R + e*P`; with `e = 0` that is `s*G == R`, which anyone
+  satisfies by choosing `r`, setting `R = r*G` and `s = r`, with no private key
+  anywhere. And it is not a weak signature but an absent one: two different
+  messages produce the same signature byte for byte, because the message never
+  reached the arithmetic. The suite now demonstrates the forgery on the real
+  curve, using no secret.
+
+  `hashPoint` tested `@hasDecl(Point, "toBytes")` and then `@hasDecl(Point, "x")`.
+  `@hasDecl` reports declarations, not fields, and `x` and `y` on an affine point
+  are fields, so the second branch could never be taken by any type and a point
+  without a `toBytes` declaration hashed **nothing**. It is now `@hasField`, and a
+  point that cannot be hashed by either route is a `@compileError` rather than a
+  group that verifies signatures without the key in the hash.
+
+  The challenge is reduced through `fromInt` instead of parsed with `fromBytes`,
+  so there is no error left to swallow and `catch` is gone.
+
+  Ed25519 is unaffected: it is delegated to `std.crypto.sign.Ed25519` and never
+  goes through `SchnorrSignature`. "The signature library is broken" and "half of
+  it is" are different claims, and this is the second.
+
+  `0.6.0` recorded this as "irrepetibilidad rota" and scheduled it for `0.6.1`,
+  which reads as routine work. It was a forgeable signature in a release, so the
+  advisory exists separately from the changelog.
+
+### Fixed (tests)
+
+- **The `schnorr.zig` fixture is a real 254-bit field and a real curve point.**
+  It was a scalar of modulus 7 whose `fromBytes` read one byte and could not fail,
+  so no challenge of zero was reachable and the arithmetic ran over seven
+  elements, where most challenges collapse into each other. The other
+  instantiation, in `root.zig`, is secp256k1, whose scalar order sits just below
+  `2^256`, so a 32-byte digest is below it almost always and the same defect is
+  invisible there too. Between them, every instantiation sat where the defects
+  could not show.
+
+  That is the fifth time in this repository that a test caught nothing because the
+  fixture was degenerate, after `x^n` in a domain of order `n`, `fromInt(64)` in a
+  field of seven elements, an `eql` that compared an element with itself, and
+  `findGenerator` without a mutation. The rule goes into `AGENTS.md`.
+
+  Three regression tests, each confirmed by mutation: the challenge is not zero,
+  and it differs when the public key, `R`, the base point or the message differ.
+  The `R` assertion is the one that was missing -- an implementation that bound the
+  key but not `R` would still allow a nonce to be reused.
+
 ## [0.6.0] - 2026-09-30
 
 A minor, and the reason is in the first entry below: `shamir.split` changes
