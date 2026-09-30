@@ -75,6 +75,15 @@ const CurvePoint = struct {
     /// here is the degenerate value. That is why it is this and not a typed
     /// error: an error here would mean a fallible signature on the adapter for a
     /// case its own constructors forbid.
+    ///
+    /// And what holds it up: the invariant is in the contract ledger, keyed on
+    /// this file and this condition. If `CurveScalar` ever admitted an
+    /// out-of-range scalar -- a new constructor, a field widened past 2^256, an
+    /// unsafe cast -- this line stops being unreachable and the failure does not
+    /// surface here. It surfaces wherever the value is read next, which for this
+    /// adapter is a signature comparison in the consumer. `unreachable` moves the
+    /// report from this line to a place with no context at all, so the ledger
+    /// entry is the only thing left saying where it went.
     pub fn scalarMul(a: @This(), s: CurveScalar) @This() {
         const m = a.inner.mul(s.inner.toBytes(.big), .big) catch {
             std.debug.assert(false and "CurveScalar holds a non-canonical scalar");

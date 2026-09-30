@@ -362,7 +362,7 @@ const declared_reachable: usize = 60;
 /// updating the figure, it is the figure not being hand-written. So the number
 /// lives here, moves only when someone edits this line and says why, and the
 /// documents are checked against it rather than trusted.
-const declared_root_tests: usize = 273;
+const declared_root_tests: usize = 275;
 
 /// The unit-test count the stark README states, which is the other figure a
 /// reader looks at. It is the root build's `zig-stark-tests` step and not the
@@ -577,6 +577,61 @@ const Imports = struct {
         }
     }
 };
+
+/// A module name wired into a build file: `addImport("name", ...)` or
+/// `.module("name")`.
+fn scanCodeForWiring(code: []const u8, sink: *std.ArrayList([]const u8), alloc: std.mem.Allocator) void {
+    var lines = std.mem.splitScalar(u8, code, '\n');
+    while (lines.next()) |line| {
+        const body = codeOf(line);
+        for ([_][]const u8{ "addImport(", ".module(" }) |call| {
+            const at = std.mem.indexOf(u8, body, call) orelse continue;
+            const after = at + call.len;
+            const open = std.mem.indexOfScalar(u8, body[after..], '"') orelse continue;
+            const from = after + open + 1;
+            const close = std.mem.indexOfScalar(u8, body[from..], '"') orelse continue;
+            const name = body[from .. from + close];
+            if (name.len == 0) continue;
+            var seen = false;
+            for (sink.items) |old| {
+                if (std.mem.eql(u8, old, name)) seen = true;
+            }
+            if (!seen) sink.append(alloc, name) catch return;
+        }
+    }
+}
+
+/// Rule 5, the direction Rule 3 does not look at: a module wired into a build
+/// that nothing imports.
+///
+/// Rule 3 starts from what the sources import, so a module no source imports
+/// never enters it. `zig-rng` sat wired into two libraries' `build.zig` with no
+/// `.zig` anywhere importing it, and every existing rule passed. A wired module
+/// that no source imports is not dead weight, it is a dependency the audit
+/// believes is in use -- which is exactly how a third-party module goes unaudited
+/// while the manifest says it is wired.
+fn reportUnwired(
+    problems: *std.ArrayList(Problem),
+    alloc: std.mem.Allocator,
+    wired: []const []const u8,
+    imports: *const Imports,
+) !void {
+    for (wired) |name| {
+        var used = false;
+        for (imports.algebra.items) |x| {
+            if (std.mem.eql(u8, x, name)) used = true;
+        }
+        for (imports.own.items) |x| {
+            if (std.mem.eql(u8, x, name)) used = true;
+        }
+        if (used) continue;
+        var p: Problem = .{};
+        p.setWhat("wiring", .{});
+        p.setDetail("a build file wires {s} but no file under libs/ imports it: " ++
+            "a wired module the audit believes is in use is a module nobody audits", .{name});
+        try problems.append(alloc, p);
+    }
+}
 
 /// A module this repository publishes. Kept in sync with the module names the
 /// root `build.zig` registers; the rule below is what notices when it drifts.
@@ -798,6 +853,35 @@ pub fn main(init: std.process.Init) !u8 {
                     }
                 }
             }
+        }
+
+        // Rule 5, collected in the same pass that reads the sources: the builds
+        // say what is wired, the sources say what is imported, and the two have
+        // to meet. Rule 3 checks the other direction and, starting from the
+        // sources, cannot see a module nothing imports.
+        {
+            var wired: std.ArrayList([]const u8) = .empty;
+            defer wired.deinit(alloc);
+            for (all.items) |path| {
+                if (!endsWithPath(path, "build.zig")) continue;
+                const text = readOrNull(alloc, io, path) orelse continue;
+                scanCodeForWiring(text, &wired, alloc);
+            }
+            // `imports` was collected from libs/ only, which is the right
+            // scope for Rule 3 but the wrong one here: "nobody imports it" has
+            // to mean nobody in the repository, and the consumer in consumer/
+            // is exactly who imports the five published modules. Collecting them
+            // again from every .zig under the root is what keeps the three
+            // public modules from reading as wired-and-abandoned.
+            var used: std.ArrayList([]const u8) = .empty;
+            defer used.deinit(alloc);
+            var probe: Imports = .{ .alloc = alloc };
+            for (all.items) |path| {
+                if (!std.mem.endsWith(u8, path, ".zig")) continue;
+                const text = readOrNull(alloc, io, path) orelse continue;
+                scanCodeForImports(text, &probe);
+            }
+            try reportUnwired(&problems, alloc, wired.items, &probe);
         }
     }
 
@@ -1288,4 +1372,33 @@ test "the ledger's own numbers add up" {
         if (zone.kind == .fixture) fixture_zones += 1;
     }
     try std.testing.expectEqual(@as(usize, 1), fixture_zones);
+}
+
+test "the wiring rule reads module names out of a build file" {
+    var sink: std.ArrayList([]const u8) = .empty;
+    defer sink.deinit(std.testing.allocator);
+
+    scanCodeForWiring(
+        \\    signature_mod.addImport("zig-rng", traits_mod);\n\
+    , &sink, std.testing.allocator);
+    try std.testing.expectEqual(@as(usize, 1), sink.items.len);
+    try std.testing.expectEqualStrings("zig-rng", sink.items[0]);
+
+    var sink2: std.ArrayList([]const u8) = .empty;
+    defer sink2.deinit(std.testing.allocator);
+    scanCodeForWiring(
+        \\    const m = dep.module("zig-curve");\n    x.addImport("zig-hash", m);\n\
+    , &sink2, std.testing.allocator);
+    try std.testing.expectEqual(@as(usize, 2), sink2.items.len);
+}
+
+test "the wiring rule ignores a module named in a comment" {
+    var sink: std.ArrayList([]const u8) = .empty;
+    defer sink.deinit(std.testing.allocator);
+    // `zig-rng` sat wired into two libraries' builds and this rule could not see
+    // it. A rule that also fired on comments would be noise on day one.
+    scanCodeForWiring(
+        \\    // signature_mod.addImport("zig-rng", traits_mod);\n\
+    , &sink, std.testing.allocator);
+    try std.testing.expectEqual(@as(usize, 0), sink.items.len);
 }
