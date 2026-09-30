@@ -110,10 +110,14 @@ expires; a test that runs does not.
 # Security advisory: Schnorr challenges were mostly zero, and never bound the key
 
 **Affected:** `libs/signature`, the generic `SchnorrSignature(Point, Scalar)`, as
-published in `0.6.0` and every version before it.
+published in every tag of this repository before `v0.7.0`. Measured per tag: all
+seven published tags from `v0.2.0` to `v0.6.0` carry both defects, `v0.2.0`
+through `v0.6.0` inclusive, and there is no release of this repository in that span
+that is unaffected.
 
-**Fixed in:** the next release. `0.6.0` is affected and this advisory is part of
-what the next one carries.
+**Fixed in:** `0.7.0`. The fix was written before that release and this text said
+"the next release" until it shipped, which is a second thing an advisory can get
+wrong: it can describe a fix that has already landed as one that has not.
 
 **Severity:** four signatures in five do not commit to the key or the message, and
 anyone can produce a valid signature without a private key.

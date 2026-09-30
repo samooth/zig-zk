@@ -112,10 +112,16 @@ ninguna lista. Una afirmación en prosa caduca; una prueba que se ejecuta no.
 
 **Advertencia 2 de 2 -- ver arriba.**
 
-**Afectado:** `libs/signature`, el `SchnorrSignature(Point, Scalar)` genérico,
-tal como se publicó en `0.6.0` y en todas las versiones anteriores.
+**Afectado:** `libs/signature`, el `SchnorrSignature(Point, Scalar)` genérico, tal
+como se publicó en todos los tags de este repositorio anteriores a `v0.7.0`.
+Medido etiqueta por etiqueta: los siete tags publicados de `v0.2.0` a `v0.6.0`
+llevan los dos defectos, de `v0.2.0` a `v0.6.0` ambos incluidos, y no hay ninguna
+versión de este repositorio en ese tramo que no esté afectada.
 
-**Corregido en:** la siguiente versión. `0.6.0` está afectado, y este aviso es
+**Corregido en:** `0.7.0`. La corrección se escribió antes de esa versión y este
+texto decía "la siguiente versión" hasta que salió, que es una segunda cosa en la
+que un aviso puede equivocarse: puede describir como pendiente una corrección que
+ya está publicada. `0.6.0` está afectado, y este aviso es
 parte de lo que llevará la siguiente.
 
 **Gravedad:** cuatro firmas de cada cinco no comprometen ni la clave ni el

@@ -7,16 +7,18 @@ curve, and Ed25519 delegated to the standard library.
 
 ## Before you use this
 
-**A signature issued by any release from v0.2.0 to v0.6.0 is not a commitment and
-has to be regenerated.** Four in five of them carry a zero challenge, which makes
+**A signature issued by any published tag of this repository before `v0.7.0` is
+not a commitment and has to be regenerated.** Four in five of them carry a zero challenge, which makes
 them forgeable by anyone, and none of them binds the public key: two different
 messages produced the same signature byte for byte. `v0.7.0` fixes both defects and
 changes two contracts, so it is a MINOR. The analysis, the measurement and the
 exploit are in [SECURITY.md](../../SECURITY.md).
 
-If you are upgrading from an earlier release, read that first. The failure is not a
-weak signature but an absent one, and nothing downstream will tell you that the
-signature you are holding was one of the four in five.
+The range is a predicate rather than a list on purpose: a list of tags has to be
+maintained, and a cut re-evaluates itself. If you are upgrading from an earlier
+release, read that first -- the failure is not a weak signature but an absent one,
+and nothing downstream will tell you that the signature you are holding was one of
+the four in five.
 
 
 ## Features

@@ -11,6 +11,25 @@ política está desarrollada en
 
 ## [Sin publicar]
 
+### Corregido
+
+- **El rango publicado en `0.7.0` es una enumeración donde iba un predicado.** Su
+  primera línea dice "v0.2.0 a v0.6.0", y ese rango es correcto: medido etiqueta por
+  etiqueta, los siete tags publicados que cubre llevan los dos defectos. También es
+  la forma que hay que mantener. Una lista de tags hay que actualizarla cuando se
+  corta un tag, y el fallo cuando no se hace es silencioso: quien lee comprueba si
+  su tag está en la lista, y si no está, concluye que no estaba afectado.
+
+  La forma de predicado no puede quedarse rancio: *todos los tags publicados de este
+  repositorio anteriores a `v0.7.0`*. `SECURITY.es.md` y
+  `libs/signature/README.es.md` ahora lo dicen así, y la sección `0.7.0` de este
+  changelog dice lo que dice.
+
+  Queda registrado en vez de reescrito. El tag `v0.7.0` está firmado, su entrada es
+  lo que salió, y una corrección que la edita en sitio se lee como un tag movido. La
+  enumeración no era falsa: era de las cosas que se vuelven falsas después.
+
+
 ## [0.7.0] - 2026-09-30
 
 **Las firmas emitidas por v0.2.0 a v0.6.0 no son compromisos. Cuatro de cada

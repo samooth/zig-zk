@@ -10,6 +10,24 @@ policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning)
 
 ## [Unreleased]
 
+### Fixed
+
+- **The published `0.7.0` range is an enumeration where a predicate was meant.**
+  Its first line says "v0.2.0 through v0.6.0", and that range is correct: measured
+  tag by tag, all seven published tags in it carry both defects. It is also the
+  form that needs maintaining. A list of tags has to be updated when a tag is cut,
+  and the failure mode when it is not is silent -- a reader checks whether their tag
+  is in the list, and if it is not there, concludes they were not affected.
+
+  The predicate form cannot go stale: *every published tag of this repository before
+  `v0.7.0`*. `SECURITY.md` and `libs/signature/README.md` now say it that way, and
+  the `0.7.0` section of this changelog says what it says.
+
+  Recorded rather than rewritten. The `v0.7.0` tag is signed, its entry is what
+  shipped, and a correction that edits it in place reads as a moved tag. The
+  enumeration was not wrong -- it was the kind of thing that goes wrong later.
+
+
 ## [0.7.0] - 2026-09-30
 
 **Signatures issued by v0.2.0 through v0.6.0 are not commitments. Four in five

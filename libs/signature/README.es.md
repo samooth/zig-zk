@@ -5,6 +5,22 @@
 Firmas digitales. Dos esquemas: un Schnorr genérico que funciona sobre cualquier
 curva elíptica, y Ed25519 delegado a la biblioteca estándar.
 
+## Antes de usar esto
+
+**Una firma emitida por cualquier tag publicado de este repositorio anterior a
+`v0.7.0` no es un compromiso y hay que regenerarla.** Cuatro de cada cinco llevan
+reto cero, lo que las hace falsificables por cualquiera, y ninguna ata la clave
+pública: dos mensajes distintos produjeron la misma firma byte a byte. `v0.7.0`
+corrige los dos defectos y cambia dos contratos, y por eso es un MINOR. El
+análisis, la medición y el exploit están en
+[SECURITY.es.md](../../SECURITY.es.md).
+
+El rango es un predicado y no una enumeración a propósito: una lista de tags hay
+que mantenerla, y el corte se hace solo. Si vienes de una versión anterior, léelo
+primero — el fallo no es una firma débil sino una firma ausente, y nada aguas
+abajo te va a decir que la firma que tienes en la mano era una de las cuatro de
+cada cinco.
+
 ## Características
 
 - **Schnorr genérico** — `SchnorrSignature(Point, Scalar)` sobre cualquier grupo
