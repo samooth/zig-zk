@@ -8,7 +8,32 @@ versioning follows [SemVer](https://semver.org/): in `0.y.z` the MINOR carries
 incompatible changes and the PATCH carries additive changes and fixes only. The
 policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning).
 
-## [Unreleased]
+## [0.6.0] - 2026-09-30
+
+A minor, and the reason is in the first entry below: `shamir.split` changes
+signature, and the commitment library is not something you can upgrade around.
+261 tests in 32 steps, up from 252 in 30.
+
+### Changed (BREAKING)
+
+- **commitment: `shamir.split` takes the randomness as a parameter.** It used to
+  call `Scalar.random()` with no argument, which no field in this repository or in
+  the pin has, so it compiled only against test-local scalars and the coefficients
+  it produced were the constant 4. A caller now passes a `std.Random`. This is
+  both a signature change and a behaviour change: the polynomial is no longer the
+  same one every time, which is the whole point, so a caller who depended on
+  reproducible shares was depending on the defect.
+
+  Callers who do not care should not have to learn anything to make this work,
+  and callers who do care get the coefficients bound to something they can replay.
+
+- **transcript: `squeezeField` derives the width from `F.MODULUS` rather than
+  `F.order`.** A type that declares `order` and not `MODULUS` no longer compiles.
+  Every field in this repository and in the pin declares `MODULUS` and none
+  declares `order`, so this breaks nothing that ever compiled outside a test
+  file; it makes the requirement name the declaration that actually exists.
+
+
 
 ### Added
 
@@ -229,11 +254,8 @@ policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning)
   propagating. Turning a silent bypass into a memory fault is worse than the
   state it replaces. It needs both layers, and the `errdefer` fixed on its own.
 
-261 tests in 30 steps, 32 steps in all, the six of them the published-API suite.
-
-## [0.5.1] - 2026-09-29
-
-261 tests in 30 steps, 32 steps in all, the six of them the published-API suite.
+261 tests in 32 steps, six of them the published-API suite: new here, and run on every
+`zig build test` rather than on demand.
 
 ## [0.5.1] - 2026-09-29
 

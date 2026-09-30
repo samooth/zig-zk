@@ -9,7 +9,32 @@ los cambios incompatibles y el PATCH solo cambios aditivos y correcciones. La
 política está desarrollada en
 [docs/architecture.es.md](docs/architecture.es.md#versionado).
 
-## [Sin publicar]
+## [0.6.0] - 2026-09-30
+
+Un minor, y el motivo está en la primera entrada de abajo: `shamir.split` cambia
+de firma, y una librería de compromiso no es algo de lo que se pueda pasar por
+alto. 261 pruebas en 32 pasos, frente a 252 en 30.
+
+### Changed (BREAKING)
+
+- **commitment: `shamir.split` recibe la fuente como parámetro.** Antes llamaba a
+  `Scalar.random()` sin argumento, que ningún campo de este repositorio ni del pin
+  tiene, así que compilaba sólo contra escalares locales de prueba y los
+  coeficientes que producía eran la constante 4. Ahora quien llama pasa un
+  `std.Random`. Es a la vez un cambio de firma y de comportamiento: el polinomio ya
+  no es el mismo cada vez, que es justo el punto, así que quien dependiera de unas
+  partes reproducibles estaba dependiendo del defecto.
+
+  A quien no le importe no debería tener que aprender nada para poder usarlo, y
+  quien sí le importe obtiene los coeficientes ligados a algo que puede repetir.
+
+- **transcript: `squeezeField` deduce el ancho de `F.MODULUS` en vez de
+  `F.order`.** Un tipo que declare `order` y no `MODULUS` deja de compilar. Todos
+  los campos de este repositorio y del pin declaran `MODULUS` y ninguno declara
+  `order`, así que esto no rompe nada que llegara a compilarse fuera de un fichero
+  de prueba; hace que el requisito nombre la declaración que sí existe.
+
+
 
 ### Añadido
 
@@ -237,7 +262,8 @@ política está desarrollada en
   estado al que sustituye. Hacen falta las dos capas, y el `errdefer` arreglado por
   su cuenta.
 
-261 pruebas en 30 pasos, 32 pasos en total, seis de ellas las de la API publicada.
+261 pruebas en 32 pasos, seis de ellas las de la API publicada: nuevas aquí, y se
+ejecutan en cada `zig build test` en vez de a petición.
 
 ## [0.5.1] - 2026-09-29
 
