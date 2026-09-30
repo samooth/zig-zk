@@ -1,0 +1,25 @@
+.{
+    .name = .zig_zk_consumer,
+    .version = "0.0.0",
+    .fingerprint = 0x247c5e560ca7d6ae,
+    .minimum_zig_version = "0.16.0",
+    // The five libraries as separate packages, by path. This is what an
+    // external user does, and it is why this package cannot be a dependency of
+    // the root: it already depends on the libraries, so the root depending on
+    // it would be a cycle. Depending on the five separately has a second
+    // consequence worth having -- it exercises each library's own `build.zig`,
+    // not the copy of that wiring the root keeps, which is where the broken
+    // `zig-stark` module came from.
+    .dependencies = .{
+        .zig_stark = .{ .path = "../libs/stark" },
+        .zig_snark = .{ .path = "../libs/snark" },
+        .zig_transcript = .{ .path = "../libs/transcript" },
+        .zig_commitment = .{ .path = "../libs/commitment" },
+        .zig_signature = .{ .path = "../libs/signature" },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

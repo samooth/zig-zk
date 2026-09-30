@@ -12,6 +12,27 @@ policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning)
 
 ### Added
 
+- **A consumer, and the gate that was missing.** `consumer/` is a package that
+  uses all five libraries through their public API and nothing else -- five
+  modules, no relative import, so no file is reachable that a caller could not
+  reach. It is an executable rather than a test, because that is what a stranger
+  builds. `zig build run` in that directory is the check.
+
+  It cannot be a dependency of the root package: it already depends on the
+  libraries, so the root depending on it would be a cycle. So the gap it exposes
+  about the *root's own* wiring is closed separately, by `tests/published_api.zig`,
+  which imports the five modules by the names they are published under with no
+  wiring of its own and runs on every `zig build test`.
+
+  The category here is new and it is larger than the ones this repository has
+  been removing. The others were code without a test, tests that did not look,
+  gates that did not look, numbers measured against the wrong base. This one is
+  that **the public API was never exercised from outside**, and in all seven
+  cases below the difference was a `pub`, a signature, or a copy of the wiring
+  that nobody compiled. A suite of 254 tests inside the modules cannot see any of
+  it.
+
+
 - **`Channel.reset(label)`**, which returns a channel to its state after `init`.
   A channel is stateful, so a prover and verifier sharing one sample different
   challenges and the verifier returns `false` with no error anywhere -- the worst
@@ -161,6 +182,58 @@ policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning)
   `zs.stark`, and left `claimed_fib` as `...` rather than the last value of column
   0. Corrected in both languages, and the corrected version is what
   `consumer/src/main.zig` runs, so the example is executed rather than described.
+
+### Measured
+
+- **Round count of the sum-check, over two field pairs and two values of `k`.**
+  Object: `proof.sumcheck.rounds.len` on a proof this repository's prover wrote,
+  read from the proof rather than counted from a loop, so a prover that lied about
+  its own round count would be caught. Fields: `Gf256/Gf256` and
+  `Gf16/Gf2_128`, via `BiniusStark.prove` on the four-bit adder at the pin
+  `zig-algebra 0.5.2`. Values of `k`: 3 and 6. Result: the rounds equal `k` in all
+  four cases, and **do not depend on the field**, because `k` is supplied by the
+  caller. So there is no single `k` to quote, and the extension field is the
+  binding constraint rather than the round count: one round over eight bits
+  already costs 2^-8, and no choice of `k` turns that into 2^-128. Tool: a
+  temporary diagnostic, since removed -- which is why `tests/published_api.zig`
+  now asserts the round count rather than leaving the figure with no witness.
+
+- **Cost of a 128-bit extension over an eight-bit one.** Object: the
+  `zig-stark-fuzz-tests` step, same gadget set and same round count on both
+  fields, differing only in the field pair; measured as the per-step time
+  `zig build test --summary all` prints, at two round counts so a constant offset
+  would show up. Result: 20 rounds 4 s against 20 s, and 60 rounds 12 s against
+  60 s. **5.0x in both, so the cost is linear in the rounds and not an offset.**
+  Debug build, so the ratio is a proxy rather than the production figure.
+
+### Not addressed here
+
+- **`Schnorr.fromBytes` takes `[32]u8` and returns an error union, which no field
+  in this tree matches**, so the generic Schnorr needs a wrapper to run on a real
+  curve. Worse and separate: `challenge` swallows a decode failure with
+  `catch Scalar.zero()`, turning a non-canonical digest -- a real attack, and the
+  reason the pin returns an error union -- into the zero scalar. A signature with
+  a zero scalar is an invalid signature the verifier rejects, or a valid
+  signature of nothing. It is a `catch` that silences a security error, and it
+  does not belong in the same commit as the other four, so it is left standing
+  and recorded here.
+
+- **The Binius convenience constructors all wire `CommittedMlePcsUnsafe`**, the
+  variant that skips the 128-bit check, so the safe entry point is opt-in and the
+  path of least resistance is unsound. Flipping all six was implemented and then
+  reverted: it gates only the PCS layer, because `StarkInner` and
+  `BiniusArgWith` hardcode `SumcheckUnsafe(E)`, and asking for eight bits through
+  the checked PCS makes `error.FieldTooSmall` surface from inside `proveImpl`,
+  whose `errdefer` at `binius/stark.zig:407` frees `lifted_cols[j]` from an
+  uninitialised array and aborts with a general protection exception instead of
+  propagating. Turning a silent bypass into a memory fault is worse than the
+  state it replaces. It needs both layers, and the `errdefer` fixed on its own.
+
+261 tests in 30 steps, 32 steps in all, the six of them the published-API suite.
+
+## [0.5.1] - 2026-09-29
+
+261 tests in 30 steps, 32 steps in all, the six of them the published-API suite.
 
 ## [0.5.1] - 2026-09-29
 

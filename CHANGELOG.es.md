@@ -13,6 +13,26 @@ política está desarrollada en
 
 ### Añadido
 
+- **Un consumidor, y la puerta que faltaba.** `consumer/` es un paquete que usa
+  las cinco librerías por su API pública y por nada más: cinco módulos, ningún
+  import relativo, así que no hay fichero alcanzable que un consumidor de
+  verdad no pueda alcanzar. Es un ejecutable y no una prueba, porque eso es lo que
+  compila alguien de fuera. `zig build run` en ese directorio es la comprobación.
+
+  No puede ser dependencia del paquete raíz: ya depende de las librerías, así que
+  si la raíz dependiera de él habría un ciclo. Por eso la laguna que expone sobre
+  el cableado *propio* de la raíz se cierra aparte, con
+  `tests/published_api.zig`, que importa los cinco módulos por los nombres con que
+  se publican, sin cableado propio, y corre en cada `zig build test`.
+
+  La categoría es nueva y es mayor que las que este repositorio ha estado
+  quitando. Las otras eran código sin probar, pruebas que no miraban, puertas que
+  no miraban, números medidos contra la base equivocada. Esta es que **la API
+  pública no se había ejercitado nunca desde fuera**, y en los siete casos de abajo
+  la diferencia fue un `pub`, una firma, o una copia del cableado que nadie
+  compiló. Una suite de 254 pruebas dentro de los módulos no puede ver nada de eso.
+
+
 - **`Channel.reset(etiqueta)`**, que devuelve un canal al estado en que lo dejó
   `init`. Un canal tiene estado, así que un prover y un verificador que compartan
   uno muestrean retos distintos y el verificador devuelve `false` sin error en
@@ -167,6 +187,57 @@ política está desarrollada en
   dejaba `claimed_fib` como `...` en vez del último valor de la columna 0.
   Corregido en los dos idiomas, y la versión corregida es la que ejecuta
   `consumer/src/main.zig`, así que el ejemplo se ejecuta en vez de describirse.
+
+### Medido
+
+- **Número de rondas del sum-check, sobre dos pares de campos y dos valores de
+  `k`.** Objeto: `proof.sumcheck.rounds.len` de una prueba que escribió el prover de
+  este repositorio, leído de la prueba y no contado desde un bucle, para que un
+  prover que mintiera sobre su cuenta de rondas fuera cazado. Campos:
+  `Gf256/Gf256` y `Gf16/Gf2_128`, mediante `BiniusStark.prove` sobre el sumador de
+  cuatro bits en el pin `zig-algebra 0.5.2`. Valores de `k`: 3 y 6. Resultado: las
+  rondas igualan `k` en los cuatro casos y **no dependen del campo**, porque `k` lo
+  proporciona quien llama. Así que no hay un único `k` que citar, y el campo de
+  extensión es la restricción que ata y no el número de rondas: una sola ronda
+  sobre ocho bits ya cuesta 2^-8, y ninguna elección de `k` lo convierte en 2^-128.
+  Instrumento: un diagnóstico temporal, ya retirado, y por eso
+  `tests/published_api.zig` afirma ahora la cuenta de rondas en vez de dejar la
+  cifra sin testigo.
+
+- **Coste de una extensión de 128 bits frente a una de ocho.** Objeto: el paso
+  `zig-stark-fuzz-tests`, mismo conjunto de gadgets y mismo número de rondas en los
+  dos campos, y sólo cambia el par de campos; medido como el tiempo por paso que
+  imprime `zig build test --summary all`, en dos recuentos de rondas para que un
+  desplazamiento constante se notaría. Resultado: 20 rondas 4 s contra 20 s, y 60
+  rondas 12 s contra 60 s. **5,0x en los dos**, así que el coste es lineal en las
+  rondas y no un desplazamiento. Compilación de depuración, así que la razón es una
+  aproximación y no la cifra de producción.
+
+### No se atiende aquí
+
+- **`Schnorr.fromBytes` toma `[32]u8` y devuelve unión de error, que no casa con
+  ningún campo de este árbol**, así que el Schnorr genérico necesita un
+  envoltorio para correr sobre una curva real. Y peor, y aparte: `challenge` se
+  traga un fallo de descodificación con `catch Scalar.zero()`, convirtiendo un
+  resumen no canónico -- un ataque real, y la razón de que el pin devuelva unión
+  de error -- en el escalar cero. Una firma con escalar cero es una firma inválida
+  que el verificador rechaza, o una firma válida de nada. Es un `catch` que silencia
+  un error de seguridad, y no va en el mismo commit que los otros cuatro, así que
+  queda en pie y anotado aquí.
+
+- **Los constructores de conveniencia de Binius cablean todos
+  `CommittedMlePcsUnsafe`**, la variante que salta la comprobación de 128 bits, así
+  que la entrada segura es opcional y el camino de menor resistencia no es sound.
+  Se implementó y se revirtió el giro de las seis: sólo guarda la capa del PCS,
+  porque `StarkInner` y `BiniusArgWith` llevan `SumcheckUnsafe(E)` fijo, y pedir
+  ocho bits por el PCS comprobado hace que `error.FieldTooSmall` salga de dentro de
+  `proveImpl`, cuyo `errdefer` en `binius/stark.zig:407` libera `lifted_cols[j]` de
+  un array sin inicializar y aborta con excepción de protección general en vez de
+  propagar. Convertir un bypass silencioso en un fallo de memoria es peor que el
+  estado al que sustituye. Hacen falta las dos capas, y el `errdefer` arreglado por
+  su cuenta.
+
+261 pruebas en 30 pasos, 32 pasos en total, seis de ellas las de la API publicada.
 
 ## [0.5.1] - 2026-09-29
 

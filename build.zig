@@ -139,6 +139,31 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_docs_check.step);
     test_step.dependOn(&run_contract_check.step);
 
+    // The published modules, imported by name. Every other test in the tree
+    // builds its module with its own copy of the wiring, which is how the
+    // root's `zig-stark` module went on missing `zig-parallel` while 255 tests
+    // passed: the module an external user receives had never been compiled by
+    // anyone. This one imports the five the way a caller does, with no wiring
+    // of its own beyond the names.
+    {
+        const api_mod = b.createModule(.{
+            .root_source_file = b.path("tests/published_api.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        api_mod.addImport("zig-commitment", commitment_mod);
+        api_mod.addImport("zig-signature", signature_mod);
+        api_mod.addImport("zig-snark", snark_mod);
+        api_mod.addImport("zig-stark", stark_mod);
+        api_mod.addImport("zig-transcript", transcript_mod);
+        api_mod.addImport("zig-algebra-traits", traits);
+        const api_tests = b.addTest(.{
+            .name = "zig-zk-published-api-tests",
+            .root_module = api_mod,
+        });
+        test_step.dependOn(&b.addRunArtifact(api_tests).step);
+    }
+
     // The gate is the conformance check, so the gate's own scanner gets tested.
     // Test blocks in a file that is only ever built as an executable never run,
     // which is the same mistake this gate exists to make visible.
