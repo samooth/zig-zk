@@ -53,6 +53,145 @@ const anglicisms = [_][]const u8{
 };
 
 const max_detail = 224;
+/// Rule 5: the changelogs' version sections must be strictly descending, never
+/// repeated, and never empty.
+///
+/// A duplicated heading and a heading with an empty body both read as sections
+/// to a scanner and as nothing at all to a reader. This batch shipped both in
+/// 0.6.0 and every existing rule passed: pairing, banner, language and
+/// punctuation do not look at structure, and a section with no prose is not a
+/// pairing failure or a CJK failure. Found by reading the file.
+fn checkChangelogSections(
+    alloc: std.mem.Allocator,
+    text: []const u8,
+    out: *std.ArrayList(Problem),
+) !void {
+    var it = std.mem.splitScalar(u8, text, '\n');
+    var seen: [64][]const u8 = undefined;
+    var count: usize = 0;
+    var prev: ?[]const u8 = null;
+
+    while (it.next()) |line| {
+        if (!std.mem.startsWith(u8, line, "## [")) continue;
+        const close = std.mem.indexOfScalar(u8, line, ']') orelse {
+            try report(alloc, out, "changelog heading without a closing bracket: {s}", .{line});
+            continue;
+        };
+        // line[4..close], not [3..): index 3 is the opening bracket, and a
+        // label that starts with "[" is not a digit and not a heading, so the
+        // rule would skip every version and pass vacuously. The mutation that
+        // caught it was a duplicated section in this changelog.
+        const label = line[4..close];
+        if (!isVersionLabel(label)) {
+            try report(alloc, out, "changelog section is neither a version nor a heading: {s}", .{label});
+            continue;
+        }
+        if (!isReleaseLabel(label)) continue; // Unreleased and friends carry no order
+
+        var duplicate = false;
+        for (seen[0..count]) |old| {
+            if (std.mem.eql(u8, old, label)) {
+                try report(alloc, out, "changelog section [{s}] appears more than once", .{label});
+                duplicate = true;
+            }
+        }
+        if (duplicate) continue; // reporting it as out of order too is just noise
+        if (count == seen.len) return error.TooManyChangelogSections;
+        seen[count] = label;
+        count += 1;
+
+        if (prev) |p| {
+            if (compareVersions(label, p) >= 0) {
+                try report(alloc, out, "changelog sections out of order: [{s}] follows [{s}]", .{ label, p });
+            }
+        }
+        prev = label;
+    }
+}
+
+/// A version heading whose body is only whitespace. This is the shape a
+/// duplicated heading leaves behind when the duplicate lands above the original:
+/// it reads as a section to a scanner and as nothing at all to a reader.
+fn checkSectionBodies(text: []const u8, alloc: std.mem.Allocator, out: *std.ArrayList(Problem)) !void {
+    var it = std.mem.splitScalar(u8, text, '\n');
+    var body_start: ?usize = null;
+    var label: []const u8 = "";
+    var byte: usize = 0;
+
+    while (it.next()) |line| {
+        const at = byte;
+        byte += line.len + 1;
+        if (!std.mem.startsWith(u8, line, "## [")) continue;
+
+        if (body_start) |start| {
+            if (isReleaseLabel(label) and isBlank(text[start..at])) {
+                try report(alloc, out, "changelog section [{s}] has an empty body", .{label});
+            }
+        }
+        body_start = byte;
+        label = sectionLabel(line);
+    }
+    // The last section is checked too: a truncated changelog ends there.
+    if (body_start) |start| {
+        if (isReleaseLabel(label) and isBlank(text[start..])) {
+            try report(alloc, out, "changelog section [{s}] has an empty body", .{label});
+        }
+    }
+}
+
+fn sectionLabel(line: []const u8) []const u8 {
+    if (line.len < 4) return "";
+    const close = std.mem.indexOfScalar(u8, line, ']') orelse return "";
+    return line[4..close];
+}
+
+fn isBlank(text: []const u8) bool {
+    for (text) |c| {
+        if (!std.ascii.isWhitespace(c)) return false;
+    }
+    return true;
+}
+
+fn report(
+    alloc: std.mem.Allocator,
+    out: *std.ArrayList(Problem),
+    comptime fmt: []const u8,
+    args: anytype,
+) !void {
+    var problem: Problem = .{};
+    problem.setDetail(fmt, args);
+    try out.append(alloc, problem);
+}
+
+/// `[0.6.0]`, `[Unreleased]`, `[0.5.1]`. A trailing `- date` is not part of the
+/// label: the check is on the heading line before the space.
+fn isVersionLabel(label: []const u8) bool {
+    if (label.len == 0) return false;
+    if (!std.ascii.isDigit(label[0])) return true; // Unreleased, Sin publicar, ...
+    for (label) |c| {
+        if (!std.ascii.isDigit(c) and c != '.') return false;
+    }
+    return std.mem.indexOfScalar(u8, label, '.') != null;
+}
+
+fn isReleaseLabel(label: []const u8) bool {
+    return std.ascii.isDigit(label[0]);
+}
+
+/// Descending by numeric component, so 0.10.0 sorts above 0.9.0 -- which is
+/// the opposite of what a string comparison would say, since "1" < "9".
+fn compareVersions(a: []const u8, b: []const u8) i32 {
+    var ia = std.mem.splitScalar(u8, a, '.');
+    var ib = std.mem.splitScalar(u8, b, '.');
+    while (true) {
+        const x = ia.next() orelse return if (ib.next() == null) 0 else 1;
+        const y = ib.next() orelse return -1;
+        const nx = std.fmt.parseInt(i64, x, 10) catch return 1;
+        const ny = std.fmt.parseInt(i64, y, 10) catch return -1;
+        if (nx != ny) return if (nx > ny) 1 else -1;
+    }
+}
+
 /// Every file under `root`, recursively, as paths relative to it and always
 /// separated by `/`.
 ///
@@ -325,6 +464,19 @@ pub fn main(init: std.process.Init) !u8 {
             try problems.append(alloc, problem);
         }
 
+        // Rule 5, on the changelogs only: it is about sections, and no other
+        // document in this tree is sectioned by version.
+        if (std.mem.startsWith(u8, base, "CHANGELOG")) {
+            var struct_problems: std.ArrayList(Problem) = .empty;
+            defer struct_problems.deinit(alloc);
+            try checkChangelogSections(alloc, text, &struct_problems);
+            try checkSectionBodies(text, alloc, &struct_problems);
+            for (struct_problems.items) |*sp| {
+                sp.setPath(pair_path);
+                try problems.append(alloc, sp.*);
+            }
+        }
+
         const is_es = std.mem.endsWith(u8, base, ".es.md");
         const foreign = if (is_es) english_stop[0..] else spanish_stop[0..];
 
@@ -430,4 +582,80 @@ test "a CJK sequence in the prose is a failure and one in a code fence is not" {
     defer out2.deinit(alloc);
     _ = try stripCode(alloc, bare, &out2);
     try std.testing.expect(firstCjk(out2.items) != null);
+}
+
+test "the changelog rule catches a repeated section" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var out: std.ArrayList(Problem) = .empty;
+    defer out.deinit(arena.allocator());
+
+    try checkChangelogSections(
+        arena.allocator(),
+        "## [0.5.1] - 2026-01-01\n\nbody\n\n## [0.5.1] - 2026-01-01\n\nbody\n",
+        &out,
+    );
+    try std.testing.expectEqual(@as(usize, 1), out.items.len);
+    try std.testing.expect(std.mem.indexOf(u8, out.items[0].detailSlice(), "more than once") != null);
+}
+
+test "the changelog rule catches sections out of order" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var out: std.ArrayList(Problem) = .empty;
+    defer out.deinit(arena.allocator());
+
+    try checkChangelogSections(
+        arena.allocator(),
+        "## [0.4.0] - 2026-01-01\n\nbody\n\n## [0.5.1] - 2026-01-02\n\nbody\n",
+        &out,
+    );
+    try std.testing.expectEqual(@as(usize, 1), out.items.len);
+    try std.testing.expect(std.mem.indexOf(u8, out.items[0].detailSlice(), "out of order") != null);
+}
+
+test "the changelog rule accepts descending order and ignores non-release headings" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var out: std.ArrayList(Problem) = .empty;
+    defer out.deinit(arena.allocator());
+
+    try checkChangelogSections(
+        arena.allocator(),
+        "## [Unreleased]\n\nbody\n\n## [0.6.0] - 2026-09-30\n\nbody\n\n## [0.5.1] - 2026-09-29\n\nbody\n",
+        &out,
+    );
+    try std.testing.expectEqual(@as(usize, 0), out.items.len);
+}
+
+test "version comparison is numeric, not lexicographic" {
+    // 0.10.0 is the newer release; a string compare would call it the older one.
+    try std.testing.expect(compareVersions("0.10.0", "0.9.0") > 0);
+    try std.testing.expect(compareVersions("0.9.0", "0.10.0") < 0);
+    try std.testing.expectEqual(@as(i32, 0), compareVersions("0.6.0", "0.6.0"));
+}
+
+test "the changelog rule catches a version section with an empty body" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var out: std.ArrayList(Problem) = .empty;
+    defer out.deinit(arena.allocator());
+
+    try checkSectionBodies(
+        "## [0.5.1] - 2026-09-29\n\n## [0.5.1] - 2026-09-29\n\n252 tests\n",
+        arena.allocator(),
+        &out,
+    );
+    try std.testing.expectEqual(@as(usize, 1), out.items.len);
+    try std.testing.expect(std.mem.indexOf(u8, out.items[0].detailSlice(), "empty body") != null);
+}
+
+test "a non-release heading is allowed to be empty" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var out: std.ArrayList(Problem) = .empty;
+    defer out.deinit(arena.allocator());
+
+    try checkSectionBodies("## [Unreleased]\n\n", arena.allocator(), &out);
+    try std.testing.expectEqual(@as(usize, 0), out.items.len);
 }

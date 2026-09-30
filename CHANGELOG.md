@@ -12,7 +12,7 @@ policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning)
 
 A minor, and the reason is in the first entry below: `shamir.split` changes
 signature, and the commitment library is not something you can upgrade around.
-261 tests in 32 steps, up from 252 in 30.
+267 tests in 32 steps, up from 252 in 30.
 
 ### Changed (BREAKING)
 
@@ -254,7 +254,7 @@ signature, and the commitment library is not something you can upgrade around.
   propagating. Turning a silent bypass into a memory fault is worse than the
   state it replaces. It needs both layers, and the `errdefer` fixed on its own.
 
-261 tests in 32 steps, six of them the published-API suite: new here, and run on every
+267 tests in 32 steps, six of them the published-API suite: new here, and run on every
 `zig build test` rather than on demand.
 
 ## [0.5.1] - 2026-09-29

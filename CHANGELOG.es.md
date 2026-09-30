@@ -13,7 +13,7 @@ política está desarrollada en
 
 Un minor, y el motivo está en la primera entrada de abajo: `shamir.split` cambia
 de firma, y una librería de compromiso no es algo de lo que se pueda pasar por
-alto. 261 pruebas en 32 pasos, frente a 252 en 30.
+alto. 267 pruebas en 32 pasos, frente a 252 en 30.
 
 ### Changed (BREAKING)
 
