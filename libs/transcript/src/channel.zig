@@ -31,6 +31,19 @@ pub const Channel = struct {
         return .{ .hasher = h };
     }
 
+    /// Return the channel to the state it had right after `init`, discarding
+    /// everything absorbed since.
+    ///
+    /// A channel is stateful, so a prover and a verifier that share one
+    /// instance sample different challenges and the verifier returns false with
+    /// no error anywhere. That failure has no message: it looks like a wrong
+    /// proof rather than a wrong channel. Two channels with one label is the
+    /// correct way, and this exists so that the wrong way is recoverable
+    /// instead of mysterious.
+    pub fn reset(self: *Channel, domain_separator: []const u8) void {
+        self.* = Channel.init(domain_separator);
+    }
+
     /// Absorb raw bytes.
     pub fn absorbBytes(self: *Channel, data: []const u8) void {
         self.hasher.update(data);

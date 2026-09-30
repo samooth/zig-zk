@@ -81,26 +81,41 @@ tiene contraparte aguas arriba.
 
 ## Primeros pasos
 
+Este ejemplo se ejecuta, no se describe: `consumer/src/main.zig` en este
+repositorio lo compila contra la API pública y lo ejecuta como parte de
+`zig build test`.
+
 ```zig
 const zs = @import("zig-stark");
-const m31 = zs.m31.stark;
+const m31 = zs.stark; // el STARK sobre M31. `zs.m31` es el campo, no esto.
 
-// El AIR es un tipo; el prover es genérico sobre él
 const Stark = m31.GenericStark(m31.FibAir);
-
 const params = m31.StarkParams{ .trace_log = 8 };
-var channel = zs.channel.Channel.init("mi-prueba");
 
 // Lado del prover: construir una traza válida para el circuito
 const traza = try m31.FibAir.generateTrace(allocator, params.traceLen());
 defer m31.FibAir.freeTrace(allocator, traza);
 
-const prueba = try Stark.prove(allocator, params, .{ .claimed_fib = ... }, traza, &channel);
+// `claimed_fib` es el último valor de la columna 0, no cualquier número: es la
+// afirmación que se demuestra.
+const reclamado = traza[0][params.traceLen() - 1];
+
+// Un canal por lado, una etiqueta compartida. Un canal tiene estado, así que
+// pasarle el mismo a `prove` y luego a `verify` hace que el verificador
+// amostra un reto distinto y devuelva false, sin ningún error, que es la peor
+// forma que puede tener un fallo en un ejemplo.
+var canal_del_prover = zs.channel.Channel.init("mi-prueba");
+var prueba = try Stark.prove(allocator, params, .{ .claimed_fib = reclamado }, traza, &canal_del_prover);
 defer prueba.deinit();
 
 // Lado del verificador: sin traza, solo la prueba y las entradas públicas
-const ok = try Stark.verify(allocator, params, .{ .claimed_fib = ... }, &prueba, &channel);
+var canal_del_verificador = zs.channel.Channel.init("mi-prueba");
+const ok = try Stark.verify(allocator, params, .{ .claimed_fib = reclamado }, &prueba, &canal_del_verificador);
 ```
+
+Si aun así acabas con un solo canal en los dos lados, `Channel.reset(etiqueta)`
+lo devuelve al estado en que lo dejó `init` y la verificación tiene éxito; existe
+para eso y para nada más.
 
 `traza` es una lista de `num_columns` fragmentos de columna, cada uno de longitud
 `traceLen()`.

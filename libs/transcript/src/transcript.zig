@@ -43,6 +43,19 @@ const Blake3 = @import("zig-hash").Blake3;
 /// const c1 = t.squeezeField(F);
 /// const c2 = t.squeezeField(F); // different from c1
 /// ```
+/// What `squeezeField` needs from a field: the ring, plus a modulus to bound the
+/// draw. Checking it here rather than relying on `assertField` means the
+/// failure names the missing declaration instead of pointing at the line after.
+fn requireSqueezable(comptime F: type) void {
+    traits.assertField(F);
+    if (!@hasDecl(F, "MODULUS")) {
+        @compileError("squeezeField needs a field with a MODULUS: " ++ @typeName(F));
+    }
+    if (!@hasDecl(F, "fromInt")) {
+        @compileError("squeezeField needs a field with fromInt: " ++ @typeName(F));
+    }
+}
+
 pub const Transcript = struct {
     const Self = @This();
 
@@ -81,6 +94,9 @@ pub const Transcript = struct {
     /// The element is serialized as a 32-byte little-endian integer.
     pub fn absorbField(self: *Self, comptime F: type, field: F) void {
         traits.assertField(F);
+        if (!@hasDecl(F, "toInt")) {
+            @compileError("absorbField needs a field with toInt: " ++ @typeName(F));
+        }
         const val = field.toInt();
         var bytes: [32]u8 = undefined;
         std.mem.writeInt(u256, &bytes, val, .little);
@@ -119,19 +135,31 @@ pub const Transcript = struct {
     /// const c = t.squeezeField(F7); // c in [0, 7)
     /// ```
     pub fn squeezeField(self: *Self, comptime F: type) F {
-        traits.assertField(F);
-        const order = F.order;
-        const byte_len = (std.math.log2(order) + 8) / 8;
+        requireSqueezable(F);
+        // The width comes from the modulus, which every field in this
+        // repository and in the pin carries. It used to read `F.order`, which
+        // exists in no field at all, so this function only ever compiled against
+        // a test-local scalar -- and it failed one line *after* the guard that
+        // was supposed to have caught it, because the field trait asserts
+        // `inv`, `div`, `pow` and `isZero` and not `order`. A gate that accepts
+        // what it cannot support is the inverse of the ones worth catching.
+        // The modulus arrives in whatever width the field declares it: `u32`
+        // for M31, `u64` for the pin's small fields, `u512` for the large ones.
+        // Widening once here beats making the caller agree on a width.
+        const order: u512 = @as(u512, F.MODULUS);
+        const byte_len: usize = @intCast((std.math.log2(order) + 8) / 8);
         var buf: [64]u8 = undefined;
 
         while (true) {
             self.squeeze(buf[0..byte_len]);
-            var val: u256 = 0;
+            var val: u512 = 0;
             for (0..byte_len) |i| {
                 val = (val << 8) | buf[i];
             }
+            // Rejection, not reduction: folding would make the values at the
+            // top of the range more likely than the rest.
             if (val < order) {
-                return F.fromInt(val);
+                return F.fromInt(@intCast(val));
             }
         }
     }

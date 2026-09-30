@@ -79,28 +79,43 @@ carries a GPU accelerator hook that has no counterpart upstream.
 
 ## Quick Start
 
+This example is executed, not described: `consumer/src/main.zig` in this
+repository builds it against the public API and runs it as part of
+`zig build test`.
+
 ```zig
 const zs = @import("zig-stark");
-const m31 = zs.m31.stark;
+const m31 = zs.stark; // the M31 STARK. `zs.m31` is the field, not this.
 
-// The AIR is a type; the prover is generic over it
 const Stark = m31.GenericStark(m31.FibAir);
-
 const params = m31.StarkParams{ .trace_log = 8 };
-var channel = zs.channel.Channel.init("mi-prueba");
 
 // Prover side: build a valid trace for the circuit
 const trace = try m31.FibAir.generateTrace(allocator, params.traceLen());
 defer m31.FibAir.freeTrace(allocator, trace);
 
-const proof = try Stark.prove(allocator, params, .{ .claimed_fib = ... }, trace, &channel);
+// `claimed_fib` is the last value of column 0, not any number you like: it is
+// the claim being proved.
+const claimed = trace[0][params.traceLen() - 1];
+
+// One channel per side, one label shared between them. A channel is stateful,
+// so handing the same one to `prove` and then to `verify` makes the verifier
+// sample a different challenge and return false -- with no error, which is the
+// worst shape a failure can have in an example.
+var prover_channel = zs.channel.Channel.init("mi-prueba");
+var proof = try Stark.prove(allocator, params, .{ .claimed_fib = claimed }, trace, &prover_channel);
 defer proof.deinit();
 
 // Verifier side: no trace, only the proof and the public inputs
-const ok = try Stark.verify(allocator, params, .{ .claimed_fib = ... }, &proof, &channel);
+var verifier_channel = zs.channel.Channel.init("mi-prueba");
+const ok = try Stark.verify(allocator, params, .{ .claimed_fib = claimed }, &proof, &verifier_channel);
 ```
 
 `trace` is a list of `num_columns` column slices, each of length `traceLen()`.
+
+If you do end up with one channel on both sides, `Channel.reset(label)` puts it
+back where `init` left it and the verification succeeds; it exists for that, and
+for nothing else.
 
 ## The AIR contract
 

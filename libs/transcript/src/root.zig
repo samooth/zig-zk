@@ -35,9 +35,8 @@ pub const Channel = channel.Channel;
 const F7 = struct {
     const Self = @This();
     value: u64,
-    pub const modulus: u64 = 7;
+    pub const MODULUS: u64 = 7;
     pub const characteristic: u64 = 7;
-    pub const order: u64 = 7;
 
     pub fn zero() Self {
         return .{ .value = 0 };
@@ -46,7 +45,7 @@ const F7 = struct {
         return .{ .value = 1 };
     }
     pub fn fromInt(x: u256) Self {
-        return .{ .value = @intCast(x % modulus) };
+        return .{ .value = @intCast(x % MODULUS) };
     }
     pub fn toInt(self: Self) u256 {
         return self.value;
@@ -58,17 +57,17 @@ const F7 = struct {
         return fromInt(a.value + b.value);
     }
     pub fn sub(a: Self, b: Self) Self {
-        return fromInt(a.value + (modulus - b.value % modulus));
+        return fromInt(a.value + (MODULUS - b.value % MODULUS));
     }
     pub fn neg(a: Self) Self {
-        return if (a.value == 0) zero() else fromInt(modulus - a.value);
+        return if (a.value == 0) zero() else fromInt(MODULUS - a.value);
     }
     pub fn mul(a: Self, b: Self) Self {
         return fromInt(a.value * b.value);
     }
     pub fn inv(a: Self) Self {
         std.debug.assert(!a.isZero());
-        return pow(a, modulus - 2);
+        return pow(a, MODULUS - 2);
     }
     pub const inverse = inv;
     pub fn div(a: Self, b: Self) Self {

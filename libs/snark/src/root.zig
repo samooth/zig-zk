@@ -110,14 +110,22 @@ pub fn Groth16(
 
         /// Constraint matrices, row-major: `a[g][w]` is the coefficient of
         /// wire `w` in constraint `g`.
-        const Circuit = struct {
+        /// The rank-1 system, as three row-major matrices: constraint  is
+        /// `a[i] . z * b[i] . z == c[i] . z`. Public because a caller cannot build
+        /// one otherwise, and a reference prover nobody outside can call is not a
+        /// prover.
+        pub const Circuit = struct {
             a: [n_constraints][n_wires]Fr,
             b: [n_constraints][n_wires]Fr,
             c: [n_constraints][n_wires]Fr,
         };
 
         /// Toxic waste of the trusted setup. Never reused across circuits.
-        const Setup = struct {
+        /// The trapdoor values a ceremony produces. Public because `setup` and
+        /// `prove` take one, and a caller who cannot name the type cannot call
+        /// either. `isValid` is what rejects a setup that would make proofs
+        /// forgeable.
+        pub const Setup = struct {
             tau: Fr,
             alpha: Fr,
             beta: Fr,

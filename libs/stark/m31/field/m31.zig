@@ -56,6 +56,34 @@ pub const M31 = struct {
         return .{ .value = MODULUS - self.value };
     }
 
+    /// `self / other`. The pin's field trait requires `div` and M31 did not
+    /// have it, so `M31` was the one field in the tree that could not be passed
+    /// to anything asserting `FieldTrait` -- which includes
+    /// `Transcript.squeezeField`. Adding the operation is what makes the type
+    /// meet the contract it was always assumed to meet.
+    pub fn div(self: M31, other: M31) M31 {
+        return self.mul(other.inv());
+    }
+
+    /// The group trait spells it `inverse`; both names are declared so either
+    /// trait accepts M31.
+    pub fn inverse(self: M31) M31 {
+        return self.inv();
+    }
+
+    /// The pin's `FieldTrait` requires `isZero` and M31 did not declare it, so
+    /// M31 was the only field in the tree that could not be handed to anything
+    /// asserting the field trait -- `Transcript.squeezeField` among them.
+    pub fn isZero(self: M31) bool {
+        return self.value == 0;
+    }
+
+    /// The group trait spells equality `eql` rather than `eq`, and
+    /// `FieldTrait` sits on top of it, so a type with only `eq` fails both.
+    pub fn eql(a: M31, b: M31) bool {
+        return a.eq(b);
+    }
+
     pub fn inv(self: M31) M31 {
         std.debug.assert(self.value != 0);
         return self.pow(MODULUS - 2);
@@ -111,6 +139,30 @@ pub const M31 = struct {
     pub fn fromBytes(bytes: [SIZE]u8) M31 {
         const raw = std.mem.readInt(u32, bytes[0..4], .little);
         return M31.fromInt(raw);
+    }
+
+    /// The representative in `[0, MODULUS)`. The prime-field trait in the pin
+    /// documents `toInt(a: T) u64` as part of the contract, and two consumers
+    /// here reach for it -- `Transcript.absorbField` among them -- so M31 was
+    /// the one field in the tree that could not be absorbed into a transcript.
+    pub fn toInt(self: M31) u64 {
+        return self.value;
+    }
+
+    /// Uniformly random element, by rejection rather than by reduction.
+    ///
+    /// Reducing a 32-bit draw modulo 2^31 - 1 would map 2^31 - 1 and 2^31 to the
+    /// same element, so the two values at the top of the range would be twice
+    /// as likely as the rest. For a value a caller samples once the bias is
+    /// irrelevant; for one it samples inside a secret-sharing polynomial it is
+    /// not, which is why this rejects instead of folding.
+    pub fn random(rnd: std.Random) M31 {
+        while (true) {
+            var buf: [SIZE]u8 = undefined;
+            rnd.bytes(&buf);
+            const v = std.mem.readInt(u32, &buf, .little);
+            if (v < MODULUS) return M31.fromInt(v);
+        }
     }
 
     // SIMD operations: true vectorized arithmetic over @Vector(8, u32) lanes.
