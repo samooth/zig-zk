@@ -188,7 +188,8 @@ single byte and **could not fail**. No rejection, so no challenge of zero.
 
 The other instantiation, in `root.zig`, is secp256k1, whose scalar order sits just
 below `2^256`. A random 32-byte digest is below it almost always — the rejection
-probability is about `2^-224` — so that one is invisible to defect two as well.
+probability is `(2^256 - n) / 2^256 = 3.73e-39`, about `2^-127` — so that one is
+invisible to defect two as well.
 
 So between them, every instantiation in the repository sat where the defects
 could not show. The rule that follows, and which belongs next to the others in
@@ -201,6 +202,29 @@ never runs.
 `@hasDecl` became `@hasField`, and a point that can be hashed by neither route is
 now a `@compileError` rather than a group that quietly verifies signatures without
 the key in the hash.
+
+## The `catch` rule these two defects came out of
+
+Three `catch` expressions are left in this library, and the difference between the
+wrong one and the right one is not style, it is the kind of thing being computed.
+
+- **`catch Scalar.zero()` on a challenge.** The value feeds `s*G == R + e*P`.
+  Turning an error into a value puts `0` into arithmetic, and `0` there is the
+  forgery condition. Wrong.
+- **`catch return false` on `ed25519.verify`.** It is a predicate. `false` is the
+  answer whether the signature is invalid or the parse failed, so the catch
+  changes nothing an attacker can observe. Right.
+- **`catch { assert; unreachable; }` on the secp256k1 adapter's `scalarMul`.** It
+  never produces a value, so there is no wrong answer left in it. Right, and it
+  was `catch Secp256k1.identityElement` until this review: the identity is what
+  makes Schnorr degenerate, so a value-returning catch here is the same defect as
+  the first one.
+
+The test to apply is not "does the catch swallow an error" but **what does the
+result become.** If it becomes a value that later arithmetic reads, a catch that
+converts an error into that value is a defect. If it becomes a predicate's answer
+or produces no value at all, it is not. Same operation, two contexts, and the
+safety depends on the context.
 
 The challenge is reduced through `Scalar.fromInt` instead of parsed with
 `fromBytes`. `fromInt` reduces and has no error to swallow, so `catch` is gone

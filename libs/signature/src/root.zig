@@ -61,9 +61,20 @@ const CurvePoint = struct {
     ///   against `0xff` repeated 32 times, which is above the order: accepted.
     ///
     /// So the catch would not have fired even for a scalar the wrapper forbids.
-    /// It was dead code. It is an assert now so that if a new constructor ever
-    /// breaks the invariant, this fails loudly instead of carrying a branch that
-    /// looks like error handling and is not.
+    /// It was dead code. It is an assert plus `unreachable` now, and the shape
+    /// matters: the catch block never produces a value, so there is no wrong
+    /// answer left in it. That is the whole difference from the `catch
+    /// Scalar.zero()` in the challenge, which *did* produce a value and that
+    /// value was the forgery condition.
+    ///
+    /// In Debug and ReleaseSafe the assert says which invariant broke. In
+    /// ReleaseFast it compiles away and only `unreachable` remains, which is
+    /// undefined behaviour -- so this is "this cannot happen, and if it ever
+    /// does the program has no defined answer", not a graceful failure. The
+    /// alternative to `unreachable` is returning something, and every something
+    /// here is the degenerate value. That is why it is this and not a typed
+    /// error: an error here would mean a fallible signature on the adapter for a
+    /// case its own constructors forbid.
     pub fn scalarMul(a: @This(), s: CurveScalar) @This() {
         const m = a.inner.mul(s.inner.toBytes(.big), .big) catch {
             std.debug.assert(false and "CurveScalar holds a non-canonical scalar");
@@ -184,8 +195,8 @@ test "esta instanciacion no puede cazar el defecto del reto cero, y por que" {
     // was `fromBytes(digest) catch Scalar.zero()`: a 256-bit digest over a field
     // narrower than itself rejects, and the catch turned that into a challenge
     // of zero. secp256k1's order sits just below 2^256, so the rejection
-    // probability is about 2^-224 and the defect was invisible here no matter how
-    // many times the suite ran.
+    // probability is (2^256 - n) / 2^256 = 3.73e-39, about 2^-127, and the
+    // defect was invisible here no matter how many times the suite ran.
     //
     // So this fixture guards the axes above and cannot guard that one. The
     // BN254 fixture in schnorr.zig, at 254 bits, is the only thing standing

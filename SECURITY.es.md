@@ -192,7 +192,8 @@ solo byte y **no podía fallar**. Sin rechazo, nunca había reto cero.
 
 La otra instanciación, en `root.zig`, es secp256k1, cuyo orden escalar queda
 justo por debajo de `2^256`. Un resumen aleatorio de 32 bytes está por debajo
-casi siempre -- la probabilidad de rechazo es del orden de `2^-224` -- así que
+casi siempre -- la probabilidad de rechazo es `(2^256 - n) / 2^256 = 3,73e-39`,
+es decir del orden de `2^-127` -- así que
 tampoco es visible para el segundo defecto.
 
 Así que entre las dos, todas las instanciaciones del repositorio estaban donde
@@ -206,6 +207,30 @@ la aritmética real no llegue a ejecutarse nunca.
 `@hasDecl` pasó a ser `@hasField`, y un punto que no se puede hashear por ninguna
 de las dos vías es ahora un `@compileError` en vez de un grupo que verifica
 firmas en silencio sin la clave en el resumen.
+
+## La regla del `catch` de la que salieron estos dos defectos
+
+Quedan tres `catch` en esta librería, y la diferencia entre el que está mal y los
+que están bien no es de estilo, es de qué se está calculando.
+
+- **`catch Scalar.zero()` en el reto.** El valor entra en `s*G == R + e*P`. Convertir
+  un error en un valor mete un `0` en la aritmética, y ese `0` es la condición del
+  forgery. Mal.
+- **`catch return false` en `ed25519.verify`.** Es un predicado. `false` es la
+  respuesta tanto si la firma es inválida como si el análisis falla, así que el
+  `catch` no cambia nada que un atacante pueda observar. Bien.
+- **`catch { assert; unreachable; }` en el `scalarMul` del adaptador de secp256k1.**
+  Nunca produce un valor, así que no queda ninguna respuesta equivocada dentro. Bien,
+  y hasta esta revisión era `catch Secp256k1.identityElement`: la identidad es lo que
+  hace degenerar a Schnorr, así que un `catch` que devuelve un valor aquí es el
+  mismo defecto que el primero.
+
+La prueba que hay que aplicar no es "traga el `catch` un error" sino **en qué se
+convierte el resultado.** Si se convierte en un valor que luego lee la aritmética,
+un `catch` que convierte un error en ese valor es un defecto. Si se convierte en la
+respuesta de un predicado, o no produce ningún valor, no lo es. La misma operación,
+dos contextos, y la seguridad depende del contexto.
+
 
 El reto se reduce con `Scalar.fromInt` en vez de analizarse con `fromBytes`.
 `fromInt` reduce y no tiene error que tragarse, así que el `catch` desaparece y
