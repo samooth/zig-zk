@@ -17,6 +17,16 @@ archivo trata de cómo trabajar, no de lo que hace el código.
 - Mensajes en minúscula, estilo Conventional Commits. El cuerpo explica el
   porqué, no el qué.
 - Publica un ref por push: un push con varios refs no es atómico.
+- El pin de `zig-algebra` tiene una referencia versionada y dos comandos que la
+  gobiernan. `scripts/algebra-tags.txt` es la lista de tags publicados, `zig build
+  refresh-algebra-tags` la escribe desde la red, y `zig build check-pins-fresh` falla
+  si ya no coincide con lo de arriba. Ejecuta el refresco **en el mismo commit** que
+  cualquier subida de pin, y commitea el resultado. El primero es el procedimiento y
+  el segundo es la puerta, y la puerta es lo que hace que el procedimiento sea algo
+  más que una nota: sin ella, un tag cortado arriba y un refresco que nadie ejecutó
+  es un pin que se queda una versión atrás con todas las puertas en verde, que es la
+  forma que tuvo el PRNG muerto durante tres versiones firmadas.
+
 - Si reescribes historia publicada, dile a quien ya la clonó cómo volver a
   sincronizarse.
 

@@ -109,6 +109,39 @@ fn checkChangelogSections(
     }
 }
 
+/// How many level-2 sections a document declares, ignoring anything inside a
+/// fenced code block.
+///
+/// It compares the pair's section count and nothing else: a heading's text is
+/// translated, so "Features" and "Características" are the same section and
+/// comparing their names would fail on every document in the tree. The count is
+/// what can be compared without a translation dictionary, and it is the count
+/// that caught a real loss -- `libs/signature/README.es.md` lost its entire
+/// "Before you use this" section while this gate passed, because it verified that
+/// the pair existed and not that the two carried the same sections.
+///
+/// Pure, so both halves are testable: a fenced block that contains a `## ` must
+/// not be counted, or a document that quotes a README's heading structure would
+/// report sections it does not have.
+fn sectionCount(text: []const u8) usize {
+    var count: usize = 0;
+    var in_fence = false;
+    var it = std.mem.splitScalar(u8, text, '\n');
+    while (it.next()) |line| {
+        const t = std.mem.trim(u8, line, " \t\r");
+        if (in_fence) {
+            if (std.mem.startsWith(u8, t, "```")) in_fence = false;
+            continue;
+        }
+        if (std.mem.startsWith(u8, t, "```")) {
+            in_fence = true;
+            continue;
+        }
+        if (std.mem.startsWith(u8, t, "## ") and !std.mem.startsWith(u8, t, "### ")) count += 1;
+    }
+    return count;
+}
+
 /// A version heading whose body is only whitespace. This is the shape a
 /// duplicated heading leaves behind when the duplicate lands above the original:
 /// it reads as a section to a scanner and as nothing at all to a reader.
@@ -478,6 +511,26 @@ pub fn main(init: std.process.Init) !u8 {
         }
 
         const is_es = std.mem.endsWith(u8, base, ".es.md");
+
+        // Rule 6, on the pair, once. From the English file only, so a mismatch is
+        // one report rather than two, and so the message names the file that is
+        // short rather than the one that happened to be read first.
+        if (!is_es) {
+            if (cwd.readFileAlloc(io, pair_path, alloc, .limited(1 << 20))) |pair_text| {
+                defer alloc.free(pair_text);
+                const mine = sectionCount(text);
+                const theirs = sectionCount(pair_text);
+                if (mine != theirs) {
+                    var sp: Problem = .{};
+                    sp.setPath(pair_path);
+                    sp.setDetail("has {d} level-2 sections and {s} has {d}. A pair " ++
+                        "that exists is not a pair that says the same thing, and the " ++
+                        "section that went missing once went missing here: a script " ++
+                        "asserted halfway and never wrote the file", .{ theirs, base, mine });
+                    try problems.append(alloc, sp);
+                }
+            } else |_| {}
+        }
         const foreign = if (is_es) english_stop[0..] else spanish_stop[0..];
 
         // Reportable words: stopwords of the other language, plus, for Spanish
@@ -544,6 +597,25 @@ pub fn main(init: std.process.Init) !u8 {
     }
     std.debug.print("documentation check passed: {d} files, all paired, no language mixing\n", .{checked});
     return 0;
+}
+
+test "a pair must carry the same number of sections" {
+    // Two level-2 sections. `## Deep` is a level-3 and is not counted.
+    try std.testing.expectEqual(@as(usize, 2), sectionCount("# T\n\n## One\n\n## Two\n\n### Deep\n"));
+    // A heading inside a fence is documentation of a heading, not a section.
+    try std.testing.expectEqual(@as(usize, 1), sectionCount("# T\n\n## Real\n\n```\n## Faked\n```\n"));
+    // Titles differ between the languages, so only the count can be compared.
+    try std.testing.expectEqual(
+        sectionCount("# T\n\n## Features\n\n## API\n"),
+        sectionCount("# T\n\n## Caracter\u{00ed}sticas\n\n## API\n"),
+    );
+}
+
+test "section counting survives an unclosed fence by refusing to count inside it" {
+    // An unclosed fence means everything after it is code. Counting the rest would
+    // report sections the document does not have, which is the zero-read-as-fact
+    // shape one level down.
+    try std.testing.expectEqual(@as(usize, 1), sectionCount("## One\n\n```\n## Inside\n"));
 }
 
 test "the CJK detector catches the ranges and leaves the Latin punctuation alone" {

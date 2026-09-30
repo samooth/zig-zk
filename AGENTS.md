@@ -17,6 +17,16 @@ how to work, not about what the code does.
 - Lowercase messages, Conventional Commits style. The body explains why, not
   what.
 - Publish one ref per push: a push with several refs is not atomic.
+- The `zig-algebra` pin has a committed reference and two commands that own it.
+  `scripts/algebra-tags.txt` is the list of published tags, `zig build
+  refresh-algebra-tags` writes it from the network, and `zig build
+  check-pins-fresh` fails if it no longer matches upstream. Run the refresh **in the
+  same commit** as any pin bump, and commit the result. The first is the procedure
+  and the second is the gate, and the gate is what makes the procedure something
+  other than a note: without it, a tag cut upstream and a refresh nobody ran is a
+  pin that stays a release behind with every gate green, which is the shape the
+  dead PRNG had across three signed releases.
+
 - If you rewrite published history, tell whoever already cloned it how to get
   back in sync.
 

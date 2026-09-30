@@ -22,7 +22,7 @@ Nada de esto está hecho. La casilla está para marcarse, no para decorar.
 | Propagar `allow_small_field` | precondición satisfecha |
 | El número de rondas | medido, falta decidir |
 | La raíz duplica el cableado de cada librería | a medias |
-| Higiene del pin | a medias |
+| Higiene del pin | hecho |
 | `core/hash` y `core/merkle` | sin empezar |
 | Ramas locales | a medias |
 | `libs/fri` en `zig-zkml` | precondición satisfecha |
@@ -173,25 +173,24 @@ Nada de esto está hecho. La casilla está para marcarse, no para decorar.
   **Hecho:** que `build.zig` nombre las cinco librerías y ningún módulo, para que
   haya un solo sitio donde se pueda añadir un módulo.
 
-- [ ] **Higiene del pin** · *a medias*
+- [x] **Higiene del pin** · *hecho*
 
-  Nada comprueba que `build.zig.zon` coincida con los tags publicados de
-  `zig-algebra`.
+  `scripts/algebra-tags.txt` es la lista versionada de tags publicados, que escribe
+  `zig build refresh-algebra-tags` y que `zig build check-pins-fresh` compara contra
+  lo de arriba. La Regla 6 de `check-contract` falla cuando el pin nombra una
+  release que nadie publicó, o cuando va más de una versión por detrás de la más
+  nueva.
 
-  El mismo fallo ya ocurrió una vez. Medido por etiqueta, el PRNG muerto está en
-  cuatro tags — `v0.5.0`, `v0.5.1`, `v0.5.2`, `v0.5.3` — de los cuales tres se
-  publicaron y firmaron, y la corrección es posterior a los cuatro. Los otros dos
-  repositorios se enteraron sólo cuando alguien subió el pin. Lo sostuvo que
-  `zig-rng` estuviera cableado en cuatro `build.zig` con cero imports fuera de
-  `libs/rng`, que es justo lo que hoy falla con la Regla 5.
+  Dos detalles que no eran evidentes. "Una versión por detrás" es una **posición en
+  la lista**, no una resta: `zig-algebra` no publicó ningún `v0.4.x` ni `v0.5.0`, así
+  que `0.6.0 - 0.5.3` son siete versiones por aritmética de menor y parche y una por
+  publicación, y una comparación de números fallaría en un repositorio sano. Y los
+  dos pasos con red **no** son dependencias de `zig build test` a propósito, así que
+  la puerta que corre sin red y la que comprueba la referencia son pasos distintos.
 
-  La mitad ya existe: la Regla 5 cierra la forma que lo sostuvo. La mitad que no
-  existe es la lista de tags contra la que comparar.
-
-  **Hecho:** una puerta que falle cuando un pin vaya más de una versión por detrás.
-  Necesita una fuente de verdad para los tags publicados, que todavía no existe, y
-  eso es lo que tiene que venir primero: un umbral sin lista de tags con la que
-  comparar no es una puerta. Calibrar contra cuatro tags, no tres.
+  El fallo para el que existía esto: el PRNG muerto estuvo en cuatro tags de
+  `zig-algebra`, tres publicados y firmados, y dos repositorios se enteraron sólo
+  cuando alguien subió el pin.
 
 ---
 

@@ -134,6 +134,50 @@ pub fn build(b: *std.Build) void {
     const contract_step = b.step("check-contract", "Verify the declared contract with zig-algebra");
     contract_step.dependOn(&run_contract_check.step);
 
+    // Two steps that need the network, and both are deliberately not in the
+    // `test` step's dependency graph.
+    //
+    // The pin rule in check-contract reads scripts/algebra-tags.txt, which is a
+    // committed file, so `zig build test` is hermetic and gives the same answer
+    // in CI as on a laptop. The cost of that choice is that the file can go
+    // stale, and a stale reference is a gate that passes. These two steps are
+    // the fix, and the split is the point:
+    //
+    //   refresh-algebra-tags  writes the file. A person runs it.
+    //   check-pins-fresh      reads the network and compares. CI runs it.
+    //
+    // If only the first existed, correctness would depend on somebody
+    // remembering. That is the shape of protocol without gate, and this
+    // repository has the scar: patch-dep in zkml worked and was documented, and
+    // broke in silence the day someone reordered the file.
+    const refresh_tags = b.addExecutable(.{
+        .name = "refresh-algebra-tags",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("scripts/refresh_algebra_tags.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    const run_refresh_tags = b.addRunArtifact(refresh_tags);
+    run_refresh_tags.setCwd(b.path("."));
+    if (b.args) |args| run_refresh_tags.addArgs(args);
+    const refresh_step = b.step("refresh-algebra-tags", "Rewrite scripts/algebra-tags.txt from the published tags. Needs the network.");
+    refresh_step.dependOn(&run_refresh_tags.step);
+
+    const fresh_check = b.addExecutable(.{
+        .name = "check-pins-fresh",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("scripts/check_pins_fresh.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    const run_fresh_check = b.addRunArtifact(fresh_check);
+    run_fresh_check.setCwd(b.path("."));
+    if (b.args) |args| run_fresh_check.addArgs(args);
+    const fresh_step = b.step("check-pins-fresh", "Fail if scripts/algebra-tags.txt differs from the published tags. Needs the network.");
+    fresh_step.dependOn(&run_fresh_check.step);
+
     // Test step that runs all library tests
     const test_step = b.step("test", "Run all tests");
     test_step.dependOn(&run_docs_check.step);
@@ -189,6 +233,30 @@ pub fn build(b: *std.Build) void {
         }),
     });
     test_step.dependOn(&b.addRunArtifact(contract_tests).step);
+
+    // The two tag-listing scripts. Their tests are pure functions over strings --
+    // url extraction, version ordering, duplicate dropping, comments-are-not-tags
+    // -- so they run offline, like everything else in `zig build test`. The two
+    // steps that reach the network stay outside this graph on purpose.
+    const refresh_tags_tests = b.addTest(.{
+        .name = "refresh-algebra-tags-tests",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("scripts/refresh_algebra_tags.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(refresh_tags_tests).step);
+
+    const fresh_check_tests = b.addTest(.{
+        .name = "check-pins-fresh-tests",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("scripts/check_pins_fresh.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(fresh_check_tests).step);
 
     addTests(b, test_step, "zig-transcript-tests", b.path("libs/transcript/src/root.zig"), target, optimize, &.{
         .{ .name = "zig-algebra-traits", .module = traits },

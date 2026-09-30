@@ -680,3 +680,103 @@ forzaba que se analizara su fichero. Las dos van nombradas en Corregido.
   aporta quien llama, no es de tiempo constante, y todavía no tiene vectores de
   interoperabilidad.
 
+## [0.2.2] - 2026-09-26
+
+PATCH: nada aquí cambia una API pública. Documentación, licencias y ficheros de
+build que nunca se cablearon.
+
+### Corregido
+- **build**: los `build.zig` por librería no podían compilar. Resolvían
+  zig-algebra como dependencias de ruta (`../../zig-algebra`), lo que exige que ese
+  repositorio esté clonado junto a este, y estaban escritos contra la estructura vieja
+  de zig-algebra, un paquete por módulo, que `v0.3.x` sustituyó. Ahora resuelven el
+  mismo tarball fijado que usa el build de la raíz, así que
+  `cd libs/<nombre> && zig build test` funciona desde un checkout a pelo.
+
+### Añadido
+- `LICENSE-MIT` y `LICENSE-APACHE`. El README declaraba una licencia dual mientras
+  ninguno de los dos ficheros existía, así que no se estaba concediendo ninguna
+  licencia.
+- `SECURITY.md`: qué superficies están auditadas, cuáles no, y —la parte que
+  normalmente falta— qué **no** cuenta como vulnerabilidad. En concreto, un prover
+  Groth16 que tenga la trampa de la configuración puede probar cualquier cosa;
+  eso es una propiedad de la ceremonia de configuración, no un defecto del prover.
+- `zig build check-docs`, un paso de build del que `zig build test` también depende:
+  verifica que cada fichero markdown tenga su contrapartida en el otro idioma, que
+  cada uno declare su lengua, que la prosa de uno no se haya deslizado al otro, y que
+  los ficheros en español eviten anglicismos con equivalente limpio en español.
+
+### Cambiado
+- **docs**: la documentación ahora existe en inglés y en español. El nombre sin
+  sufijo es el inglés y la pareja en español añade `.es`. `AGENTS.md` y
+  `ARCHITECTURE.md` eran sólo en español y ahora tienen contraparte en inglés.
+- **docs**: `README.md` ya no anuncia KZG, ECDSA, BLS ni PLONK como si existieran.
+  El diagrama de capas y las tablas de librerías ahora coinciden con `build.zig`.
+- **docs**: las convenciones QAP de Groth16 se escriben una vez, en
+  `ARCHITECTURE.md`, en vez de dos.
+
+---
+
+## [0.2.1] - 2026-09-26
+
+### Añadido
+- **snark**: Groth16 sobre BN254. `verify` comprueba
+  `e(A,B) == e(alpha,beta) * e(C,delta) * e(PV,gamma)`, validando que los elementos
+  de la prueba pertenecen a la curva y al subgrupo de orden primo, y rechazando una
+  aridad de entradas públicas que no case con los codificados.
+- **snark**: `Groth16(ic_wires, n_constraints, n_wires)`, un prover de referencia
+  genérico en comptime para sistemas de restricciones de rango 1: `Circuit`,
+  `Setup`, `VerifyingKey`, `Proof`, `setup`, `prove`, `verifyKey` y `satisfies`,
+  sobre matrices de restricciones asignadas en la pila.
+- **snark**: `error.DegenerateSetup` (residuo tóxico a cero, `gamma == delta`, o una
+  trampa dentro del dominio de evaluación) y `error.QapUnsatisfied` (el testigo viola
+  una restricción, así que el numerador del QAP no es divisible por el polinomio
+  aniquilador). Errores en vez de `std.debug.assert`, que desaparece en ReleaseFast.
+- **snark**: 11 pruebas basadas en aserciones que cubren el ida y vuelta, entradas
+  públicas equivocadas, elementos de prueba manipulados y fuera de la curva, y una
+  configuración
+  que no casa, factores de cegado, aridad malformada y bilinealidad del pairing.
+- `CHANGELOG.md`.
+
+### Documentación
+- `docs/architecture.md` describe el código que existe: API por librería, grafo de
+  módulos, convenciones de Groth16, postura de seguridad, pruebas.
+- `ARCHITECTURE.md` y `docs/architecture.md` dejan las convenciones de Groth16
+  (semántica de `ic_wires`, el codificado `ic[0]` de un solo cable, y la suma de
+  cables privados) y la condición algebraica que comprueba la verificación del
+  pairing.
+- `README.md`: índice de documentación y un ejemplo de prover de referencia.
+- Doc-comments rancios corregidos en `zig-signature` y `zig-transcript`.
+
+---
+
+## [0.2.0] - 2026-08-26
+
+### Añadido
+- **stark**: el árbol canónico de zig-stark adoptado entero — la pila M31 DEEP-FRI
+  (circle FFT, NTT, polinomios univariantes, FRI, `GenericStark` con AIRs
+  trabajados) y la pila Binius (torre de campos, sum-check, las variantes del PCS,
+  la capa del argumento, recursión Poseidon2).
+- **signature**: Ed25519 vía `std.crypto.sign`, más adaptadores de secp256k1 para la
+  interfaz Schnorr genérica.
+- **commitment**: reparto de secretos de Shamir, compromisos Pedersen, Schnorr PoK
+  y la prueba OR de CDS '94.
+- **ci**: matriz Linux/macOS/Windows guiada por una acción compuesta local
+  `setup-zig`, y las suites e2e y de fuzz canónicas cableadas al paso `test` de la
+  raíz.
+- `AGENTS.md`: reglas de trabajo para agentes.
+
+### Cambiado
+- **stark**: el Channel de Fiat-Shamir viene de `zig-transcript` en vez de una copia
+  vendorizada; M31/CM31/QM31 vienen de los campos de zig-algebra vía
+  `m31/builtin.zig`.
+- **build**: el `build.zig` de la raíz es el único punto de entrada que cablea todos
+  los módulos y ejecuta todas las suites.
+- **commitment**: el argumento IPA deriva sus desafíos de un sponge de Fiat-Shamir
+  en marcha, así que el desafío de la ronda *k* ata la declaración entera y todas las
+  rondas anteriores.
+
+### Dependencias
+- **zig-algebra**: fijado como un tarball publicado con hash de contenido, así que
+  el repositorio compila desde un checkout a pelo sin ningún repositorio hermano
+  presente.

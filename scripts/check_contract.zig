@@ -340,6 +340,65 @@ const declared_own_modules = [_][]const u8{
 /// The version every manifest that declares `zig_algebra` must pin.
 const declared_algebra_pin = "0.6.0";
 
+/// The committed listing of published `zig-algebra` tags. This path is the
+/// reference Rule 6 compares against, and it is a file rather than a network
+/// call on purpose.
+const algebra_tags_path = "scripts/algebra-tags.txt";
+
+const PinVerdict = union(enum) {
+    ok,
+    empty_reference,
+    malformed,
+    not_published,
+    too_far_behind,
+};
+
+/// The newest tag in a listing, or "" when there is none. Comments and blank
+/// lines are not tags, so a listing that documents itself does not make the
+/// gate read its own documentation as the newest release.
+fn newestInListing(listing: []const u8) []const u8 {
+    var newest: []const u8 = "";
+    var it = std.mem.splitScalar(u8, listing, '\n');
+    while (it.next()) |line| {
+        const t = std.mem.trim(u8, line, " \t\r");
+        if (t.len == 0 or t[0] == '#') continue;
+        if (t[0] != 'v' or t.len < 3 or !std.ascii.isDigit(t[1])) continue;
+        newest = t[1..];
+    }
+    return newest;
+}
+
+/// Where the pin sits in the published listing. Pure, so the interesting cases
+/// are testable without the filesystem, and there are three of them: the gap in
+/// algebra's history between v0.3.2 and v0.5.1, a listing edited by hand, and a
+/// pin that names a release nobody published.
+///
+/// "One release behind" is a position in this list, not a subtraction. zig-algebra
+/// published no v0.4.x and no v0.5.0, so 0.6.0 minus 0.5.3 is seven releases by
+/// minor-and-patch arithmetic and one by publication. A version comparison here
+/// would be a gate that fails on a healthy repository.
+fn pinPosition(listing: []const u8, pin: []const u8) PinVerdict {
+    var total: usize = 0;
+    var found: ?usize = null;
+    var malformed = false;
+    var it = std.mem.splitScalar(u8, listing, '\n');
+    while (it.next()) |line| {
+        const t = std.mem.trim(u8, line, " \t\r");
+        if (t.len == 0 or t[0] == '#') continue;
+        if (t[0] != 'v' or t.len < 3 or !std.ascii.isDigit(t[1])) {
+            malformed = true;
+            continue;
+        }
+        total += 1;
+        if (found == null and std.mem.eql(u8, t[1..], pin)) found = total - 1;
+    }
+    if (malformed) return .malformed;
+    if (total == 0) return .empty_reference;
+    const at = found orelse return .not_published;
+    if (at + 2 < total) return .too_far_behind;
+    return .ok;
+}
+
 /// The number of asserts a caller can actually reach, summed over the zones
 /// whose kind is `api` and left after the carved out private helpers. It is
 /// declared so that the number T1 has to act on is ratcheted like any other:
@@ -362,7 +421,7 @@ const declared_reachable: usize = 60;
 /// updating the figure, it is the figure not being hand-written. So the number
 /// lives here, moves only when someone edits this line and says why, and the
 /// documents are checked against it rather than trusted.
-const declared_root_tests: usize = 275;
+const declared_root_tests: usize = 287;
 
 /// The unit-test count the stark README states, which is the other figure a
 /// reader looks at. It is the root build's `zig-stark-tests` step and not the
@@ -795,6 +854,64 @@ pub fn main(init: std.process.Init) !u8 {
         }
     }
 
+    // Rule 6. The pin has to be a tag that was actually published, and no more
+    // than one release behind the newest one. The reference is the committed
+    // listing in `scripts/algebra-tags.txt`, never the network: a gate that
+    // reaches for `git ls-remote` gives a different answer in CI than it does on
+    // a laptop, and a gate that sometimes knows is not a gate.
+    //
+    // This rule has a threshold and a reference, which is the pair the earlier
+    // rules were missing. Rule 4 compares the six manifests against the ledger
+    // and both could be moved together without anyone noticing; this one reaches
+    // outside the repository, to a list that only a person can refresh.
+    // The listing outlives the verdict on purpose. `newest_tag` is a slice into
+    // it, and freeing the buffer inside the block that computes the verdict left
+    // the message pointing at freed memory -- which the mutation test caught as a
+    // row of replacement characters. A gate that fires with an unreadable
+    // diagnosis is half a gate: the exit code says what happened and the text
+    // says nothing.
+    const listing = readOrNull(alloc, io, algebra_tags_path);
+    defer if (listing) |t| alloc.free(t);
+    var newest_tag: []const u8 = "";
+    const pin_verdict = if (listing) |text| blk: {
+        newest_tag = newestInListing(text);
+        break :blk pinPosition(text, declared_algebra_pin);
+    } else .empty_reference;
+    {
+        switch (pin_verdict) {
+            .ok => {},
+            .empty_reference, .malformed => {
+                var p: Problem = .{};
+                p.setWhat("pin-age", .{});
+                p.setDetail("the listing at {s} is not a usable reference: it has " ++
+                    "no tag in it, or a line that is not one. Run " ++
+                    "`zig build refresh-algebra-tags`. A threshold with a reference " ++
+                    "that cannot be read is a gate that passes always", .{algebra_tags_path});
+                try problems.append(alloc, p);
+            },
+            .not_published => {
+                var p: Problem = .{};
+                p.setWhat("pin-age", .{});
+                p.setDetail("the pin is zig-algebra {s} and the listing at {s} does " ++
+                    "not contain it, so the pin names a release that was never " ++
+                    "published. An unpublished pin is not a pin; run " ++
+                    "`zig build refresh-algebra-tags`", .{ declared_algebra_pin, algebra_tags_path });
+                try problems.append(alloc, p);
+            },
+            .too_far_behind => {
+                var p: Problem = .{};
+                p.setWhat("pin-age", .{});
+                p.setDetail("the pin is zig-algebra {s} and the newest published is " ++
+                    "{s}, which is more than one release back. That is how the dead " ++
+                    "PRNG survived three signed releases of a dependency", .{
+                    declared_algebra_pin,
+                    newest_tag,
+                });
+                try problems.append(alloc, p);
+            },
+        }
+    }
+
     if (manifests_read == 0) {
         var p: Problem = .{};
         p.setWhat("root", .{});
@@ -1172,6 +1289,46 @@ fn readOrNull(
     const cwd = std.Io.Dir.cwd().openDir(io, ".", .{}) catch return null;
     defer cwd.close(io);
     return cwd.readFileAlloc(io, path, alloc, .limited(1 << 20)) catch null;
+}
+
+test "the pin rule counts publication, not version arithmetic" {
+    // The listing as committed, with algebra's real gap: no v0.4.x and no v0.5.0.
+    const listing =
+        "# published tags\n" ++
+        "v0.1.0\nv0.2.0\nv0.3.1\nv0.3.2\n" ++
+        "v0.5.1\nv0.5.2\nv0.5.3\nv0.6.0\n";
+
+    // The newest is fine, and so is the one before it. Those two are seven and
+    // one releases apart by minor-and-patch arithmetic, which is the whole reason
+    // this is a position and not a subtraction.
+    try std.testing.expectEqual(PinVerdict.ok, pinPosition(listing, "0.6.0"));
+    try std.testing.expectEqual(PinVerdict.ok, pinPosition(listing, "0.5.3"));
+
+    // Two back from the newest is the failure.
+    try std.testing.expectEqual(PinVerdict.too_far_behind, pinPosition(listing, "0.5.2"));
+}
+
+test "the pin rule refuses a release nobody published" {
+    const listing = "v0.5.3\nv0.6.0\n";
+    try std.testing.expectEqual(PinVerdict.not_published, pinPosition(listing, "0.7.0"));
+    try std.testing.expectEqual(PinVerdict.not_published, pinPosition(listing, "0.6.1"));
+}
+
+test "the pin rule refuses a reference it cannot read, in either way" {
+    try std.testing.expectEqual(PinVerdict.empty_reference, pinPosition("", "0.6.0"));
+    try std.testing.expectEqual(PinVerdict.empty_reference, pinPosition("# only comments\n", "0.6.0"));
+    // A line that is not a tag makes the reference unusable rather than skipped.
+    // Skipping it would be a zero read as an absence, which is the mistake this
+    // repository has now made four times.
+    try std.testing.expectEqual(PinVerdict.malformed, pinPosition("v0.6.0\nrelease candidate\n", "0.6.0"));
+}
+
+test "the newest tag ignores the listing's own documentation" {
+    // A file that explains itself has comment lines. Reading one as a tag would
+    // make the gate compare the pin against prose.
+    const listing = "\\# v0.9.9 is mentioned here and is not a release\nv0.5.3\nv0.6.0\n";
+    try std.testing.expectEqualStrings("0.6.0", newestInListing(listing));
+    try std.testing.expectEqualStrings("", newestInListing("# nothing\n"));
 }
 
 test "the README's unit-test count is read in either language" {

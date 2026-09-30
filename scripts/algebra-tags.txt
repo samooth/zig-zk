@@ -1,0 +1,38 @@
+# Published tags of zig-algebra, oldest first.
+
+# This file is the reference the pin gate compares against. It is committed on
+# purpose: a gate that reads the network gives a different answer in CI than it
+# does on a laptop, and a gate that sometimes knows is not a gate.
+
+# Two commands own it, and the split matters:
+
+#   zig build refresh-algebra-tags   writes this file, from `git ls-remote` on the
+#                                   url in build.zig.zon. This is the only step
+#                                   that needs the network, and it is a person
+#                                   running it.
+
+#   zig build check-pins-fresh      compares this file against that same
+#                                   `git ls-remote` and fails if they differ.
+#                                   Also needs the network, also not a dependency
+#                                   of `zig build test` -- it is the gate for the
+#                                   reference, and a reference that cannot go
+#                                   stale unnoticed is not a reference.
+
+# `zig build test` reads this file and nothing else. It is the freshness check that
+# fails when a tag is cut upstream and nobody runs the refresh.
+
+# The gap between v0.3.2 and v0.5.1 is real: zig-algebra published no v0.4.x and no
+# v0.5.0. So "one release behind" is a position in this list and not a subtraction
+# of version numbers, because 0.6.0 - 0.5.3 is seven releases by minor and patch
+# arithmetic and one by publication.
+v0.1.0
+v0.2.0
+v0.2.1
+v0.2.2
+v0.3.0
+v0.3.1
+v0.3.2
+v0.5.1
+v0.5.2
+v0.5.3
+v0.6.0

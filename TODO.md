@@ -22,7 +22,7 @@ Nothing here is done. The checkbox is there to be ticked, not to decorate.
 | Propagate `allow_small_field` | precondición satisfecha |
 | The round count | medido, falta decidir |
 | The root duplicates each library's wiring | a medias |
-| Pin hygiene | a medias |
+| Pin hygiene | hecho |
 | `core/hash` and `core/merkle` | sin empezar |
 | Local branches | a medias |
 | `libs/fri` in `zig-zkml` | precondición satisfecha |
@@ -169,24 +169,24 @@ Nothing here is done. The checkbox is there to be ticked, not to decorate.
   **Done:** `build.zig` names the five libraries and no module, so there is one
   place where a module can be added.
 
-- [ ] **Pin hygiene** · *a medias*
+- [x] **Pin hygiene** · *hecho*
 
-  Nothing checks that `build.zig.zon` matches the published tags of `zig-algebra`.
+  `scripts/algebra-tags.txt` is the committed list of published tags, written by
+  `zig build refresh-algebra-tags` and compared against upstream by `zig build
+  check-pins-fresh`. Rule 6 in `check-contract` fails when the pin names a release
+  nobody published, or is more than one release behind the newest.
 
-  The same failure happened once already. Measured by tag, the dead PRNG is in
-  four tags -- `v0.5.0`, `v0.5.1`, `v0.5.2`, `v0.5.3` -- of which three were
-  published and signed, and the fix is later than all four. The other two
-  repositories found out only when someone bumped the pin. That was sustained by
-  `zig-rng` being wired into four `build.zig` files with zero imports outside
-  `libs/rng`, which is what Rule 5 now fails on.
+  Two details that were not obvious. "One release behind" is a **position in the
+  list**, not a subtraction: `zig-algebra` published no `v0.4.x` and no `v0.5.0`, so
+  `0.6.0 - 0.5.3` is seven releases by minor-and-patch arithmetic and one by
+  publication, and a version comparison would fail on a healthy repository. And the
+  two network steps are deliberately **not** dependencies of `zig build test`, so the
+  gate that runs offline and the gate that checks the reference are different steps
+  on purpose.
 
-  Half of it exists: Rule 5 closes the shape that held it. The half that does not
-  exist is the tag list to compare against.
-
-  **Done:** a gate that fails when a pin is more than one release behind. It needs
-  a source of truth for the published tags, which does not exist yet -- that is
-  the part that has to come first, since a threshold with no tag list to compare
-  against is not a gate. Calibrate against four tags, not three.
+  The failure this was for: the dead PRNG sat in four `zig-algebra` tags, three
+  published and signed, and two repositories found out only when someone bumped the
+  pin.
 
 ---
 
