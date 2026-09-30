@@ -283,11 +283,21 @@ const ledger = [_]Zone{
         .path = "libs/signature",
         .kind = .api,
         .upstream = null,
-        .asserts = 0,
-        .invariants = &.{},
-        .reason = "clean, and deliberately so: Ed25519 is std's, and the generic " ++
-            "Schnorr has no preconditions a caller can violate. Recorded so that a " ++
-            "new assert has to be declared rather than added.",
+        .asserts = 1,
+        .invariants = &.{
+            // An invariant of the test adapter, not a precondition a caller can
+            // violate: `CurveScalar` cannot hold a non-canonical scalar, because
+            // fromBytes rejects one, fromInt reduces, and add and mul of scalars
+            // below the order stay below it. The assert stands where a `catch`
+            // used to return the point at infinity, which is the value that
+            // makes Schnorr verification degenerate into `s*G == R`. A typed
+            // error here would mean a fallible signature on the adapter for a
+            // case its own constructors forbid.
+            .{ .file = "src/root.zig", .condition = "false and \"CurveScalar holds a non-canonical scalar\"" },
+        },
+        .reason = "Ed25519 is std's, and the one assert is an adapter invariant " ++
+            "rather than a precondition. Recorded so that a new assert has to be " ++
+            "declared rather than added.",
         .revisit = "none; the count is the ratchet",
     },
     .{
@@ -352,7 +362,7 @@ const declared_reachable: usize = 60;
 /// updating the figure, it is the figure not being hand-written. So the number
 /// lives here, moves only when someone edits this line and says why, and the
 /// documents are checked against it rather than trusted.
-const declared_root_tests: usize = 270;
+const declared_root_tests: usize = 273;
 
 /// The unit-test count the stark README states, which is the other figure a
 /// reader looks at. It is the root build's `zig-stark-tests` step and not the

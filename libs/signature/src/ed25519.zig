@@ -97,3 +97,31 @@ test "ed25519 wrong key fails" {
     const sig = try sign("msg", signer_kp, null);
     try testing.expect(!verify(sig, "msg", other_kp.public_key));
 }
+
+test "ed25519 rechaza una firma corrupta, y la rama del catch queda ejercitada" {
+    // The three tests above tamper the message or the key. None of them made
+    // `sig.verify` *fail*, only return false, so the `catch return false` on
+    // line 43 was never taken. That is the branch worth covering: it converts an
+    // error into "not verified", which is the right answer for a predicate and
+    // was the right answer for no other reason than that.
+    const io = testing.io;
+    const kp = keyPair(io);
+    const msg = "firma a corromper";
+    const sig = try sign(msg, kp, null);
+
+    // Break R outright: no longer a valid encoding of a curve point, so
+    // verification errors rather than returning false.
+    var bad = sig;
+    bad.r[0] ^= 0xff;
+    try testing.expect(!verify(bad, msg, kp.public_key));
+    try testing.expect(!verifyStrict(bad, msg, kp.public_key));
+
+    // And S, the other half.
+    var bad_s = sig;
+    bad_s.s[0] ^= 0xff;
+    try testing.expect(!verify(bad_s, msg, kp.public_key));
+
+    // A signature over a different message must not verify against this key,
+    // which is the property the whole library exists for.
+    try testing.expect(!verify(sig, "otro mensaje", kp.public_key));
+}
