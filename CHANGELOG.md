@@ -11,6 +11,41 @@ policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning)
 ## [Unreleased]
 
 ### Fixed
+- **The `0.6.0` record understates this, by omission.** `0.6.0` records the
+  Schnorr challenge as "irrepetibilidad rota", in the shared terms of the "not
+  addressed here" section, and defers it. That omits two things that change what a
+  reader would do:
+
+  - **four signatures in five are not signatures.** `P(rejection) = 0.810969`, so
+    the expected count is 4.05 in 5, and two different messages produce the same
+    signature byte for byte because the message never reached the arithmetic;
+  - **and it was forgeable throughout**, since `s*G == R` accepts any `r` with
+    `R = r*G` and `s = r`, with no private key involved.
+
+  The tag is signed, so `0.6.0` says what it says and is not rewritten here.
+  `SECURITY.md` carries the correction next to it and does not wait for a version
+  name, which is the point of an advisory being separate from a changelog. This
+  entry is the second place, and it is where someone updating the pin will read
+  it.
+### Changed
+
+- **zig-algebra moves from `0.5.2` to `0.6.0`.** The two P0s fixed in `0.6.0`
+  are the primitive-root-of-unity underflow and the PRNG that was not the one it
+  said; both are recorded in that repository's `SECURITY.md`. Neither is reachable
+  through this repository's surface, and the reason is worth stating rather than
+  assuming: `zig-rng` is neither wired into any `build.zig` here nor imported by
+  any `.zig` -- zero of both, checked, and consistent with `zig-rng` having been
+  removed. The primitive root is still outstanding in `libs/stark/m31/field/m31.zig`
+  and is deferred, so this pin does not close that one.
+
+  The pin moved for the dependency, not for this repository. What it does change
+  here is that the hash advisory above is now satisfied by `0.6.0` rather than by
+  `0.5.2`, and the BLAKE3 defect in `libs/hash/src/blake3.zig` was not the
+  transcript's hash: this repository imports the one from `zig-algebra`, so the
+  challenge-breaking upgrade it describes is not a second occurrence.
+
+
+### Fixed
 
 - **`SchnorrSignature` challenges were zero four times out of five, and never
   contained the public key.** Two independent defects in one function, both found

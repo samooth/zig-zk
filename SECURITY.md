@@ -7,7 +7,8 @@
 **Affected:** zig-zk `0.1.0` through `0.4.0`, that is, every version built
 against `zig-algebra` at pin `<= 0.5.1`.
 
-**Fixed in:** the next release, by pinning `zig-algebra` `0.5.2`.
+**Fixed in:** the next release, by pinning `zig-algebra` `0.5.2`. The pin has since
+moved to `0.6.0`, which contains the same fix.
 
 **Severity:** the emitted artefacts are not valid under the analysis the
 protocol describes. We could not determine from outside whether that is

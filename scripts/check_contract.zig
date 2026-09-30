@@ -338,7 +338,7 @@ const declared_own_modules = [_][]const u8{
 };
 
 /// The version every manifest that declares `zig_algebra` must pin.
-const declared_algebra_pin = "0.5.2";
+const declared_algebra_pin = "0.6.0";
 
 /// The number of asserts a caller can actually reach, summed over the zones
 /// whose kind is `api` and left after the carved out private helpers. It is

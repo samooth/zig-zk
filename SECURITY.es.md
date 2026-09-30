@@ -5,7 +5,8 @@
 **Afectado:** zig-zk `0.1.0` a `0.4.0`, es decir, toda versión construida contra
 `zig-algebra` en la versión fijada `<= 0.5.1`.
 
-**Corregido en:** la siguiente versión, fijando `zig-algebra` `0.5.2`.
+**Corregido en:** la siguiente versión, fijando `zig-algebra` `0.5.2`. El pin ha pasado
+a `0.6.0` desde entonces, que contiene la misma corrección.
 
 **Gravedad:** los artefactos emitidos no son válidos bajo el análisis que
 describe el protocolo. Desde fuera no pudimos determinar si eso es explotable, y

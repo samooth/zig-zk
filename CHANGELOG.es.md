@@ -11,6 +11,41 @@ política está desarrollada en
 
 ## [Sin publicar]
 
+### Fixed
+- **El registro de `0.6.0` minimiza esto por omisión.** `0.6.0` registra el reto de
+  Schnorr como "irrepetibilidad rota", en los términos generales de la sección
+  "no se atiende aquí", y lo aplaza. Eso omite dos cosas que cambian lo que haría
+  un lector:
+
+  - **cuatro firmas de cada cinco no son firmas.** `P(rechazo) = 0,810969`, así que
+    el promedio es 4,05 de cada 5, y dos mensajes distintos producen la misma firma
+    byte a byte porque el mensaje nunca llegó a la aritmética;
+  - **y era falsificable en todo momento**, porque `s*G == R` acepta cualquier `r`
+    con `R = r*G` y `s = r`, sin que intervenga una clave privada.
+
+  El tag está firmado, así que `0.6.0` dice lo que dice y aquí no se reescribe.
+  `SECURITY.md` lleva la corrección al lado y no espera a que haya nombre de
+  versión, que es justo lo que significa que un aviso sea aparte de un changelog.
+  Esta entrada es el segundo sitio, y es donde lo leerá quien actualice el pin.
+### Changed
+
+- **zig-algebra pasa de `0.5.2` a `0.6.0`.** Los dos P0 corregidos en `0.6.0`
+  son el desbordamiento del índice de la raíz primitiva de orden unitaria y el PRNG
+  que no era el que decía; los dos están en el `SECURITY.md` de ese repositorio.
+  Ninguno es alcanzable por la superficie de este, y la razón merece escribirse en
+  vez de suponerla: `zig-rng` aquí no está ni cableado en ningún `build.zig` ni
+  importado por ningún `.zig`, cero de ambos, comprobado y coherente con que se
+  quitara. La raíz primitiva sigue pendiente en
+  `libs/stark/m31/field/m31.zig` y está aplazada, así que este pin no cierra esa.
+
+  El pin se movió por la dependencia, no por este repositorio. Lo que sí cambia
+  aquí es que el aviso del hash de arriba lo satisface ahora `0.6.0` en vez de
+  `0.5.2`, y que el defecto de BLAKE3 en `libs/hash/src/blake3.zig` no era el
+  hash del transcript: este repositorio importa el de `zig-algebra`, así que la
+  subida que rompe los desafíos que describe ese aviso no es una segunda
+  ocurrencia.
+
+
 ### Corregido
 
 - **Los retos de `SchnorrSignature` eran cero cuatro de cada cinco veces, y nunca
