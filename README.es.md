@@ -7,8 +7,10 @@
 Un ecosistema de protocolos criptográficos y pruebas de conocimiento cero para
 Zig, construido sobre `zig-algebra`.
 
-Requiere Zig 0.16 y `zig-algebra` **v0.3.2** (fijado por huella en
-`build.zig.zon`).
+Requiere Zig 0.16 y `zig-algebra` **v0.6.0** (fijado por huella en
+`build.zig.zon`). El pin es lo que la compilación resuelve de verdad, así que esta
+línea es una afirmación sobre él, y `zig build check-contract` falla cuando las dos
+se contradicen.
 
 ## Documentación
 
@@ -22,6 +24,7 @@ la pareja en español añade `.es`.
 | [CHANGELOG.es.md](CHANGELOG.es.md) | Historial de publicaciones |
 | [SECURITY.es.md](SECURITY.es.md) | Qué está auditado, qué no, y qué cuenta como vulnerabilidad |
 | [AGENTS.es.md](AGENTS.es.md) | Reglas de trabajo para agentes |
+| [TODO.es.md](TODO.es.md) | Trabajo abierto, ordenado por lo que cierra más casos de uso |
 
 ## Visión
 
@@ -39,30 +42,46 @@ Cada librería:
 
 ```
 +------------------+     +------------------+
-|    zig-algebra   | --> |      zig-zk      |
-| (infraestructura)|     |   (protocolos)   |
+| zig-algebra      |     | zig-zk           |
+| (infraestructura)| --> | (protocolos)     |
 |                  |     |                  |
 | - algebra-traits |     | - transcript     |
 | - field          |     | - commitment     |
 | - curve          |     | - signature      |
-| - poly           |     | - air            |
-| - ntt            |     | - stark          |
-| - merkle         |     | - snark          |
+| - binary-field   |     | - stark          |
+| - poly           |     | - snark          |
+| - ntt            |     |                  |
+| - fri            |     |                  |
+| - kzg            |     |                  |
+| - merkle         |     |                  |
+| - hash           |     |                  |
 | - pairing        |     |                  |
 | - linalg         |     |                  |
+| - bigint         |     |                  |
+| - parallel       |     |                  |
+| - rng            |     |                  |
+| - serialization  |     |                  |
+| - transcript     |     |                  |
 +------------------+     +------------------+
 ```
 
 `zig-algebra` aporta las matemáticas. `zig-zk` aporta los protocolos que usan
 esas matemáticas.
 
+La columna de la izquierda es el directorio de módulos del tarball fijado, los 17.
+Es el pin lo que convierte eso en un hecho y no en un recuerdo, y
+`zig build check-contract` falla cuando este fichero y el pin discrepan sobre la
+versión.
+
 ## Capas
 
 ```
 Capa 0  +-----------------------------------------+
         |  zig-algebra (dependencia externa)      |
-        |  - field, curve, poly, ntt, merkle      |
-        |  - pairing, linalg, hash, rng           |
+        |  - field, curve, binary-field, poly     |
+        |  - ntt, fri, kzg, merkle, hash         |
+        |  - pairing, linalg, bigint, parallel   |
+        |  - rng, serialization, algebra-traits  |
         +-----------------------------------------+
                    |
 Capa 1  +----------+----------+
@@ -151,7 +170,10 @@ desde un clon limpio.
 zig build test --summary all
 
 # Lo mismo, optimizado: la suite de snark, llena de emparejamientos,
-# pasa de ~57s a ~1s
+# igual, optimizado. La suite de snark se ejecuta en ~60s en Debug y ~2s en
+# ReleaseFast, pero una compilación en frío de ReleaseFast cuesta casi lo mismo
+# que la corrida en Debug porque compilar el pairing es casi todo ese ~55s. La
+# ganancia está en la ejecución, no en la compilación; el ~2s es con la caché.
 zig build test -Doptimize=ReleaseFast --summary all
 ```
 

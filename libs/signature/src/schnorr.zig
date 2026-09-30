@@ -5,7 +5,11 @@
 //! A Schnorr signature is a pair (R, z) where R is a nonce commitment
 //! (group element) and z is the response scalar.
 //!
-//! Generic over any point type that supports `add`, `scalarMul`, `eql`.
+//! Generic over any point type that supports `add`, `scalarMul`, `eql` and is
+//! hashable -- either a `toBytes` method, or public fields `x` and `y` -- and any
+//! scalar type with `fromInt`, `zero`, `add` and `mul`. A point that is not
+//! hashable does not compile: the challenge would not see the commitment, and a
+//! signature over a challenge that omits it binds nothing.
 
 const std = @import("std");
 

@@ -8,7 +8,7 @@ curva elíptica, y Ed25519 delegado a la biblioteca estándar.
 ## Características
 
 - **Schnorr genérico** — `SchnorrSignature(Point, Scalar)` sobre cualquier grupo
-  con `add`, `scalarMul`, `eql` y cualquier tipo escalar con `fromBytes`, `zero`,
+  con `add`, `scalarMul`, `eql` y un tipo escalar con `fromInt`, `zero`,
   `add` y `mul`. Firmar y verificar son cinco líneas; lo interesante es que
   quien llama elige la curva.
 - **Ed25519** — una reexportación fina de `std.crypto.sign.Ed25519`, que es
@@ -28,7 +28,7 @@ aporte.
 ```zig
 .dependencies = .{
     .zig_zk = .{
-        .url = "https://github.com/samooth/zig-zk/archive/refs/tags/v0.3.0.tar.gz",
+        .url = "https://github.com/samooth/zig-zk/archive/refs/tags/v0.7.0.tar.gz",
         .hash = "...",
     },
 },
@@ -46,8 +46,8 @@ exe.root_module.addImport("zig-signature", zk.module("zig-signature"));
 ```zig
 const sig_lib = @import("zig-signature");
 
-// Point necesita: add, scalarMul, eql
-// Scalar necesita: fromBytes, zero, add, mul
+// Point necesita: add, scalarMul, eql, y toBytes o campos x/y
+// Scalar necesita: fromInt, zero, add, mul
 const Sig = sig_lib.SchnorrSignature(MyPoint, MyScalar);
 
 // Firmar: R = k*G, e = H(G, P, R, msg), z = k + e*x
@@ -105,9 +105,12 @@ zig build test --summary all
 
 ## Notas de diseño
 
-- El Schnorr genérico no lleva resumen propio: usa el que quien llama cablea al
-  construir la firma, así que el mismo código funciona sobre un grupo de juguete
-  en las pruebas y sobre secp256k1 en producción.
+- El resumen del reto es SHA-256 y no es un parámetro. Está fijado en `challenge`
+  porque hacerlo parámetro es una decisión más grande de lo que parece: un resumen
+  que cablea quien llama permitiría que el compromiso no se transcribiera, que es
+  exactamente el defecto que corrigió esta versión. El digest se reduce a un
+  `u256` y se pasa a `Scalar.fromInt`, que no puede fallar, así que un digest por
+  encima del módulo se reduce en vez de colapsar el reto a cero.
 - `verify` devuelve un booleano y no un error, porque «firma incorrecta» es un
   resultado esperado y no excepcional.
 - Los adaptadores de secp256k1 son privados del módulo a propósito: existen para

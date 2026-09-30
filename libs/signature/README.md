@@ -5,12 +5,28 @@
 Digital signatures. Two schemes: a generic Schnorr that works over any elliptic
 curve, and Ed25519 delegated to the standard library.
 
+## Before you use this
+
+**A signature issued by any release from v0.2.0 to v0.6.0 is not a commitment and
+has to be regenerated.** Four in five of them carry a zero challenge, which makes
+them forgeable by anyone, and none of them binds the public key: two different
+messages produced the same signature byte for byte. `v0.7.0` fixes both defects and
+changes two contracts, so it is a MINOR. The analysis, the measurement and the
+exploit are in [SECURITY.md](../../SECURITY.md).
+
+If you are upgrading from an earlier release, read that first. The failure is not a
+weak signature but an absent one, and nothing downstream will tell you that the
+signature you are holding was one of the four in five.
+
+
 ## Features
 
 - **Generic Schnorr** — `SchnorrSignature(Point, Scalar)` over any group with
-  `add`, `scalarMul`, `eql` and any scalar type with `fromBytes`, `zero`, `add`
-  and `mul`. Signature and verification are five lines; everything interesting
-  is in the caller choosing the curve.
+  `add`, `scalarMul`, `eql` and a scalar type with `fromInt`, `zero`, `add` and
+  `mul`. The point must also be hashable: either a `toBytes` method, or public
+  fields `x` and `y`, or the build stops with a `@compileError` naming the type.
+  Signature and verification are five lines; everything interesting is in the
+  caller choosing the curve.
 - **Ed25519** — a thin re-export of `std.crypto.sign.Ed25519`, which is
   deterministic, constant time and already audited. Nothing here reimplements
   it, because the parts that matter (nonce derivation, scalar clamping,
@@ -28,7 +44,7 @@ provides.
 ```zig
 .dependencies = .{
     .zig_zk = .{
-        .url = "https://github.com/samooth/zig-zk/archive/refs/tags/v0.3.0.tar.gz",
+        .url = "https://github.com/samooth/zig-zk/archive/refs/tags/v0.7.0.tar.gz",
         .hash = "...",
     },
 },
@@ -46,8 +62,8 @@ exe.root_module.addImport("zig-signature", zk.module("zig-signature"));
 ```zig
 const sig_lib = @import("zig-signature");
 
-// Point needs: add, scalarMul, eql
-// Scalar needs: fromBytes, zero, add, mul
+// Point needs: add, scalarMul, eql, and toBytes or fields x/y
+// Scalar needs: fromInt, zero, add, mul
 const Sig = sig_lib.SchnorrSignature(MyPoint, MyScalar);
 
 // Sign: R = k*G, e = H(G, P, R, msg), z = k + e*x
@@ -105,9 +121,12 @@ zig build test --summary all
 
 ## Design Notes
 
-- The generic Schnorr has no built-in hash: it uses the hash the caller wires
-  in when the signature is constructed, so the same code works over a toy group
-  in the tests and over secp256k1 in production.
+- The challenge hash is SHA-256 and it is not a parameter. It is hardcoded in
+  `challenge` because making it one is a bigger decision than it looks: a
+  caller-supplied hash would let the commitment go untranscribed, which is
+  exactly the defect this release fixed. The digest is reduced into a `u256` and
+  handed to `Scalar.fromInt`, which cannot fail, so a digest above the modulus
+  reduces instead of collapsing the challenge to zero.
 - `verify` returns a bool rather than an error, because "wrong signature" is an
   expected outcome and not an exceptional one.
 - The secp256k1 adapters are private to the module on purpose: they exist to

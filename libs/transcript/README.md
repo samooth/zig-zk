@@ -26,7 +26,7 @@ Add to your `build.zig.zon`:
 ```zig
 .dependencies = .{
     .zig_zk = .{
-        .url = "https://github.com/samooth/zig-zk/archive/refs/tags/v0.2.2.tar.gz",
+        .url = "https://github.com/samooth/zig-zk/archive/refs/tags/v0.7.0.tar.gz",
         .hash = "...",
     },
 },

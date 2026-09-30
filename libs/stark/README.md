@@ -22,7 +22,7 @@ sum-check. Both are prover and verifier, not proofs of concept.
 ```zig
 .dependencies = .{
     .zig_zk = .{
-        .url = "https://github.com/samooth/zig-zk/archive/refs/tags/v0.3.0.tar.gz",
+        .url = "https://github.com/samooth/zig-zk/archive/refs/tags/v0.7.0.tar.gz",
         .hash = "...",
     },
 },
@@ -53,12 +53,13 @@ rather than a variant:
 
 | Path | What is in it |
 |---|---|
-| `binius/tower.zig` | Field tower GF(2) → GF(2^128) |
+| `binius/tower.zig` | Field tower GF(2) → GF(2^128), consumed from `zig-algebra` at the pin, not vendored |
 | `packed_pcs.zig`, `batchpcs.zig`, `fripcs.zig` | Three polynomial commitment schemes |
 | `binius/sumcheck.zig`, `binius/pcs.zig` | Consumed from `zig-algebra` at the pin, not vendored. The sum-check was confirmed byte-identical to the adopted one over value, claimed sum and six rounds; the PCS was not, and the difference was a Merkle leaf hashed twice. |
 | `binius/arg.zig` | The argument layer |
 | `binius/recursion/` | Poseidon2 over GF(2) |
-| `binius/adder.zig`, `rangecheck.zig`, `compare.zig`, `bitpack.zig`, `pack.zig` | Constraint gadgets used by the fuzz suite |
+| `binius/adder.zig`, `rangecheck.zig`, `compare.zig`, `bitpack.zig` | Constraint gadgets used by the fuzz suite |
+| `pack.zig` | Also from the pin, not vendored |
 | `tests/e2e_tests.zig` | End-to-end: prove, verify, reject a tampered witness, survive serialisation |
 | `tests/fuzz.zig` | The two gadget fuzz suites, over 8 bits and over a 128-bit extension |
 | `tests/field_layer.zig` | Known answers for the identities of the field layer consumed from zig-algebra |
@@ -189,6 +190,18 @@ Debug avoids it elsewhere in this file.
 The wide suite's claim is the narrow one, and it is the only thing it can make:
 that the 128-bit path gets random witnesses. No number of rounds would make it
 say that the path is sound.
+
+## What the default path does not do
+
+The six convenience constructors in `binius/arg.zig` select `CommittedMlePcsUnsafe`,
+and `binius/stark.zig` and `binius/arg.zig` both hardcode `SumcheckUnsafe(E)`. The
+field pair is never told, so a pair below 128 bits is rejected rather than proved over.
+That flag, `allow_small_field`, does not reach either layer yet, so the honest
+statement is that the safe default is not selectable today and the cheap one is what
+you get. It is the first open item in [TODO.md](../../TODO.md), and that it is first
+is because it is measured: 128 bits costs 5.0x per round against the 8-bit
+configuration, linear across the fuzz suite. Whether the default moves is a product
+decision.
 
 ## Design Notes
 

@@ -6,7 +6,9 @@
 
 An ecosystem of cryptographic protocols and zero-knowledge proofs for Zig. Built on top of `zig-algebra`.
 
-Requires Zig 0.16 and `zig-algebra` **v0.3.2** (pinned by hash in `build.zig.zon`).
+Requires Zig 0.16 and `zig-algebra` **v0.6.0** (pinned by hash in `build.zig.zon`).
+The pin is what the build actually resolves, so this line is a claim about it;
+`zig build check-contract` fails when the two disagree.
 
 ## Documentation
 
@@ -20,6 +22,7 @@ the Spanish counterpart adds `.es`.
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
 | [SECURITY.md](SECURITY.md) | What is audited, what is not, what counts as a vulnerability |
 | [AGENTS.md](AGENTS.md) | Working rules for agents |
+| [TODO.md](TODO.md) | Open work, ordered by what closes the most use cases |
 
 ## Vision
 
@@ -35,29 +38,44 @@ Each library:
 
 ```
 +------------------+     +------------------+
-|    zig-algebra   | --> |      zig-zk      |
-|  (infrastructure)|     |  (protocols)     |
+| zig-algebra      |     | zig-zk           |
+| (infrastructure) | --> | (protocols)      |
 |                  |     |                  |
 | - algebra-traits |     | - transcript     |
 | - field          |     | - commitment     |
 | - curve          |     | - signature      |
-| - poly           |     | - stark          |
-| - ntt            |     | - snark          |
+| - binary-field   |     | - stark          |
+| - poly           |     | - snark          |
+| - ntt            |     |                  |
+| - fri            |     |                  |
+| - kzg            |     |                  |
 | - merkle         |     |                  |
+| - hash           |     |                  |
 | - pairing        |     |                  |
 | - linalg         |     |                  |
+| - bigint         |     |                  |
+| - parallel       |     |                  |
+| - rng            |     |                  |
+| - serialization  |     |                  |
+| - transcript     |     |                  |
 +------------------+     +------------------+
 ```
 
 `zig-algebra` provides the math. `zig-zk` provides the protocols that use that math.
+
+The left column is the module directory of the pinned tarball, all 17 of them. It is
+the pin that makes that a fact rather than a memory, and `zig build check-contract`
+fails when this file and the pin disagree about the version.
 
 ## Stack
 
 ```
 Layer 0  +-----------------------------------------+
          |  zig-algebra (external dependency)      |
-         |  - field, curve, poly, ntt, merkle      |
-         |  - pairing, linalg, hash, rng           |
+         |  - field, curve, binary-field, poly     |
+         |  - ntt, fri, kzg, merkle, hash         |
+         |  - pairing, linalg, bigint, parallel   |
+         |  - rng, serialization, algebra-traits  |
          +-----------------------------------------+
                     |
 Layer 1  +----------+----------+
@@ -143,7 +161,10 @@ checkout.
 # Test all libraries (compiles AND runs every suite)
 zig build test --summary all
 
-# Same, optimized: the pairing-heavy snark suite goes from ~57s to ~1s
+# Same, optimized. The snark suite executes in ~60s in Debug and ~2s in
+# ReleaseFast, but a cold ReleaseFast build costs about as much as the Debug run
+# because compiling the pairing code is most of that ~55s. The speedup is in the
+# run, not in the build; the ~2s figure is a warm ReleaseFast build.
 zig build test -Doptimize=ReleaseFast --summary all
 ```
 

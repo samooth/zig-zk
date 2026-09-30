@@ -12,7 +12,8 @@ Pedersen commitments, Shamir secret sharing, and two Σ-protocols.
 - **Pedersen commitments** — `commit(v, r) = v·G + r·H`, homomorphic under
   addition, generic over any point type
 - **Shamir secret sharing** — split a secret into shares and reconstruct it with
-  Lagrange interpolation, generic over the scalar type
+  Lagrange interpolation, generic over the scalar type. `split` takes the caller's
+  `std.Random`, and the coefficients above the secret are drawn from it
 - **Σ-protocols** — `SchnorrPoK` (proof of knowledge) and `CdsOrProof` (CDS '94
   one-out-of-many OR proof)
 - **Generic** — everything is parameterised by the field or point type
@@ -29,7 +30,7 @@ Add to your `build.zig.zon`:
 ```zig
 .dependencies = .{
     .zig_zk = .{
-        .url = "https://github.com/samooth/zig-zk/archive/refs/tags/v0.2.2.tar.gz",
+        .url = "https://github.com/samooth/zig-zk/archive/refs/tags/v0.7.0.tar.gz",
         .hash = "...",
     },
 },
@@ -87,7 +88,7 @@ const diff = commitment_a.sub(commitment_b);
 ```zig
 const S = zc.shamir.Share(MyScalar);
 
-const shares = try zc.shamir.split(MyScalar, secret, threshold, total, allocator);
+const shares = try zc.shamir.split(MyScalar, secret, threshold, total, allocator, rnd);
 const rebuilt = try zc.shamir.reconstruct(MyScalar, shares);
 ```
 
@@ -119,7 +120,7 @@ const rebuilt = try zc.shamir.reconstruct(MyScalar, shares);
 | Function | Description |
 |----------|-------------|
 | `shamir.Share(Scalar)` | The share type |
-| `shamir.split(Scalar, secret, threshold, total, allocator)` | Split into `total` shares, `error.InvalidThreshold` or `error.TooFewShares` |
+| `shamir.split(Scalar, secret, threshold, total, allocator, rnd)` | Split into `total` shares, `error.InvalidThreshold` or `error.TooFewShares`. It takes a `std.Random` and cannot default one: a fixed source makes the polynomial's non-secret coefficients public. |
 | `shamir.reconstruct(Scalar, shares)` | Rebuild from `threshold` or more, `error.NoShares` |
 | `shamir.lagrangeCoefficient(...)` | Interpolation coefficient |
 

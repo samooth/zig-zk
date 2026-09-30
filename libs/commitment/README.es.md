@@ -14,7 +14,9 @@ protocolos Σ.
 - **Compromisos de Pedersen** — `commit(v, r) = v·G + r·H`, homomorfos bajo la
   suma, genéricos sobre cualquier tipo de punto
 - **Reparto de secretos de Shamir** — divide un secreto en participaciones y
-  reconstruýyelo con interpolación de Lagrange, genérico sobre el tipo escalar
+  reconstruye con interpolación de Lagrange, genérico sobre el tipo escalar.
+  `split` recibe el `std.Random` de quien llama, y los coeficientes por encima del
+  secreto se sacan de él
 - **Protocolos Σ** — `SchnorrPoK` (prueba de conocimiento) y `CdsOrProof` (la
   prueba OR de uno entre muchos de CDS '94)
 - **Genérico** — todo está parametrizado por el tipo de campo o de punto
@@ -31,7 +33,7 @@ Añade esto a tu `build.zig.zon`:
 ```zig
 .dependencies = .{
     .zig_zk = .{
-        .url = "https://github.com/samooth/zig-zk/archive/refs/tags/v0.2.2.tar.gz",
+        .url = "https://github.com/samooth/zig-zk/archive/refs/tags/v0.7.0.tar.gz",
         .hash = "...",
     },
 },
@@ -89,7 +91,7 @@ const diff = commitment_a.sub(commitment_b);
 ```zig
 const S = zc.shamir.Share(MyScalar);
 
-const participaciones = try zc.shamir.split(MyScalar, secreto, umbral, total, allocator);
+const participaciones = try zc.shamir.split(MyScalar, secreto, umbral, total, allocator, rnd);
 const reconstruido = try zc.shamir.reconstruct(MyScalar, participaciones);
 ```
 
@@ -121,7 +123,7 @@ const reconstruido = try zc.shamir.reconstruct(MyScalar, participaciones);
 | Función | Descripción |
 |---|---|
 | `shamir.Share(Scalar)` | El tipo de participación |
-| `shamir.split(Scalar, secreto, umbral, total, allocator)` | Divide en `total` participaciones, `error.InvalidThreshold` o `error.TooFewShares` |
+| `shamir.split(Scalar, secreto, umbral, total, allocator, rnd)` | Divide en `total` participaciones, `error.InvalidThreshold` o `error.TooFewShares`. Recibe el `std.Random` de quien llama y no puede tener uno por defecto: una fuente fija haría públicos los coeficientes no secretos del polinomio |
 | `shamir.reconstruct(Scalar, participaciones)` | Reconstruye con `umbral` o más, `error.NoShares` |
 | `shamir.lagrangeCoefficient(...)` | Coeficiente de interpolación |
 

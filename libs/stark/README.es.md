@@ -23,7 +23,7 @@ concepto.
 ```zig
 .dependencies = .{
     .zig_zk = .{
-        .url = "https://github.com/samooth/zig-zk/archive/refs/tags/v0.3.0.tar.gz",
+        .url = "https://github.com/samooth/zig-zk/archive/refs/tags/v0.7.0.tar.gz",
         .hash = "...",
     },
 },
@@ -54,7 +54,7 @@ variante:
 
 | Ruta | Qué contiene |
 |---|---|
-| `binius/tower.zig` | Torre de campos GF(2) → GF(2¹²⁸) |
+| `binius/tower.zig` | Torre de campos GF(2) → GF(2¹²⁸), consumida del `zig-algebra` del pin, no vendorizada |
 | `packed_pcs.zig`, `batchpcs.zig`, `fripcs.zig` | Tres esquemas de compromiso polinómico |
 | `binius/sumcheck.zig`, `binius/pcs.zig` | Se consumen de `zig-algebra` en la versión fijada, no están en el árbol. El suma-producto resultó idéntico byte a byte al adoptado en el valor, la suma declarada y seis rondas; la PCS no, y la diferencia era una hoja del Merkle hasheada dos veces. |
 | `binius/arg.zig` | La capa de argumentos |
@@ -197,6 +197,19 @@ puntos de este fichero.
 La afirmación de la suite ancha es la estrecha, y es lo único que puede hacer:
 que el camino de 128 recibe testigos aleatorios. Ningún número de vueltas
 haría que dijera que el camino es sound.
+
+## Lo que no hace la ruta por defecto
+
+Los seis constructores de conveniencia de `binius/arg.zig` seleccionan
+`CommittedMlePcsUnsafe`, y `binius/stark.zig` y `binius/arg.zig` llevan ambos
+`SumcheckUnsafe(E)` fijo. Del par de campos nunca se entera, así que un par de menos
+de 128 bits se rechaza en vez de probarse sobre él. Ese indicador,
+`allow_small_field`, todavía no llega a ninguna de las dos capas, así que la
+afirmación honesta es que hoy no se puede elegir el valor por defecto seguro y el que
+sale es el barato. Es el primer punto abierto de [TODO.es.md](../../TODO.es.md), y
+que sea el primero es porque está medido: 128 bits cuesta 5,0× por ronda frente a la
+configuración de 8 bits, lineal en toda la suite de fuzz. Si el valor por defecto se
+mueve es una decisión de producto.
 
 ## Notas de diseño
 
