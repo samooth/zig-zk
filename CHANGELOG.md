@@ -12,6 +12,21 @@ policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning)
 
 ### Added
 
+- **`Channel.reset(label)`**, which returns a channel to its state after `init`.
+  A channel is stateful, so a prover and verifier sharing one sample different
+  challenges and the verifier returns `false` with no error anywhere -- the worst
+  shape a failure can have, because it looks like a wrong proof rather than a
+  wrong channel. Two channels with one label is the correct way; this makes the
+  wrong way recoverable instead of mysterious.
+
+- **`M31.random(rnd)`, `M31.toInt`, `M31.div`, `M31.eql`, `M31.inverse` and
+  `M31.isZero`.** `M31` was the only field in the tree that could not be passed
+  to anything asserting the pin's `FieldTrait`, which is why
+  `Transcript.squeezeField` rejected it and why `absorbField` could not reach it.
+  `random` rejects rather than reduces, because a draw folded modulo 2^31 - 1 maps
+  two values onto the same element.
+
+
 - Groth16 interoperability, in the direction that decides whether this
   repository's verifier is usable on other people's proofs. `libs/snark` now
   carries a verification key, a proof and a public signal produced by **snarkjs
@@ -35,6 +50,53 @@ policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning)
   because that would make a Node runtime a test dependency.
 
 ### Fixed
+
+- **`shamir.split` gave the secret away, and every configuration in which it was
+  ever compiled, run and accepted was that configuration.**
+
+  It called `Scalar.random()` with no argument. No field in this repository has
+  that: `M31` had no `random` at all, and every field in the pin takes an
+  `std.Random`. The function therefore compiled only against test-local scalars,
+  and the one in `shamir.zig` returned the constant `4`, annotated
+  *"deterministic for testing"*.
+
+  So the polynomial was always `secreto + 4x + 4x^2 + ...`: every coefficient
+  after the secret equal to 4. Any single share at any `x` then yields
+  `secreto = y - 4(x + x^2 + ...)`, because the attacker knows the
+  coefficients. Shamir's threshold property is not merely weakened, it is
+  **inverted**: instead of requiring `k` shares, one is enough. A party holding
+  one share holds the secret.
+
+  This is not a compile failure and not a bad default. Every time this library
+  was built, exercised and declared working, it was being exercised in exactly
+  the mode that discloses the secret, and no test could have seen it, because
+  the test double was the thing protecting the defect. The double claimed to be
+  random and was not, and a double that lies about being random is worse than no
+  double: it makes code that was never run look like code that was.
+
+  Three changes, and the third is the one that matters. `split` now takes the
+  randomness as a parameter, because a caller building a transcript wants the
+  coefficients bound to something it can replay. The test scalar samples it for
+  real, by rejection. And a test asserts that two splits of the same secret
+  differ, which is the assertion whose absence let this sit for the life of the
+  library.
+
+  That last test caught the same defect in the first attempt at the fix, in this
+  same commit. The rejection bound was written `fromInt(64).value`, and
+  `64 mod 7 = 1`, so it accepted zero and nothing else: every coefficient was
+  still the same constant, and the code read as though it were checked. A bound
+  that looks like a bound and is not one is worse than no check at all, because
+  it is satisfied by construction and occupies the place of one that would
+  check something. The same shape has turned up four times in this repository
+  now -- here, in a `eql` that compared an element with itself, in a tautological
+  polynomial check, and in a Groth16 assumption of `z == 1` -- and they are one
+  defect, not four.
+
+  The defect was recorded at the five places a future refactor would have to
+  touch to reintroduce it: the doc comment on `split`, the `random` that used to
+  return the constant, the rejection bound, the test that is missing without it,
+  and the threshold property the constant destroyed.
+
 
 - **Two published soundness claims were false, and they were corrected in this
   file without the changelog saying so.** Both are restored here to what the tag
@@ -69,6 +131,36 @@ policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning)
   content of the published 0.5.0 section, which means the tag `v0.5.0`.
 
 254 tests in 30 steps.
+
+- **`Transcript.squeezeField` read `F.order`, which exists in no field in this
+  repository or in the pin.** It compiled only against test scalars that had
+  invented one. It now derives the width from `F.MODULUS`, which every field
+  carries, and `absorbField` checks for `toInt` where it uses it. Both functions
+  called `traits.assertField` first, which asserts `inv`, `div`, `pow` and
+  `isZero` and not the declarations they then read: a gate that accepts what it
+  cannot support, and it failed one line after the guard meant to catch it.
+
+- **`Circuit` and `Setup` in `snark` were not `pub`.** `verify` was reachable and
+  `prove` was not, so the reference prover was unusable from anywhere but the file
+  it is defined in. One word each; the tests did not notice because they are in
+  that file.
+
+- **The root package published a `zig-stark` module that did not compile.** The
+  root duplicates each library's import wiring instead of delegating to its
+  `build.zig`, and the copy was missing `zig-parallel`, so
+  `StarkInner` could not find it. Nobody had compiled that module: every test goes
+  through `libs/stark/build.zig`, which wires it correctly. `zig-parallel` is
+  added, and `tests/published_api.zig` now instantiates the stack so the copy
+  cannot rot unnoticed again. The duplication is still there and is the
+  structural cause; closing it means making each library's build the only wiring,
+  which is a packaging change and not one to make quietly in a bug fix.
+
+- **The quick start in `libs/stark/README.md` verified as `false` with no error.**
+  It created one channel and passed it to `prove` and then to `verify`. It also
+  named `zs.m31.stark`, where `zs.m31` is the field and the namespace is
+  `zs.stark`, and left `claimed_fib` as `...` rather than the last value of column
+  0. Corrected in both languages, and the corrected version is what
+  `consumer/src/main.zig` runs, so the example is executed rather than described.
 
 ## [0.5.1] - 2026-09-29
 

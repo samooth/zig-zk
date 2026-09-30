@@ -13,6 +13,21 @@ política está desarrollada en
 
 ### Añadido
 
+- **`Channel.reset(etiqueta)`**, que devuelve un canal al estado en que lo dejó
+  `init`. Un canal tiene estado, así que un prover y un verificador que compartan
+  uno muestrean retos distintos y el verificador devuelve `false` sin error en
+  ninguna parte, que es la peor forma que puede tener un fallo porque parece una
+  prueba equivocada y no un canal equivocado. Dos canales con una etiqueta es la
+  forma correcta; esto convierte la forma equivocada en algo recuperable en vez de
+  misterioso.
+
+- **`M31.random(rnd)`, `M31.toInt`, `M31.div`, `M31.eql`, `M31.inverse` y
+  `M31.isZero`.** M31 era el único campo del árbol que no se podía pasar a nada que
+  afirmara el `FieldTrait` del pin, y por eso `Transcript.squeezeField` lo rechazaba
+  y `absorbField` no podía alcanzarlo. `random` rechaza en vez de reducir, porque
+  una muestra plegada módulo 2^31 - 1 lleva dos valores al mismo elemento.
+
+
 - Interoperabilidad de Groth16, en la dirección que decide si el verificador de
   este repositorio sirve para las pruebas de otros. `libs/snark` lleva ahora una
   clave de verificación, una prueba y una señal pública producidas por **snarkjs
@@ -38,6 +53,54 @@ política está desarrollada en
   de la suite.
 
 ### Corregido
+
+- **`shamir.split` entregaba el secreto, y toda configuración en la que llegó a
+  compilarse, ejecutarse y darse por buena era esa misma configuración.**
+
+  Llamaba a `Scalar.random()` sin argumento. Ningún campo de este repositorio lo
+  tiene: M31 no tenía `random`, y todos los campos del pin reciben un
+  `std.Random`. Así que la función compilaba sólo contra escalares locales de
+  prueba, y el de `shamir.zig` devolvía la constante `4`, con el comentario
+  *"deterministic for testing"*.
+
+  Así que el polinomio era siempre `secreto + 4x + 4x^2 + ...`: todos los
+  coeficientes tras el secreto iguales a 4. Entonces cualquier parte única en
+  cualquier `x` da `secreto = y - 4(x + x^2 + ...)`, porque quien tenga la
+  parte conoce los coeficientes. La propiedad de umbral de Shamir no queda
+  debilitada: queda **invertida**, y en vez de exigir `k` partes basta una. Una
+  parte que tiene una parte tiene el secreto.
+
+  Esto no es un fallo de compilación ni un default malo. Cada vez que esta
+  librería se compiló, se ejercitó y se dio por buena, se estaba ejercitando
+  exactamente en el modo que divulga el secreto, y ninguna prueba podía
+  verlo, porque el doble de prueba era lo que protegía el defecto. El doble
+  decía ser aleatorio y no lo era, y un doble que miente sobre ser aleatorio es
+  peor que no tener doble: hace que código que nunca se ejecutó parezca código
+  que se ejecutó.
+
+  Tres cambios, y el tercero es el que importa. `split` recibe ahora la fuente
+  como parámetro, porque quien construye un transcript quiere los coeficientes
+  ligados a algo que pueda repetir. El escalar de prueba muestrea de verdad, por
+  rechazo. Y una prueba afirma que dos repartos del mismo secreto difieren, que
+  es la afirmación cuya ausencia dejó esto quieto durante la vida de la
+  librería.
+
+  Esa prueba cazó el mismo defecto en el primer intento del arreglo, en este
+  mismo commit. El límite de rechazo se escribió `fromInt(64).value`, y
+  `64 mod 7 = 1`, así que aceptaba el cero y nada más: todos los coeficientes
+  seguían siendo la misma constante, y el código se leía como si estuviera
+  comprobado. Un límite que parece un límite y no lo es es peor que no
+  comprobar nada, porque se cumple por construcción y ocupa el sitio de uno que
+  comprobaría algo. La misma forma ha aparecido cuatro veces en este
+  repositorio -- aquí, en un `eql` que comparaba un elemento consigo mismo, en
+  una comprobación polinómica tautológica, y en un supuesto `z == 1` de
+  Groth16 -- y son un solo defecto, no cuatro.
+
+  El defecto quedó anotado en los cinco puntos por los que un refactor futuro
+  tendría que pasar para reintroducirlo: el comentario de documentación de
+  `split`, el `random` que devolvía la constante, el límite de rechazo, la
+  prueba que falta sin él, y la propiedad de umbral que la constante destruía.
+
 
 - **Dos afirmaciones de solidez publicadas eran falsas, y se corrigieron en este
   fichero sin que el registro lo dijera.** Ambas quedan aquí restauradas tal como
@@ -74,6 +137,36 @@ política está desarrollada en
   de 0.5.0, que es el tag `v0.5.0`.
 
 254 pruebas en 30 pasos.
+
+- **`Transcript.squeezeField` leía `F.order`, que no existe en ningún campo de este
+  repositorio ni del pin.** Compilaba sólo contra escalares de prueba que se habían
+  inventado ese nombre. Ahora deduce el ancho de `F.MODULUS`, que todos los campos
+  llevan, y `absorbField` comprueba `toInt` donde lo usa. Las dos funciones
+  llamaban antes a `traits.assertField`, que exige `inv`, `div`, `pow` e `isZero` y
+  no las declaraciones que justo después leen: una puerta que acepta lo que no
+  puede soportar, que falla una línea después de la puerta que debía cazarlo.
+
+- **`Circuit` y `Setup` en `snark` no eran `pub`.** `verify` se alcanzaba y `prove`
+  no, así que el prover de referencia era inusable desde fuera del fichero donde
+  está definido. Una palabra cada uno; las pruebas no lo notaron porque están en ese
+  fichero.
+
+- **El paquete raíz publicaba un módulo `zig-stark` que no compilaba.** La raíz
+  duplica el cableado de imports de cada librería en vez de delegar en su
+  `build.zig`, y a la copia le faltaba `zig-parallel`, así que `StarkInner` no lo
+  encontraba. Nadie había compilado ese módulo: toda prueba pasa por
+  `libs/stark/build.zig`, que lo cablea bien. Se añade `zig-parallel`, y
+  `tests/published_api.zig` instancia ahora la pila para que la copia no vuelva a
+  pudrirse en silencio. La duplicación sigue ahí y es la causa estructural;
+  cerrarla significa que el build de cada librería sea el único cableado, que es un
+  cambio de empaquetado y no algo que se haga de paso en una corrección.
+
+- **El ejemplo de inicio rápido de `libs/stark/README.md` verificaba `false` sin
+  error.** Creaba un canal y lo pasaba a `prove` y luego a `verify`. También nombraba
+  `zs.m31.stark`, donde `zs.m31` es el campo y el espacio de nombres es `zs.stark`, y
+  dejaba `claimed_fib` como `...` en vez del último valor de la columna 0.
+  Corregido en los dos idiomas, y la versión corregida es la que ejecuta
+  `consumer/src/main.zig`, así que el ejemplo se ejecuta en vez de describirse.
 
 ## [0.5.1] - 2026-09-29
 

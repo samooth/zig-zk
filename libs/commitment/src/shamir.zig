@@ -21,12 +21,26 @@ pub fn Share(comptime Scalar: type) type {
 
 /// Split secret into n shares with threshold t (any t shares reconstruct).
 /// Polynomial: f(x) = secret + a_1*x + a_2*x^2 + ... + a_{t-1}*x^{t-1}
+/// The caller supplies the randomness. It used to be `Scalar.random()` with no
+/// argument, which no field in this repository has: `M31` had no `random` at
+/// all, so the function did not compile against anything real, and the only
+/// scalar it ever compiled against returned a constant from `random`. That is
+/// not a harmless test stub. With every coefficient equal to 4, a share at x
+/// is `secret + 4x + 4x^2`, so one share gives the secret away to anyone who
+/// knows the coefficients, and a polynomial whose coefficients are all equal is
+/// a case Lagrange interpolation barely has to work for.
+///
+/// The randomness is a parameter rather than a call to `std.crypto.random`
+/// because a caller building a transcript wants the coefficients bound to
+/// something it can replay, and a caller who does not care should not have to
+/// learn that to call this.
 pub fn split(
     comptime Scalar: type,
     secret: Scalar,
     threshold: u32,
     num_shares: u32,
     allocator: std.mem.Allocator,
+    rnd: std.Random,
 ) ![]Share(Scalar) {
     // A threshold below one, or fewer shares than the threshold, is a caller
     // mistake: both used to be asserts, which vanish in ReleaseFast and leave
@@ -38,7 +52,7 @@ pub fn split(
     defer allocator.free(coeffs);
     coeffs[0] = secret;
     for (1..threshold) |i| {
-        coeffs[i] = Scalar.random();
+        coeffs[i] = Scalar.random(rnd);
     }
 
     var shares = try allocator.alloc(Share(Scalar), num_shares);
@@ -149,14 +163,34 @@ const F7 = struct {
     pub fn isZero(self: @This()) bool {
         return self.value == 0;
     }
-    pub fn random() @This() {
-        return fromInt(4);
-    } // deterministic for testing
+    /// A fixed generator for the error paths, which never reach the sampling.
+    pub fn testRandom() std.Random {
+        var prng = std.Random.DefaultPrng.init(0xabcd_ef01);
+        return prng.random();
+    }
+
+    /// Real randomness, sampled by rejection. This used to return the constant
+    /// 4, which is what let `split` compile for months against a polynomial
+    /// that gave the secret away from a single share. A test scalar that lies
+    /// about being random is worse than no test scalar: it makes the code under
+    /// test look exercised when it is not.
+    pub fn random(rnd: std.Random) @This() {
+        // The bound is the cardinality, and it has to be: an earlier version
+        // wrote `fromInt(64)`, which on a seven-element field reduces to 1, so
+        // it only ever accepted 0 and every coefficient was zero. That is the
+        // same defect as the constant this replaced, and the test below is what
+        // caught it.
+        while (true) {
+            const v = rnd.int(u32);
+            if (v < MODULUS) return fromInt(v);
+        }
+    }
 };
 
 test "Shamir split and reconstruct" {
     const secret = F7.fromInt(42 % 7); // 0
-    const shares = try split(F7, secret, 3, 5, std.testing.allocator);
+    var prng = std.Random.DefaultPrng.init(0x5eed_c0de);
+    const shares = try split(F7, secret, 3, 5, std.testing.allocator, prng.random());
     defer std.testing.allocator.free(shares);
 
     try testing.expectEqual(@as(usize, 5), shares.len);
@@ -172,7 +206,8 @@ test "Shamir split and reconstruct" {
 
 test "Shamir threshold property" {
     const secret = F7.fromInt(5);
-    const shares = try split(F7, secret, 2, 4, std.testing.allocator);
+    var prng = std.Random.DefaultPrng.init(0x1357_9bdf);
+    const shares = try split(F7, secret, 2, 4, std.testing.allocator, prng.random());
     defer std.testing.allocator.free(shares);
 
     // Any 2 shares should reconstruct
@@ -193,17 +228,50 @@ test "Lagrange coefficient" {
 test "Shamir split refuses a threshold below one" {
     try testing.expectError(
         error.InvalidThreshold,
-        split(F7, F7.fromInt(5), 0, 3, std.testing.allocator),
+        split(F7, F7.fromInt(5), 0, 3, std.testing.allocator, F7.testRandom()),
     );
 }
 
 test "Shamir split refuses fewer shares than the threshold" {
     try testing.expectError(
         error.TooFewShares,
-        split(F7, F7.fromInt(5), 3, 2, std.testing.allocator),
+        split(F7, F7.fromInt(5), 3, 2, std.testing.allocator, F7.testRandom()),
     );
 }
 
 test "Shamir reconstruct refuses an empty slice" {
     try testing.expectError(error.NoShares, reconstruct(F7, &.{}));
+}
+
+test "Shamir coefficients are not the same polynomial every call" {
+    // This is the assertion that was missing and the reason the constant in
+    // `random` went unnoticed for as long as it did. Two splits of the same
+    // secret have to differ, because equal coefficients make every share an
+    // affine image of the secret and one share then reconstructs it: with
+    // coeffs c1 = c2 the share at x is `secret + c1(x + x^2)`, so `secret` is
+    // `y - c1(x + x^2)` to anyone who knows `c1`.
+    var prng = std.Random.DefaultPrng.init(0xfeed_face);
+    const rnd = prng.random();
+
+    const secret = F7.fromInt(3);
+    const a = try split(F7, secret, 3, 4, std.testing.allocator, rnd);
+    defer std.testing.allocator.free(a);
+    const b = try split(F7, secret, 3, 4, std.testing.allocator, rnd);
+    defer std.testing.allocator.free(b);
+
+    var differing = false;
+    for (a, b) |x, y| {
+        if (!x.value.eql(y.value)) differing = true;
+    }
+    try testing.expect(differing);
+
+    // And the property the constant destroyed: the threshold has to be the
+    // number of shares it takes. Three reconstruct; two do not, and the way to
+    // say "do not" is that they give a different secret rather than an error.
+    const three = [_]Share(F7){ a[0], a[1], a[3] };
+    try testing.expect((try reconstruct(F7, &three)).eql(secret));
+
+    const two = [_]Share(F7){ a[0], a[1] };
+    const from_two = try reconstruct(F7, &two);
+    try testing.expect(!from_two.eql(secret));
 }

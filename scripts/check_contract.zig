@@ -352,7 +352,7 @@ const declared_reachable: usize = 60;
 /// updating the figure, it is the figure not being hand-written. So the number
 /// lives here, moves only when someone edits this line and says why, and the
 /// documents are checked against it rather than trusted.
-const declared_root_tests: usize = 254;
+const declared_root_tests: usize = 255;
 
 /// The unit-test count the stark README states, which is the other figure a
 /// reader looks at. It is the root build's `zig-stark-tests` step and not the
