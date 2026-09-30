@@ -121,6 +121,26 @@ Ed25519 is **not** affected. It is delegated to `std.crypto.sign.Ed25519` and
 never goes through `SchnorrSignature`. "The signature library is broken" and
 "half of it is" are different claims, and this is the second.
 
+## A correction to the 0.6.0 record, written after the tag
+
+`0.6.0`'s changelog records this as "irrepetibilidad rota", in the shared terms
+of the "not addressed here" section, and defers it to `0.6.1`. That is an
+understatement by omission, and the tag is signed so it cannot be rewritten. It
+omits two things:
+
+- **four signatures in five**, not a rare case -- `P(rejection) = 0.810969`, so
+  the expected count is 4.05 in 5;
+- **two different messages produce the same signature byte for byte**, because
+  with `e = 0` the message never reached the arithmetic.
+
+A signed tag that understates a P0 is worse than one that omits it, because a
+reader decides on the number in front of them. So this note exists, and it does
+not wait for a version name: it is true now, and whoever reads the changelog
+afterwards will find it here.
+
+The next release will carry the changelog entry that states all of it.
+
+
 ## Two defects, independent
 
 **The challenge was zero four times out of five.** The code was

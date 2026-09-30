@@ -70,14 +70,35 @@ archivo trata de cómo trabajar, no de lo que hace el código.
   obvio.
 
 - Un fixture tiene que elegir el valor que hace visible el defecto, no el que hace
-  fácil la prueba. Un escalar de módulo 7 no puede cazar nada sobre un campo de
+  pasar la prueba. Un escalar de módulo 7 no puede cazar nada sobre un campo de
   254 bits, y un módulo justo por debajo de 2^256 no puede detectar nada sobre un
   resumen que lo excede. Ya ha pasado cinco veces aquí: `x^n` en un dominio de
   orden `n`, `fromInt(64)` en un campo de siete elementos, un `eql` que comparaba
   un elemento consigo mismo, el `findGenerator` sin mutación, y un `fromBytes` que
-  leía un byte y por eso no podía fallar. La pregunta que hay que hacerle a un
-  fixture no es si la prueba es fácil de escribir, sino qué defectos vuelve
-  inalcanzables.
+  leía un byte y por eso no podía fallar.
+- El corolario, que es la parte que se esconde: **elegir el valor más pequeño y el
+  más grande no es cubrir dos casos, es elegir los dos casos donde un defecto de
+  rango no se ve.** Los dos fixtures de `SchnorrSignature` eran el módulo 7 y el
+  orden de secp256k1, que queda justo por debajo de `2^256`, y el defecto necesitaba
+  un campo de 254 bits: un reto cero sólo es probable en el medio de ese rango. Los
+  dos extremos, ninguno visible. Cubrir un rango toma un valor intermedio, y una
+  suite cuyos fixtures están todos en los extremos no está midiendo, está
+  decorando. La pregunta que hay que hacerle a un fixture no es si la prueba es
+  fácil de escribir, sino qué defectos vuelve inalcanzables.
+- Un cero de un instrumento no es un dato sobre el repositorio hasta haber
+  comprobado que el instrumento podía mirar. `rg` respeta el `.gitignore`, y
+  `zig-pkg/` está en él, así que `rg FieldTooSmall` informó de dos changelogs y
+  concluyó que el error no existía, estando en la dependencia pinneada que llama
+  `binius/stark.zig`. Una herramienta a la que se le salta una ruta devuelve un cero
+  que se lee como ausencia. Antes de concluir que algo no existe, comprueba que la
+  búsqueda podía encontrarlo: `rg --no-ignore`, o leer el fichero.
+- Y la gemela: antes de concluir que una búsqueda no encuentra nada, comprueba que
+  lo que buscas y lo que la herramienta cuenta son la misma cosa. Los dos fallos
+  tienen la misma forma y la misma corrección. Uno le preguntó a una herramienta
+  por un camino que no estaba mirando; el otro, por un cuerpo de código que no
+  podía ver. Ninguno de los dos iba sobre el repositorio, y los dos se leyeron
+  como si fueran sobre él.
+
 
 ## Pruebas
 

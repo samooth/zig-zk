@@ -124,6 +124,26 @@ Ed25519 **no** está afectado. Va delegado a `std.crypto.sign.Ed25519` y nunca p
 por `SchnorrSignature`. "La librería de firmas está rota" y "la mitad lo está" son
 afirmaciones distintas, y ésta es la segunda.
 
+## Una corrección al registro de 0.6.0, escrita después del tag
+
+El changelog de `0.6.0` registra esto como "irrepetibilidad rota", en los términos
+generales de la sección "no se atiende aquí", y lo aplaza a `0.6.1`. Eso es una
+minimización por omisión, y el tag está firmado así que no se puede reescribir.
+Omite dos cosas:
+
+- **cuatro firmas de cada cinco**, no un caso raro: `P(rechazo) = 0,810969`, así
+  que el promedio es 4,05 de cada 5;
+- **dos mensajes distintos producen la misma firma byte a byte**, porque con
+  `e = 0` el mensaje nunca llegó a la aritmética.
+
+Un tag firmado que minimiza un P0 es peor que uno que no lo menciona, porque quien
+lo lee decide con el número que tiene delante. Así que esta nota existe, y no
+espera a que haya nombre de versión: es verdad ahora, y quien lea el changelog
+después la encontrará aquí.
+
+La siguiente versión llevará la entrada del changelog que dice todo esto.
+
+
 ## Dos defectos, independientes
 
 **El reto era cero cuatro de cada cinco veces.** El código era

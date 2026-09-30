@@ -64,13 +64,33 @@ how to work, not about what the code does.
   of its asserts classified, so the reachable total the gate prints is an upper
   bound, not a figure for how much work is left.
 - A fixture has to choose the value that makes the defect visible, not the one that
-  makes the test easy. A scalar of modulus 7 cannot catch anything about a 254-bit
+  makes the test pass. A scalar of modulus 7 cannot catch anything about a 254-bit
   field, and a modulus just below 2^256 cannot catch anything about a digest that
   exceeds it. This has now happened five times here: `x^n` in a domain of order
   `n`, `fromInt(64)` in a field of seven elements, an `eql` that compared an
   element with itself, `findGenerator` without a mutation, and a `fromBytes` that
-  read one byte so it could not fail. The question to ask of a fixture is not
-  whether the test is easy to write but which defects it makes unreachable.
+  read one byte so it could not fail.
+- The corollary, which is the part that hides: **choosing the smallest value and
+  the largest is not covering two cases, it is choosing the two cases where a
+  range defect does not show.** The two `SchnorrSignature` fixtures were modulus 7
+  and secp256k1's order, which is just under `2^256`, and the defect needed a
+  254-bit field -- a challenge of zero is only likely in the middle of that range.
+  Both extremes, neither extreme visible. Covering a range takes a value in the
+  middle, and a suite whose fixtures are all at the ends is not measuring, it is
+  decorating. The question to ask of a fixture is not whether the test is easy to
+  write but which defects it makes unreachable.
+- A zero from an instrument is not a fact about the repository until you have
+  checked the instrument could look. `rg` respects `.gitignore`, and `zig-pkg/`
+  is in it, so `rg FieldTooSmall` reported two changelog files and concluded the
+  error did not exist -- while it is in the pinned dependency that
+  `binius/stark.zig` calls. A tool that skipped a path returns a zero that reads as
+  absence. Before concluding something does not exist, check that the search could
+  have found it: `rg --no-ignore`, or read the file.
+- And the twin: before concluding a search found nothing, check that what you are
+  looking for and what the tool counts are the same thing. Both mistakes have the
+  same shape and the same fix. One asked a tool a question about a path it was not
+  looking at; the other asked about a body of code it could not see. Neither was
+  about the repository, and both were read as if they were.
 
 - Comments and doc-comments explain why, and the non-obvious.
 
