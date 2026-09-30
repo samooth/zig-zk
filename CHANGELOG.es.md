@@ -11,7 +11,35 @@ política está desarrollada en
 
 ## [Sin publicar]
 
-### Fixed
+## [0.7.0] - 2026-09-30
+
+**Las firmas emitidas por v0.2.0 a v0.6.0 no son compromisos. Cuatro de cada
+cinco llevan reto cero, y ninguna ata la clave pública. Toda firma emitida antes
+de esta versión no es un compromiso y hay que regenerarla.**
+
+### Cambiado (INCOMPATIBLE)
+
+- **BREAKING: `Scalar` ahora exige `fromInt`, y `Point` tiene que ser hasheable.**
+  Son los dos cambios que hacen que esto sea un MINOR, así que se declaran aquí y
+  no se dejan para que aparezcan en el punto de llamada:
+
+  - `SchnorrSignature.challenge` montaba el reto con
+    `Scalar.fromBytes(digest) catch Scalar.zero()`. Ahora reduce el digest a un
+    `u256` y llama a `Scalar.fromInt(wide)`. Por tanto un `Scalar` que solo
+    ofrecia `fromBytes` **deja de compilar**.
+  - La rama que hasheaba un `Point` probaba `@hasDecl(Point, "x")`, que es falso
+    para todo campo, así que la ruta `x`/`y` era código muerto y un `Point` sin
+    `toBytes` producía en silencio un reto que no veía el compromiso. Un `Point`
+    debe ofrecer `toBytes`, o los campos `x` e `y`, o la compilación para con un
+    `@compileError` que nombra el tipo. Un `Point` que dependía de compilar sin
+    ninguna de las dos **deja de compilar**.
+
+  El segundo es el más consecuente: no fallaba, producía una firma de aspecto
+  válido sobre un reto que no incluía la clave pública ni `R`, y por eso
+  `s*G == R` acepta `R = r*G`, `s = r` sin ninguna clave privada en juego. Los
+  `Point` de este repositorio se ven afectados donde exponen `x`/`y`.
+
+### Corregido
 - **El registro de `0.6.0` minimiza esto por omisión.** `0.6.0` registra el reto de
   Schnorr como "irrepetibilidad rota", en los términos generales de la sección
   "no se atiende aquí", y lo aplaza. Eso omite dos cosas que cambian lo que haría
@@ -27,7 +55,8 @@ política está desarrollada en
   `SECURITY.md` lleva la corrección al lado y no espera a que haya nombre de
   versión, que es justo lo que significa que un aviso sea aparte de un changelog.
   Esta entrada es el segundo sitio, y es donde lo leerá quien actualice el pin.
-### Changed
+
+### Cambiado
 
 - **zig-algebra pasa de `0.5.2` a `0.6.0`.** Los dos P0 corregidos en `0.6.0`
   son el desbordamiento del índice de la raíz primitiva de orden unitaria y el PRNG
@@ -44,7 +73,6 @@ política está desarrollada en
   hash del transcript: este repositorio importa el de `zig-algebra`, así que la
   subida que rompe los desafíos que describe ese aviso no es una segunda
   ocurrencia.
-
 
 ### Corregido
 

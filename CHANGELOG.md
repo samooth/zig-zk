@@ -10,6 +10,35 @@ policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning)
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-30
+
+**Signatures issued by v0.2.0 through v0.6.0 are not commitments. Four in five
+of them carry a zero challenge, and none of them binds the public key. Every
+signature issued before this version is not a commitment and has to be
+regenerated.**
+
+### Changed (BREAKING)
+
+- **BREAKING: `Scalar` now requires `fromInt`, and `Point` has to be hashable.**
+  These are the two changes that make this a MINOR, so they are declared here
+  rather than left to be discovered at the call site:
+
+  - `SchnorrSignature.challenge` used to build the challenge with
+    `Scalar.fromBytes(digest) catch Scalar.zero()`. It now reduces the digest into
+    a `u256` and calls `Scalar.fromInt(wide)`. A `Scalar` that provided only
+    `fromBytes` therefore **no longer compiles**.
+  - The branch that hashed a `Point` tested `@hasDecl(Point, "x")`, which is false
+    for every field, so the `x`/`y` path was dead code and a `Point` without
+    `toBytes` silently produced a challenge that did not see the commitment. A
+    `Point` must now provide `toBytes`, or fields `x` and `y`, or the build stops
+    with a `@compileError` naming the type. A `Point` that relied on compiling
+    without either **no longer compiles**.
+
+  The second one is the more consequential: it did not fail, it produced a valid
+  looking signature over a challenge that did not include the public key or `R`,
+  which is why `s*G == R` accepts `R = r*G`, `s = r` with no private key in
+  scope. `Point` types in this repository are affected where they expose `x`/`y`.
+
 ### Fixed
 - **The `0.6.0` record understates this, by omission.** `0.6.0` records the
   Schnorr challenge as "irrepetibilidad rota", in the shared terms of the "not
