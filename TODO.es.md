@@ -24,7 +24,7 @@ Nada de esto está hecho. La casilla está para marcarse, no para decorar.
 | La raíz duplica el cableado de cada librería | a medias |
 | Higiene del pin | hecho |
 | `core/hash` y `core/merkle` | sin empezar |
-| Afirmaciones de tiempo constante, con puerta | sin empezar |
+| Afirmaciones de tiempo constante, con puerta | hecho |
 | Ramas locales | a medias |
 | `libs/fri` en `zig-zkml` | precondición satisfecha |
 | Hash dentro del circuito | sin empezar |
@@ -232,8 +232,8 @@ Nada de esto está hecho. La casilla está para marcarse, no para decorar.
   **Hecho:** que cada uno se compare con upstream y que la decisión de mantenerlo o
   borrarlo esté escrita con lo que divergió al lado.
 
-- [ ] **Convertir en puerta las afirmaciones de tiempo constante, y que los dos
-  doc-comments sean honestos** · *sin empezar*
+- [x] **Convertir en puerta las afirmaciones de tiempo constante, y que los dos
+  doc-comments sean honestos** · *hecho*
 
   Dos afirmaciones, y no son del mismo género. Las dos se comprobaron en el fuente
   antes de escribirlas aquí, porque «constant-time-ish» es exactamente la forma de

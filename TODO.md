@@ -24,7 +24,7 @@ Nothing here is done. The checkbox is there to be ticked, not to decorate.
 | The root duplicates each library's wiring | a medias |
 | Pin hygiene | hecho |
 | `core/hash` and `core/merkle` | sin empezar |
-| Constant-time claims, gated | sin empezar |
+| Constant-time claims, gated | hecho |
 | Local branches | a medias |
 | `libs/fri` in `zig-zkml` | precondición satisfecha |
 | Hash inside the circuit | sin empezar |
@@ -226,7 +226,7 @@ Nothing here is done. The checkbox is there to be ticked, not to decorate.
   **Done:** each is diffed against upstream and the decision to keep or delete is
   written down with what diverged next to it.
 
-- [ ] **Gate the constant-time claims, and keep the two doc strings honest** · *sin empezar*
+- [x] **Gate the constant-time claims, and keep the two doc strings honest** · *done*
 
   Two claims, and they are not the same kind of thing. Both were checked in the
   source before being written here, because "constant-time-ish" is exactly the shape
