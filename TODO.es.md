@@ -171,7 +171,7 @@ Nada de esto está hecho. La casilla está para marcarse, no para decorar.
   `Gf256`, una extensión de ocho bits, y `Gf16` sobre `Gf2_128`.
   `allow_small_field` es sólo el interruptor que permite a quien llama *nombrar* el
   extremo de ocho bits. Quítalo y no queda nada frente a lo cual ser 5,0× más
-  rápido, y por eso la cifra no se puede собра para la pregunta del valor por
+  rápido, y por eso la cifra no se puede reunir para la pregunta del valor por
   defecto: uno de sus dos extremos está dentro de lo que se está cuestionando. Y
   `arg.zig` ya llama a esa configuración «fast in Debug», así que la velocidad es un
   artefacto de la aritmética de campo sin optimizar sobre menos bits, no una

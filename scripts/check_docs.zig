@@ -522,19 +522,35 @@ fn containsWord(text: []const u8, word: []const u8) bool {
     return false;
 }
 
-/// The first CJK ideograph or kana in `text`, if there is one.
+/// The first non-Latin letter in `text`, if there is one: a CJK ideograph, a
+/// kana, or a Cyrillic letter.
 ///
-/// UTF-8 encodes those as three bytes in 0xE0..0xEF, which `isWordByte` already
-/// treats as word characters, so the tokeniser handles them and no list is
-/// involved. The ranges are Han (unified and extension A), the CJK
-/// compatibility block, and kana, which is what a substitution from a Chinese
-/// model produces. A range rather than a vocabulary of seen strings, because a
-/// vocabulary only fires on what has already been seen.
+/// UTF-8 encodes those as two or three bytes in 0xC0..0xEF, which `isWordByte`
+/// already treats as word characters, so the tokeniser handles them and no list is
+/// involved. The ranges are Han (unified and extension A), the CJK compatibility
+/// block, kana -- which is what a substitution from a Chinese model produces -- and
+/// Cyrillic. A range rather than a vocabulary of seen strings, because a vocabulary
+/// only fires on what has already been seen.
+///
+/// Cyrillic is here for the same reason the rest is, and it was the one that got
+/// through: a Spanish sentence in `TODO.es.md` carried five Cyrillic letters in the
+/// middle of it, from a shell heredoc, and the rule that claimed to catch foreign
+/// scripts did not cover that script. A rule that checks one of the three scripts
+/// reads as a rule that checks scripts.
 fn firstCjk(text: []const u8) ?[]const u8 {
     var i: usize = 0;
     while (i < text.len) {
         const c = text[i];
-        if (c < 0xE0 or c > 0xEF) {
+        if (c < 0xC0 or c > 0xEF) {
+            i += 1;
+            continue;
+        }
+        // Two-byte form: U+0080..U+07FF, which is where Cyrillic sits.
+        if (c < 0xE0) {
+            if (i + 2 > text.len) return text[i..];
+            const cp = (@as(u21, c & 0x1F) << 6) | (@as(u21, text[i + 1] & 0x3F));
+            const cyrillic = cp >= 0x0400 and cp <= 0x052F;
+            if (cyrillic) return text[i .. i + 2];
             i += 1;
             continue;
         }
@@ -655,7 +671,8 @@ pub fn main(init: std.process.Init) !u8 {
         // Rule 4. Checked on the prose, so identifiers and fenced code are
         // exempt like everywhere else here.
         if (firstCjk(prose.items)) |bad| {
-            problem.setDetail("prose contains the CJK sequence {x}", .{bad});
+            problem.setDetail("prose contains a non-Latin letter (CJK, kana or " ++
+                "Cyrillic): {x}", .{bad});
             try problems.append(alloc, problem);
         }
 
