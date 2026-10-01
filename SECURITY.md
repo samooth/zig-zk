@@ -107,6 +107,36 @@ expires; a test that runs does not.
 
 ---
 
+## KNOWN DEFECT: the channel puts no length prefix on what it absorbs
+
+Found while writing the transcript invariant, and recorded rather than fixed.
+
+`Channel` in `libs/transcript/src/channel.zig` has three absorb methods --
+`absorb`, `absorbBytes` and `absorbDigest` -- and all three are a bare
+`hasher.update(...)`. None of them writes a length. The file's own documentation
+says the reason: *"No length prefix on raw bytes (relies on type size for domain
+separation)"*.
+
+**That claim is false, and there is a counterexample in the suite.** A 24-byte
+value absorbed and then a 32-byte value reaches the sponge as the same 56 bytes
+as one 56-byte value. Two different statements reach the same challenge. The
+test named `KNOWN DEFECT: type width does not separate` asserts the collision, so
+it is a fact the suite carries rather than a note somebody reads once, and it
+fails loudly if anyone fixes it.
+
+Not reachable through the protocols in this repository today. The verifier knows
+how many digests to expect from the AIR and how long the public input is, so it
+can find the boundaries without a prefix -- which is the same shape of argument
+that keeps Schnorr safe, and it is sound for the same reason. It is reachable for
+the next protocol written against this channel that absorbs two types of
+different widths, which is exactly what a duck-typed channel invites, and which
+the documentation says is safe.
+
+Fixing it means prefixing every absorb with its length. That changes every
+transcript this repository has ever produced, so it is a BREAKING change to the
+proof format and not a patch, and it invalidates both pinned constants below. It
+is a decision about published proofs, not a bug fix.
+
 # Security advisory: Schnorr challenges were mostly zero, and never bound the key
 
 **Affected:** `libs/signature`, the generic `SchnorrSignature(Point, Scalar)`, as

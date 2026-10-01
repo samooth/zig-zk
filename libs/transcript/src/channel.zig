@@ -203,3 +203,148 @@ test "channel sampleIndex covers range roughly uniformly" {
         try testing.expect(cnt > 200 and cnt < 800);
     }
 }
+
+// ---------------------------------------------------------------------------
+// The transcript invariant.
+//
+// This is the cause, not the symptom. A proof hash changes if the transcript
+// changes, so a proof-hash invariant would catch the change one step late and
+// without saying which of the two moved. Pinning the transcript pins the thing a
+// release is most likely to disturb by accident: a domain separator, a label, an
+// absorb order, the hash itself.
+//
+// The constant has two halves and both matter. The constant is the first: it
+// fails when anything in the sponge moves. The two checks after it are the
+// second, because an invariant nobody has seen move is not known to be watching
+// anything -- and a test that only ever passes is a test that would also pass if
+// it compared a number to itself.
+//
+// The absorbed values are `[SIZE]u8` arrays rather than strings, because this
+// channel is duck-typed: it absorbs anything with `SIZE` and `toBytes`, which is
+// what makes the sequence below an ordinary protocol transcript rather than
+// something shaped to the test.
+// ---------------------------------------------------------------------------
+
+/// An absorbed value. The channel is duck-typed, so this is what an absorbed
+/// type looks like: a declared `SIZE` and `toBytes`. The `SIZE` is not a power of
+/// two on purpose -- the channel documents that it puts no length prefix on what
+/// it absorbs and relies on the type's own width for separation, and a width that
+/// is not a power of two is where that claim is testable.
+fn Fixed(comptime N: comptime_int) type {
+    return struct {
+        const Self = @This();
+        pub const SIZE = N;
+        b: [N]u8,
+
+        pub fn toBytes(self: Self, out: *[N]u8) void {
+            out.* = self.b;
+        }
+
+        pub fn fromBytes(b: [N]u8) Self {
+            return .{ .b = b };
+        }
+    };
+}
+
+const Word24 = Fixed(24);
+const Word32 = Fixed(32);
+
+fn word24(comptime fill: u8) Word24 {
+    var w: Word24 = .{ .b = undefined };
+    @memset(&w.b, fill);
+    return w;
+}
+
+fn word32(comptime fill: u8) Word32 {
+    var w: Word32 = .{ .b = undefined };
+    @memset(&w.b, fill);
+    return w;
+}
+
+/// The digest of the sequence below. If the sponge, the domain separator, the
+/// absorb order or the absorbed width moves this, it moves because the transcript
+/// moved -- and nothing else in the tree is allowed to move it.
+const channel_digest = 0xe5a4174e79b3748b;
+
+fn digestOf(ch: *Channel) u64 {
+    var out: [32]u8 = undefined;
+    ch.sampleBytes(&out);
+    return std.hash.Wyhash.hash(0, &out);
+}
+
+test "the transcript invariant: a fixed sequence has a fixed digest" {
+    var ch = Channel.init("zig-zk:transcript-invariant");
+    ch.absorb(word32(0x01));
+    ch.absorb(word32(0x02));
+    ch.absorb(word32(0x03));
+    try std.testing.expectEqual(channel_digest, digestOf(&ch));
+}
+
+test "the transcript invariant discriminates on the domain separator" {
+    // Axis one, the transcript itself. A different domain separator is a
+    // different transcript, and a challenge carried across two of them is the
+    // cross-protocol reuse the separator exists to prevent.
+    var a = Channel.init("zig-zk:transcript-invariant");
+    var b = Channel.init("zig-zk:transcript-invarianT");
+    a.absorb(word32(0x01));
+    b.absorb(word32(0x01));
+    try std.testing.expect(digestOf(&a) != digestOf(&b));
+}
+
+test "the transcript invariant discriminates on the absorbed values" {
+    // Same label, different statement. Two instances must not reach the same
+    // challenge, and the only thing separating them is what went into the sponge.
+    var a = Channel.init("zig-zk:transcript-invariant");
+    var b = Channel.init("zig-zk:transcript-invariant");
+    a.absorb(word32(0x01));
+    b.absorb(word32(0x02));
+    try std.testing.expect(digestOf(&a) != digestOf(&b));
+}
+
+test "the transcript invariant discriminates on absorb order" {
+    // The same two values in the other order. A sponge that forgets order would
+    // let a statement be transposed without moving anything, which is the whole
+    // reason the sequence of absorbs is part of the statement rather than a detail
+    // of how it is written down.
+    var a = Channel.init("zig-zk:transcript-invariant");
+    var b = Channel.init("zig-zk:transcript-invariant");
+    a.absorb(word32(0x01));
+    a.absorb(word32(0x02));
+    b.absorb(word32(0x02));
+    b.absorb(word32(0x01));
+    try std.testing.expect(digestOf(&a) != digestOf(&b));
+}
+
+// KNOWN DEFECT, recorded rather than fixed. See SECURITY.md.
+//
+// The channel puts no length prefix on what it absorbs -- all three of
+// `absorb`, `absorbBytes` and `absorbDigest` are a bare `hasher.update` -- and
+// its own documentation says the type's width is what provides domain
+// separation. That claim is false, and this is the counterexample: a 24-byte
+// value followed by a 32-byte value reaches the sponge as the same 56 bytes as
+// one 56-byte value, so two different statements reach the same challenge.
+//
+// Asserted so that it is a fact the suite carries rather than a note somebody
+// reads once. When the channel gains a length prefix this test fails, which is
+// the point: the fix is a BREAKING change to every transcript and every proof
+// this repository has produced, and it should fail loudly when it happens.
+//
+// Not reachable through the protocols here today. The verifier knows how many
+// digests to expect from the AIR and how long the public input is, so it can
+// find the boundaries. It is reachable for the next protocol that absorbs two
+// types of different widths, which is exactly what this channel invites.
+
+test "KNOWN DEFECT: type width does not separate, because nothing is length-prefixed" {
+    const Word56 = Fixed(56);
+    var split = Channel.init("zig-zk:probe");
+    split.absorb(word24(0xAA));
+    split.absorb(word32(0xBB));
+
+    var whole = Channel.init("zig-zk:probe");
+    var b56: Word56 = .{ .b = undefined };
+    @memset(b56.b[0..24], 0xAA);
+    @memset(b56.b[24..56], 0xBB);
+    whole.absorb(b56);
+
+    try std.testing.expectEqual(digestOf(&split), digestOf(&whole));
+}

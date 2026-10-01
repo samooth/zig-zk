@@ -108,6 +108,37 @@ ninguna lista. Una afirmación en prosa caduca; una prueba que se ejecuta no.
 
 ---
 
+## DEFECTO CONOCIDO: el canal no pone prefijo de longitud a lo que absorbe
+
+Apareció al escribir el invariante del transcript, y queda registrado en vez de corregido.
+
+`Channel` en `libs/transcript/src/channel.zig` tiene tres métodos de absorción --
+`absorb`, `absorbBytes` y `absorbDigest` -- y los tres son un `hasher.update(...)`
+a pelo. Ninguno escribe una longitud. La documentación del propio fichero da la
+razón: *"sin prefijo de longitud sobre bytes crudos (se apoya en el tamaño del tipo
+para la separación de dominios)"*.
+
+**Esa afirmación es falsa, y hay un contraejemplo en la suite.** Un valor de 24
+bytes absorbido y después uno de 32 llega a la esponja como los mismos 56 bytes
+que un único valor de 56. Dos declaraciones distintas llegan al mismo reto. La prueba
+que se llama `KNOWN DEFECT: type width does not separate` afirma la colisión, así
+que es un hecho que la suite lleva en vez de una nota que alguien lee una vez, y
+falla en voz alta si alguien lo corrige.
+
+No es alcanzable por los protocolos de este repositorio hoy. El verificador sabe
+cuántos digests esperar del AIR y cuánto mide la entrada pública, así que puede
+encontrar las fronteras sin prefijo, que es la misma forma de argumento que
+mantiene Schnorr a salvo, y suena por la misma razón. Es alcanzable para el
+siguiente protocolo escrito contra este canal que absorba dos tipos de anchos
+distintos, que es justo lo que invita un canal tipado por pato, y que la
+documentación dice que es seguro.
+
+Corregirlo es poner un prefijo de longitud en cada absorción. Eso cambia todos
+los transcripts que este repositorio ha producido, así que es un cambio
+INCOMPATIBLE del formato de prueba y no un parche, e invalida las dos constantes
+fijadas de abajo. Es una decisión sobre pruebas ya publicadas, no una corrección
+de defecto.
+
 # Aviso de seguridad: los retos de Schnorr eran casi siempre cero y nunca ataban la clave
 
 **Advertencia 2 de 2 -- ver arriba.**

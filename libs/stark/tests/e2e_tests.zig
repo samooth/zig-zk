@@ -609,3 +609,54 @@ test "the prover path is deterministic, so a proof hash can be pinned" {
     }
     try std.testing.expectEqual(digests[0], digests[1]);
 }
+
+// The proof-side invariant. The transcript invariant in
+// `libs/transcript/src/channel.zig` pins the cause; this pins the symptom, and
+// the two are deliberately not the same constant. Pinning both in one place
+// would mean a change in either looks like a change in both, and neither could
+// be moved on purpose to find out whether it still watches anything.
+//
+// The constant is the digest of the Binius 4-bit adder proof at k = 3 over the
+// witness the loop below builds. Two things have to hold for it to be worth
+// anything: it is stable across processes -- which the test above establishes by
+// proving twice -- and it moves when the proof changes. The check below is the
+// second half, and it is a test rather than a mutation because it stays in the
+// suite: a proof at a different k is a legitimate thing to produce, so asserting
+// that it digests differently costs nothing and cannot rot.
+
+const adder_proof_digest_k3 = 0xf05eb07b874c55ec;
+
+fn adderProofDigest(comptime k: u8) !u64 {
+    const F = zig_stark.binius.tower.Gf256;
+    const E = zig_stark.binius.tower.Gf2_128;
+    const Adder = zig_stark.binius.adder.Adder(F, E);
+    const Stark = zig_stark.binius.stark.BiniusStark(F, E);
+
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    const n = @as(usize, 1) << @intCast(k);
+    const x = try alloc.alloc(u4, n);
+    const y = try alloc.alloc(u4, n);
+    for (0..n) |i| {
+        x[i] = @intCast((i * 3 + 5) % 16);
+        y[i] = @intCast((i * 7 + 2) % 16);
+    }
+    const columns = try Adder.generateWitness(alloc, x, y);
+    var proof = try Stark.prove(alloc, k, &columns, &Adder.constraints, &.{}, "");
+    defer proof.deinit(alloc);
+    const bytes = try ser.serialize(alloc, proof);
+    return std.hash.Wyhash.hash(0, bytes);
+}
+
+test "the proof invariant: a known proof has a known digest" {
+    try std.testing.expectEqual(adder_proof_digest_k3, try adderProofDigest(3));
+}
+
+test "the proof invariant moves when the proof size changes" {
+    // Axis two, the proof rather than the transcript. One more round is a
+    // different proof, so it must digest differently -- otherwise the constant
+    // is measuring the code that produced it and not the proof.
+    try std.testing.expect(try adderProofDigest(4) != adder_proof_digest_k3);
+}
