@@ -211,7 +211,25 @@ decision.
 - `GenericStark` runs the whole protocol over QM31, the extension field, and
   commits to each trace column before sampling anything.
 - Proofs are not constant time in any part that touches secret data, and the
-  library does not claim otherwise.
+  library does not claim otherwise. That sentence is a position, and this is what
+  it applies to, because "a limitation is documented" reads as an explanation of
+  why it was not fixed and a reader cannot tell a decision from a delay.
+
+  Which call sites it concerns, and which it does not:
+
+  - **Verifying** — everything is public. Irrelevant.
+  - **Proving with a public witness** — nothing to protect. Irrelevant.
+  - **Proving with a long-lived secret** — a credential, a preimage, a key that
+    has been proven: the witness outlives the proof, and if the host leaks it
+    through a side channel it is not regenerated. This is the one that matters.
+  - **Signing** — key and nonce, always.
+
+  Half of this library is verification, and verification is public by
+  definition. That is not a defect in the design; it is the shape of a proof
+  system. The cost of protecting the prover is that it is paid on the half of the
+  work where the witness is public and there is nothing to protect, which is the
+  honest reason it has not been done here rather than an argument that it cannot
+  be.
 
 Not adopted from upstream zig-stark, on purpose: the standalone C ABI
 (`capi.zig`, `zig-capi.h`) and the CUDA kernels. If zig-stark is ever revived as

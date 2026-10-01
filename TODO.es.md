@@ -24,6 +24,7 @@ Nada de esto está hecho. La casilla está para marcarse, no para decorar.
 | La raíz duplica el cableado de cada librería | a medias |
 | Higiene del pin | hecho |
 | `core/hash` y `core/merkle` | sin empezar |
+| Afirmaciones de tiempo constante, con puerta | sin empezar |
 | Ramas locales | a medias |
 | `libs/fri` en `zig-zkml` | precondición satisfecha |
 | Hash dentro del circuito | sin empezar |
@@ -205,6 +206,29 @@ Nada de esto está hecho. La casilla está para marcarse, no para decorar.
 
   **Hecho:** que cada uno se compare con upstream y que la decisión de mantenerlo o
   borrarlo esté escrita con lo que divergió al lado.
+
+- [ ] **Convertir en puerta las afirmaciones de tiempo constante, y que los dos
+  doc-comments sean honestos** · *sin empezar*
+
+  Dos afirmaciones, y no son del mismo género. Las dos se comprobaron en el fuente
+  antes de escribirlas aquí, porque «constant-time-ish» es exactamente la forma de
+  afirmación que no se puede refutar.
+
+  `m31/circle/point.zig:mulScalar` **no** es de tiempo constante, y no por el flujo de
+  control: el número de ventanas es fijo, la extracción del dígito es un desplazamiento
+  y una máscara, y no hay representación con dígito con signo, así que no existe rama
+  por el signo que filtrar. Lo que filtra es `table[digit]`: un acceso a memoria en un
+  índice que depende del secreto, un canal de caché y no una rama. Todos los centros de
+  llamada del árbol pasan un escalar público, así que aquí no es alcanzable. El
+  doc-comment dice ahora el mecanismo y la alcanzabilidad en vez de suavizar.
+
+  **Hecho:** una puerta que falle si aparece una afirmación de tiempo constante en un
+  doc-string o un comentario sin nombrar el mecanismo y sin comprobar los centros de
+  llamada. `mulScalar` y la nota de no-tiempo-constante del `README.md` son los dos
+  ejemplares. Esa nota dice a qué centros de llamada llega la limitación —verificar y
+  probar con testigo público es irrelevante, probar con secreto longevo y firmar no—,
+  porque una limitación documentada si no se lee como la razón por la que no se
+  corrigió, y quien lee no puede distinguir una decisión de una demora.
 
 - [ ] **Ramas locales** · *a medias*
 

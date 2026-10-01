@@ -62,8 +62,25 @@ pub const CirclePoint = struct {
         return CirclePoint.generator().mulScalar(exp);
     }
 
-    /// Constant-time-ish fixed-window scalar multiplication (window width 4).
-    /// Returns self * scalar in the circle group.
+    /// Fixed-window scalar multiplication, window width 4. Returns self * scalar in
+    /// the circle group.
+    ///
+    /// **Not constant-time, and specifically not through control flow.** The window
+    /// count is fixed -- `n_digits` is 64/4 for a `u64`, whatever the scalar -- and
+    /// the digit extraction is a shift and a mask. There is no signed-digit
+    /// representation here, so there is no sign branch to leak.
+    ///
+    /// What leaks is `result.add(table[digit])`: a memory access at an index that
+    /// depends on the scalar. That is a cache-timing channel, not a branch, and the
+    /// distinction matters to a reader deciding whether to care -- a branch is
+    /// visible to anything watching instruction counts, a load is not.
+    ///
+    /// **Not reachable from this tree.** Every call site passes a public scalar:
+    /// `generatorWithOrder` derives it from `StarkParams.trace_log`, `domain.zig`
+    /// from a domain index, `coset.zig` from `2^log_size`. A caller with a secret
+    /// scalar should not use this; the constant-time form is a linear scan over the
+    /// table with a constant-time equality select and a constant-time conditional
+    /// add, at roughly the cost of sixteen additions per window.
     pub fn mulScalar(self: CirclePoint, scalar: u64) CirclePoint {
         const w: u6 = 4;
         const table_size: usize = 1 << w; // 16

@@ -24,6 +24,7 @@ Nothing here is done. The checkbox is there to be ticked, not to decorate.
 | The root duplicates each library's wiring | a medias |
 | Pin hygiene | hecho |
 | `core/hash` and `core/merkle` | sin empezar |
+| Constant-time claims, gated | sin empezar |
 | Local branches | a medias |
 | `libs/fri` in `zig-zkml` | precondición satisfecha |
 | Hash inside the circuit | sin empezar |
@@ -201,6 +202,28 @@ Nothing here is done. The checkbox is there to be ticked, not to decorate.
 
   **Done:** each is diffed against upstream and the decision to keep or delete is
   written down with what diverged next to it.
+
+- [ ] **Gate the constant-time claims, and keep the two doc strings honest** · *sin empezar*
+
+  Two claims, and they are not the same kind of thing. Both were checked in the
+  source before being written here, because "constant-time-ish" is exactly the shape
+  of claim that cannot be refuted.
+
+  `m31/circle/point.zig:mulScalar` is **not** constant-time and not through control
+  flow: the window count is fixed, digit extraction is a shift and a mask, and there
+  is no signed-digit representation, so no sign branch exists to leak. The leak is
+  `table[digit]` -- a memory access at a secret-dependent index, a cache channel
+  rather than a branch. Every call site in the tree passes a public scalar, so it is
+  not reachable here. The doc string now says the mechanism and the reachability
+  instead of hedging.
+
+  **Done:** a gate that fails if a constant-time claim appears in a doc string or a
+  comment without the mechanism named and the call sites checked. `mulScalar` and the
+  non-constant-time note in `README.md` are the two specimens. That note says which
+  call sites the limitation reaches -- verifying and public-witness proving are
+  irrelevant, long-lived-secret proving and signing are not -- because a documented
+  limitation otherwise reads as the reason it was not fixed, and a reader cannot tell
+  a decision from a delay.
 
 - [ ] **Local branches** · *a medias*
 

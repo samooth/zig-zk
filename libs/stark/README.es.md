@@ -219,7 +219,26 @@ mueve es una decisión de producto.
 - `GenericStark` ejecuta todo el protocolo sobre QM31, el campo de extensión, y
   compromete cada columna de la traza antes de muestrear nada.
 - Las pruebas no son de tiempo constante en ninguna parte que toque datos
-  secretos, y la librería no afirma lo contrario.
+  secretos, y la librería no afirma lo contrario. Esa frase es una posición, y esto
+  es a qué se aplica, porque «una limitación está documentada» se lee como una
+  explicación de por qué no se corrigió y quien lee no puede distinguir una decisión
+  de una demora.
+
+  A qué centros de llamada concierne, y a cuáles no:
+
+  - **Verificar** — todo es público. Irrelevante.
+  - **Probar con testigo público** — nada que proteger. Irrelevante.
+  - **Probar con un secreto longevo** — una credencial, una preimagen, una clave
+    que se ha probado: el testigo sobrevive a la prueba, y si el host lo filtra por
+    un canal lateral no se regenera. Éste es el que importa.
+  - **Firmar** — clave y nonce, siempre.
+
+  La mitad de esta librería es verificación, y la verificación es pública por
+  definición. Eso no es un defecto del diseño; es la forma que tiene un sistema de
+  prueba. El coste de proteger a quien prueba es que se paga en la mitad del
+  trabajo, en la parte donde el testigo es público y no hay nada que proteger, que
+  es la razón honesta de que no se haya hecho aquí y no un argumento de que no se
+  pueda hacer.
 
 No se han adoptado de zig-stark aguas arriba, a propósito: la ABI en C del
 producto independiente (`capi.zig`, `zig-capi.h`) y los kernels de CUDA. Si
