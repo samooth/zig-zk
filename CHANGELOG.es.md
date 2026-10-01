@@ -11,6 +11,96 @@ política está desarrollada en
 
 ## [Sin publicar]
 
+## [0.7.1] - 2026-09-30
+
+**Aquí no cambia ninguna firma que ya llames, ni cambia ninguna prueba que ya
+hayas hecho. Toda firma de Schnorr que produzca la v0.7.0 se sostiene, y la que
+firmó la v0.6.0 no.**
+
+### Corregido
+- **Un pin que podía quedarse una versión atrás con todas las puertas en verde.**
+  `zig-algebra` publica mediante un número de versión y nada en este repositorio lo
+  vigilaba. El PRNG muerto estuvo en cuatro tags de la dependencia, tres publicados
+  y firmados, y los otros dos repositorios se enteraron cuando alguien subió el
+  pin. Ahora `scripts/algebra-tags.txt` es la referencia versionada, `zig build
+  check-contract` falla cuando el pin nombra una release que nadie publicó o va
+  más de una por detrás, `zig build refresh-algebra-tags` reescribe la referencia,
+  y `zig build check-pins-fresh` falla cuando la referencia misma está rancia. Las
+  dos primeras son herméticas; la tercera necesita red y no es dependencia de
+  `zig build test`, porque una puerta que necesita red da distinto en CI que en un
+  portátil.
+
+  «Una versión por detrás» es una posición en la lista y no una resta:
+  `zig-algebra` no publicó ningún `v0.4.x` ni `v0.5.0`, así que `0.6.0` menos
+  `0.5.3` son siete versiones por aritmética de menor y parche y una por
+  publicación, y una comparación de números habría fallado en un repositorio sano.
+- **`libs/stark/m31/lib.zig` no lo importaba nadie.** `root.zig` exporta `core` y
+  `binius` como agregadores, y los dos llevan una prueba de `refAllDecls`; para m31
+  enumera los ficheros individuales, y el agregador con su prueba se fue con él. El
+  módulo más grande de la librería no tenía `refAllDecls`, que es la cobertura que
+  caza una declaración pública que no compila y que nadie instancia.
+- **El recuento de pruebas no tenía oráculo.** Vivía en un libro mayor y en dos
+  documentos que se comparaban entre sí y contra nada más, así que los tres podían
+  coincidir y estar mal. Ahora se cuenta desde las declaraciones `test` alcanzables
+  desde una lista declarada de raíces, así que la cifra sale del fuente y no de un
+  segundo documento.
+
+### Añadido
+- **`allow_small_field` llega a las dos capas de Binius.** `StarkInner` y
+  `BiniusArgWith` lo reciben como parámetro de comptime y eligen `Sumcheck` o
+  `SumcheckUnsafe` **y** `MlePcs` o `MlePcsUnsafe`. Las dos juntas, porque un
+  protocolo que rechaza en el sum-check y muele en la capa de compromiso es peor
+  que dejar cualquiera de las dos como estaba. Entradas nuevas, para que nada
+  existente se mueva: `BiniusStarkChecked(F, E, CP, bool)`,
+  `BiniusStarkSecure(F, E)` y `BiniusArgChecked(F, E, CP, bool)`. El indicador no
+  convierte la configuración en un tipo distinto, así que es un interruptor de
+  política y no una garantía de tipos; las capas elegidas se publican como
+  `sumcheck` y `mle_pcs` para que la elección sea inspeccionable y no repetida.
+- **Dos resúmenes fijados.** Una secuencia de transcript y una prueba de Binius,
+  cada una con la mutación que la mueve. Son deliberadamente dos constantes y no
+  una: un cambio en una parecería un cambio en la otra, y ninguna podría moverse a
+  propósito para comprobar que sigue vigilando.
+- **Una afirmación de tiempo constante tiene que declararse.** Una puerta no puede
+  medir si una función es de tiempo constante; lo que puede es rechazar la
+  afirmación sin documentar. Cada entrada de un libro mayor nombra el canal que
+  filtra y los centros de llamada que la alcanzan, que es lo que hace que un «casi»
+  sea corregible y no permanente.
+- **Un estado cerrado nombra el commit que lo cerró**, y la fila no se ha movido
+  desde entonces. Un estado sin origen no se puede auditar, que es una forma que
+  tres herramientas distintas produjeron en dos repositorios.
+
+### Documentación
+- `mulScalar` ya no dice «constant-time-ish». No es de tiempo constante, y no por
+  el flujo de control —el número de ventanas es fijo, el dígito es un
+  desplazamiento y una máscara, y no hay representación con dígito con signo— y lo
+  que filtra es `table[digit]`, un acceso a memoria en un índice que depende del
+  secreto, que es un canal de caché y no una rama. Todos los centros de llamada
+  del árbol pasan un escalar público, así que aquí no es alcanzable.
+- La nota de no-tiempo-constante del README de stark dice a qué centros de llamada
+  llega: verificar y probar con testigo público es irrelevante, probar con secreto
+  longevo y firmar no. Una limitación documentada si no se lee como la razón por la
+  que no se corrigió.
+
+### Defecto conocido
+- **El canal de Fiat-Shamir no pone prefijo de longitud a lo que absorbe.** Sus
+  tres métodos de absorción son un `hasher.update` a pelo, mientras su propia
+  documentación dice que el tamaño del tipo es lo que da separación de dominios.
+  Esa afirmación es falsa y el contraejemplo está en la suite: un valor de 24
+  bytes seguido de uno de 32 llega a la esponja como los mismos 56 bytes que un
+  único valor de 56. No es alcanzable por los protocolos de aquí, porque el
+  verificador sabe cuántos digests espera del AIR y cuánto mide la entrada
+  pública. Corregirlo cambia todos los transcripts que este repositorio ha
+  producido, así que es un cambio incompatible del formato de prueba, y queda
+  escrito en `SECURITY.es.md` en vez de hecho.
+
+### Dependencias
+- **`zig-algebra` pasa de `0.5.2` a `0.6.0`**, que lleva los dos P0 corregidos
+  allí. Ninguno es alcanzable por la superficie de este: `zig-rng` aquí no está ni
+  cableado en ningún `build.zig` ni importado por ningún `.zig`, cero de ambos,
+  comprobado. La raíz primitiva de la unidad sigue pendiente en
+  `libs/stark/m31/field/m31.zig` y sigue aplazada, así que este pin no cierra esa.
+
+
 ### Corregido
 
 - **El rango publicado en `0.7.0` es una enumeración donde iba un predicado.** Su

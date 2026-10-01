@@ -10,6 +10,96 @@ policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning)
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-09-30
+
+**Nothing here changes a signature you already call, and nothing changes a proof
+you have already made. Every Schnorr signature produced by v0.7.0 stands, and the
+one signed by v0.6.0 does not.**
+
+### Fixed
+- **A pin that could stay a release behind with every gate green.** `zig-algebra`
+  publishes through a version number and nothing in this repository watched it. The
+  dead PRNG sat in four tags of the dependency, three published and signed, and the
+  other two repositories found out when someone bumped the pin. `scripts/algebra-tags.txt`
+  is now the committed reference, `zig build check-contract` fails when the pin
+  names a release nobody published or is more than one behind, `zig build
+  refresh-algebra-tags` rewrites the reference, and `zig build check-pins-fresh`
+  fails when the reference itself is stale. The first two are hermetic; the third
+  needs the network and is not a dependency of `zig build test`, because a gate
+  that needs the network gives a different answer in CI than on a laptop.
+
+  "One release behind" is a position in the listing and not a subtraction:
+  `zig-algebra` published no `v0.4.x` and no `v0.5.0`, so `0.6.0` minus `0.5.3` is
+  seven releases by minor-and-patch arithmetic and one by publication, and a
+  version comparison would have failed on a healthy repository.
+- **`libs/stark/m31/lib.zig` was never imported by anything.** `root.zig` exports
+  `core` and `binius` as aggregators, and both carry a `refAllDecls` test; for m31
+  it enumerates the individual files instead, and the aggregator with the test went
+  with it. The largest module in the library had no `refAllDecls`, which is the
+  coverage that catches a public declaration that does not compile and that nobody
+  instantiates.
+- **The test total had no oracle.** It lived in a ledger and in two documents that
+  were compared to each other and to nothing else, and all three could agree and be
+  wrong. It is now counted from the `test` declarations reachable from a declared
+  list of roots, so the figure comes from the source rather than from a second
+  document.
+
+### Added
+- **`allow_small_field` reaches both Binius layers.** `StarkInner` and
+  `BiniusArgWith` take it as a comptime parameter and select `Sumcheck` or
+  `SumcheckUnsafe` **and** `MlePcs` or `MlePcsUnsafe`. Both together, because a
+  protocol that rejects in the sum-check and grinds in the commitment layer is
+  worse than either being left alone. New entry points, so nothing existing moved:
+  `BiniusStarkChecked(F, E, CP, bool)`, `BiniusStarkSecure(F, E)` and
+  `BiniusArgChecked(F, E, CP, bool)`. The flag does not make the configuration a
+  different type, so it is a policy switch and not a type-level guarantee; the
+  chosen layers are published as `sumcheck` and `mle_pcs` so the choice is
+  inspectable rather than restated.
+- **Two pinned digests.** A transcript sequence and a Binius proof, each with the
+  mutation that moves it. They are deliberately two constants rather than one: a
+  change in either would otherwise look like a change in both, and neither could
+  be moved on purpose to find out whether it still watched anything.
+- **A constant-time claim has to be declared.** A gate cannot measure whether a
+  function is constant-time; what it can refuse is the undocumented claim. Each
+  entry in a ledger names the channel that leaks and the call sites that reach it,
+  which is what makes a hedge like "constant-time-ish" correctable rather than
+  permanent.
+- **A settled state names the commit that settled it**, and the row has not moved
+  since. A state with no origin cannot be audited, which is a shape three separate
+  tools hit across two repositories.
+
+### Docs
+- `mulScalar` no longer says "constant-time-ish". It is not constant-time and not
+  through control flow -- the window count is fixed, the digit is a shift and a
+  mask, and there is no signed-digit representation -- and what leaks is
+  `table[digit]`, a memory access at a secret-dependent index, which is a cache
+  channel rather than a branch. Every call site in the tree passes a public
+  scalar, so it is not reachable here.
+- The stark README's non-constant-time note says which call sites it reaches:
+  verifying and public-witness proving are irrelevant, long-lived-secret proving
+  and signing are not. A documented limitation otherwise reads as the reason it was
+  not fixed.
+
+### Known defect
+- **The Fiat-Shamir `Channel` puts no length prefix on what it absorbs.** All three
+  of its absorb methods are a bare `hasher.update`, while its own documentation
+  says the type's width is what provides domain separation. That claim is false
+  and the counterexample is in the suite: a 24-byte value followed by a 32-byte one
+  reaches the sponge as the same 56 bytes as a single 56-byte value. Not
+  reachable through the protocols here, because the verifier knows how many
+  digests the AIR implies and how long the public input is. Fixing it changes every
+  transcript this repository has produced, so it is a breaking change to the proof
+  format and it is written down in `SECURITY.md` rather than done.
+
+### Dependencies
+- **`zig-algebra` moves from `0.5.2` to `0.6.0`**, which carries the two P0s fixed
+  there. Neither is reachable through this repository's surface: `zig-rng` is
+  neither wired into any `build.zig` here nor imported by any `.zig`, zero of
+  both, checked. The primitive root of unity is still outstanding in
+  `libs/stark/m31/field/m31.zig` and remains deferred, so this pin does not close
+  that one.
+
+
 ### Fixed
 
 - **The published `0.7.0` range is an enumeration where a predicate was meant.**
