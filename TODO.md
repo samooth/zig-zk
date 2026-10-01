@@ -12,23 +12,23 @@ Nothing here is done. The checkbox is there to be ticked, not to decorate.
 
 | Item | State | Commit |
 |---|---|---|
-| Complete the audit of `libs/signature` | a medias | - |
-| Hash-to-curve | sin empezar | - |
-| BLS12-381 | sin empezar | - |
-| Schnorr multisignature and threshold | sin empezar | - |
-| Ed25519 over a prime field | sin empezar | - |
-| Point adapters for other curves | sin empezar | - |
-| DER, PEM, and interchange formats | sin empezar | - |
+| Complete the audit of `libs/signature` | in progress | - |
+| Hash-to-curve | not started | - |
+| BLS12-381 | not started | - |
+| Schnorr multisignature and threshold | not started | - |
+| Ed25519 over a prime field | not started | - |
+| Point adapters for other curves | not started | - |
+| DER, PEM, and interchange formats | not started | - |
 | Propagate `allow_small_field` | done | 0d81e3a |
-| The round count | medido, falta decidir | - |
-| The root duplicates each library's wiring | a medias | - |
-| Pin hygiene | hecho | 727c46d |
-| `core/hash` and `core/merkle` | sin empezar | - |
-| Constant-time claims, gated | hecho | 8946c6b |
-| Local branches | a medias | - |
-| `libs/fri` in `zig-zkml` | precondición satisfecha | - |
-| Hash inside the circuit | sin empezar | - |
-| One repository | sin empezar | - |
+| The round count | measured, decision missing | - |
+| The root duplicates each library's wiring | in progress | - |
+| Pin hygiene | done | 727c46d |
+| `core/hash` and `core/merkle` | not started | - |
+| Constant-time claims, gated | done | 8946c6b |
+| Local branches | in progress | - |
+| `libs/fri` in `zig-zkml` | precondition met | - |
+| Hash inside the circuit | not started | - |
+| One repository | not started | - |
 
 - **a medias** — started, and the part that was done is written down below.
 - **sin empezar** — nothing has been attempted.

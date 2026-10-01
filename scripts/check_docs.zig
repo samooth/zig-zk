@@ -702,7 +702,7 @@ pub fn main(init: std.process.Init) !u8 {
         // comparison is deliberately one cell wide, so adding a column to the table
         // is a schema change and not a state change -- otherwise the first edit
         // after this rule landed would fail every settled row at once.
-        if (std.mem.eql(u8, base, "TODO.md")) {
+        if (std.mem.eql(u8, base, "TODO.md") or std.mem.eql(u8, base, "TODO.es.md")) {
             const settled = settledRows(text);
             for (settled.items[0..settled.len]) |row| {
                 if (!isHexSha(row.commit)) {
@@ -716,7 +716,7 @@ pub fn main(init: std.process.Init) !u8 {
                 }
 
                 const sha = std.fmt.allocPrint(alloc, "{s}", .{row.commit}) catch continue;
-                const historical = gitShowAlloc(alloc, io, sha, "TODO.md");
+                const historical = gitShowAlloc(alloc, io, sha, base);
                 if (historical == null) {
                     var sp: Problem = .{};
                     sp.setPath(path);
