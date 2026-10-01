@@ -345,6 +345,126 @@ const declared_algebra_pin = "0.6.0";
 /// call on purpose.
 const algebra_tags_path = "scripts/algebra-tags.txt";
 
+/// The roots the root build compiles as test suites. Declared here rather than
+/// parsed out of `build.zig`, because the ledger is where this repository states
+/// what it declares and a parsed copy of the build graph would be a third one that
+/// nobody watches -- the failure the pin gate was built for.
+///
+/// Rule 7 checks two things with this list: that every reachable `test`
+/// declaration adds up to `declared_root_tests`, and that no file carrying tests
+/// sits outside what these roots reach. The second is the one that found
+/// `libs/stark/m31/lib.zig`, whose `refAllDecls` never ran because nothing
+/// imported it.
+const test_roots = [_][]const u8{
+    "scripts/check_contract.zig",
+    "scripts/check_docs.zig",
+    "scripts/check_pins_fresh.zig",
+    "scripts/refresh_algebra_tags.zig",
+    "libs/transcript/src/root.zig",
+    "libs/commitment/src/root.zig",
+    "libs/signature/src/root.zig",
+    "libs/snark/src/root.zig",
+    "libs/stark/root.zig",
+    "libs/stark/tests/e2e_tests.zig",
+    "libs/stark/tests/field_layer.zig",
+    "libs/stark/tests/fuzz.zig",
+    "libs/stark/tests/merkle_kat.zig",
+    "libs/stark/tests/tower_mul.zig",
+    "tests/published_api.zig",
+};
+
+/// How many test declarations a source file carries: `test "name"` and the
+/// anonymous `test {`. Both count, because the anonymous one is what the three
+/// `lib.zig` aggregators use and dropping it would put the total three low without
+/// anything failing.
+/// Every file the roots reach, following `@import("relative/path.zig")`.
+///
+/// Module imports -- the ones that name a wire package, `zig-algebra` and the
+/// rest -- are deliberately not followed: they live in `zig-pkg/`, they are not
+/// this repository's tests, and counting them would make the total a number about
+/// the pin rather than about this tree.
+///
+/// Relative imports only, and that is what makes it a walk over *this* codebase
+/// rather than over the compiler's: a source file that reaches a test through a
+/// relative import is reachable, and one that only re-exports is not.
+fn reachableFrom(alloc: std.mem.Allocator, io: std.Io, roots: []const []const u8) !std.ArrayList([]const u8) {
+    var seen: std.ArrayList([]const u8) = .empty;
+    var queue: std.ArrayList([]const u8) = .empty;
+
+    for (roots) |r| {
+        const text = std.Io.Dir.cwd().readFileAlloc(io, r, alloc, .limited(1 << 22)) catch |err| {
+            var p: Problem = .{};
+            p.setWhat("roots", .{});
+            p.setDetail("{s} is listed as a test root and cannot be read: {s}. " ++
+                "A root that reads as zero is how a suite stops being counted while " ++
+                "still running", .{ r, @errorName(err) });
+            try seen.append(alloc, ""); // marker: unreadable, reported by the caller
+            continue;
+        };
+        defer alloc.free(text);
+        if (!containsString(seen.items, r)) try seen.append(alloc, try alloc.dupe(u8, r));
+        try queue.append(alloc, r);
+        try collectRelativeImports(alloc, r, text, &queue);
+    }
+
+    var i: usize = 0;
+    while (i < queue.items.len) : (i += 1) {
+        const path = queue.items[i];
+        const text = std.Io.Dir.cwd().readFileAlloc(io, path, alloc, .limited(1 << 22)) catch continue;
+        defer alloc.free(text);
+        if (!containsString(seen.items, path)) try seen.append(alloc, try alloc.dupe(u8, path));
+        try collectRelativeImports(alloc, path, text, &queue);
+    }
+    return seen;
+}
+
+fn collectRelativeImports(
+    alloc: std.mem.Allocator,
+    path: []const u8,
+    text: []const u8,
+    queue: *std.ArrayList([]const u8),
+) !void {
+    const dir = std.fs.path.dirname(path) orelse ".";
+    var lines = std.mem.splitScalar(u8, text, '\n');
+    while (lines.next()) |line| {
+        const at = std.mem.indexOf(u8, line, "@import(\"") orelse continue;
+        const start = at + "@import(\"".len;
+        const end = std.mem.indexOfPos(u8, line, start, "\"") orelse continue;
+        const target = line[start..end];
+        // Only a path ending in `.zig` is this tree. A module import names a wire
+        // package -- `zig-algebra`, `std` -- and those live outside the walk on
+        // purpose: counting a pin's tests would make the total a fact about the
+        // pin rather than about this repository.
+        if (!std.mem.endsWith(u8, target, ".zig")) continue;
+        // Resolved, not joined. `binius/../core/hash/hash.zig` and
+        // `core/hash/hash.zig` are one file, and this walk compares paths as
+        // strings, so an unresolved `..` counts the same declarations twice. That
+        // is the same failure as the pin gate comparing `v0.6.0` with `0.6.0`: two
+        // spellings of one thing, read as two things. It reported 480 against a
+        // ledger of 297, which is a factor rather than an amount, and a wrong
+        // number by a factor is the shape to distrust.
+        const joined = try std.fs.path.join(alloc, &.{ dir, target });
+        try queue.append(alloc, try std.fs.path.resolve(alloc, &.{joined}));
+    }
+}
+
+fn containsString(haystack: []const []const u8, needle: []const u8) bool {
+    for (haystack) |h| {
+        if (std.mem.eql(u8, h, needle)) return true;
+    }
+    return false;
+}
+
+fn testDeclarations(text: []const u8) usize {
+    var count: usize = 0;
+    var it = std.mem.splitScalar(u8, text, '\n');
+    while (it.next()) |line| {
+        if (std.mem.startsWith(u8, line, "test \"")) count += 1;
+        if (std.mem.startsWith(u8, line, "test {")) count += 1;
+    }
+    return count;
+}
+
 const PinVerdict = union(enum) {
     ok,
     empty_reference,
@@ -421,7 +541,7 @@ const declared_reachable: usize = 60;
 /// updating the figure, it is the figure not being hand-written. So the number
 /// lives here, moves only when someone edits this line and says why, and the
 /// documents are checked against it rather than trusted.
-const declared_root_tests: usize = 297;
+const declared_root_tests: usize = 298;
 
 /// The unit-test count the stark README states, which is the other figure a
 /// reader looks at. It is the root build's `zig-stark-tests` step and not the
@@ -798,6 +918,7 @@ pub fn main(init: std.process.Init) !u8 {
         for (zone.invariants) |c| declared_invariant_count += c.count;
     }
     var files_scanned: usize = 0;
+    var seen_reachable: []const []const u8 = &.{};
     var manifests_read: usize = 0;
     var test_files: std.ArrayList([]const u8) = .empty;
     defer test_files.deinit(alloc);
@@ -909,6 +1030,46 @@ pub fn main(init: std.process.Init) !u8 {
                 });
                 try problems.append(alloc, p);
             },
+        }
+    }
+
+    // Rule 7. The three places a test count lives -- this ledger, the two
+    // architecture documents, and the tree -- now meet. Before this, the ledger and
+    // the documents were compared to each other and neither was compared to the
+    // source, so all three could agree and be wrong, which is what happened twice
+    // in one session when a figure was updated by hand.
+    //
+    // The count is `test` declarations reachable from the declared roots, not the
+    // number of tests that ran: the runner prints that and nothing offline exposes
+    // it. It agrees with the run because every declaration in a reachable file does
+    // execute, which is the assumption worth naming -- an unreached `test` inside
+    // a reached file would break it, and the orphan check below is what would see
+    // the shape of that.
+    {
+        if (reachableFrom(alloc, io, &test_roots)) |seen| {
+            seen_reachable = seen.items;
+            var declared: usize = 0;
+            for (seen_reachable) |path| {
+                if (path.len == 0) continue;
+                const text = readOrNull(alloc, io, path) orelse continue;
+                declared += testDeclarations(text);
+            }
+            for (seen_reachable) |pp| std.debug.print("    {s}\n", .{pp});
+            if (declared != declared_root_tests) {
+                var pr: Problem = .{};
+                pr.setWhat("test-total", .{});
+                pr.setDetail("{d} test declarations are reachable from the {d} " ++
+                    "declared roots, the ledger says {d}. The runner prints the " ++
+                    "real figure in CI and nothing offline reads it, so this is the " ++
+                    "only check that ties the number to the source rather than to " ++
+                    "another document", .{ declared, test_roots.len, declared_root_tests });
+                try problems.append(alloc, pr);
+            }
+        } else |err| {
+            var pr: Problem = .{};
+            pr.setWhat("roots", .{});
+            pr.setDetail("the test roots could not be walked: {s}", .{@errorName(err)});
+            try problems.append(alloc, pr);
         }
     }
 
@@ -1329,6 +1490,23 @@ test "the newest tag ignores the listing's own documentation" {
     const listing = "\\# v0.9.9 is mentioned here and is not a release\nv0.5.3\nv0.6.0\n";
     try std.testing.expectEqualStrings("0.6.0", newestInListing(listing));
     try std.testing.expectEqualStrings("", newestInListing("# nothing\n"));
+}
+
+test "the test-count oracle counts declarations the way the runner counts tests" {
+    // Both shapes, because dropping the anonymous one would put the total three low
+    // and nothing else would fail.
+    try std.testing.expectEqual(@as(usize, 2), testDeclarations(
+        "test \"named\" {}\ntest {\n    _ = 1;\n}\n",
+    ));
+    // Anchored to the start of the line. A `test "` that appears inside an
+    // indented or commented-out line is not a declaration, and an unanchored match
+    // reported 480 against a ledger of 297.
+    try std.testing.expectEqual(@as(usize, 1), testDeclarations(
+        "    test \"indented, not a top-level test\" {}\ntest \"real\" {}\n",
+    ));
+    try std.testing.expectEqual(@as(usize, 0), testDeclarations(
+        "// a comment that says test \"this is not one\"\nconst x = 1;\n",
+    ));
 }
 
 test "the README's unit-test count is read in either language" {

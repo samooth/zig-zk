@@ -73,6 +73,24 @@ how to work, not about what the code does.
   edits the ledger and says why. A zone that declares no invariants has had none
   of its asserts classified, so the reachable total the gate prints is an upper
   bound, not a figure for how much work is left.
+- A version-pinned reference beats a remembered API, and the reason is that
+  remembering survives seeing the right answer. Writing the two scripts in
+  `scripts/` took five trips through the compiler's source to find out that
+  `std.process.Child.init` is `std.process.spawn(io, ...)`, that the term variant is
+  `.exited` and not `.Exited`, and that `init.arena` exists. `init.arena` was already
+  in a `main` in the same file that compiled, and it was still replaced with
+  `ArenaAllocator.init(init.allocator)` on the second attempt, because a 0.15 pattern
+  is carried and reading it once does not dislodge it. When the code touches a stdlib
+  area this repository has not used before, read it first: `zig env` for the std dir,
+  then grep the source there. A reference pinned to the installed compiler is the
+  only thing that does not depend on remembering.
+- A script that writes a file writes the whole file or does not write it. An assert
+  that fires halfway leaves a file that exists and is wrong, which is worse than one
+  that is absent: the gate reads it and concludes it is merely old. The body goes in a
+  buffer and one `writeFile` is the last thing that can fail, so every failure
+  happens before the first byte lands. This is the same shape as the instrument rules
+  below -- a partial result read as a whole one -- and it cost a rewrite when
+  `refresh_algebra_tags.zig` and `check_pins_fresh.zig` were written without it.
 - A fixture has to choose the value that makes the defect visible, not the one that
   makes the test pass. A scalar of modulus 7 cannot catch anything about a 254-bit
   field, and a modulus just below 2^256 cannot catch anything about a digest that

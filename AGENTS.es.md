@@ -79,6 +79,24 @@ archivo trata de cómo trabajar, no de lo que hace el código.
 - Los comentarios, incluidos los de documentación, explican el porqué y lo no
   obvio.
 
+- Una referencia fijada por versión gana a una API recordada, y el motivo es que
+  recordar sobrevive a haber visto la respuesta correcta. Escribir los dos scripts de
+  `scripts/` costó cinco vueltas por el fuente del compilador para averiguar que
+  `std.process.Child.init` es `std.process.spawn(io, ...)`, que la variante del
+  término es `.exited` y no `.Exited`, y que `init.arena` existe. `init.arena` ya
+  estaba en un `main` del mismo fichero que compilaba, y aun así se sustituyó por
+  `ArenaAllocator.init(init.allocator)` en el segundo intento, porque un patrón de
+  0.15 se lleva puesto y leerlo una vez no lo desaloja. Cuando el código toque una
+  zona de la stdlib que este repositorio no haya usado, léela antes: `zig env` para
+  el std dir y luego grep sobre el fuente de ahí. Una referencia fijada al
+  compilador instalado es lo único que no depende de recordar.
+- Un script que escribe un fichero escribe el fichero entero o no escribe nada. Una
+  aserción que dispara a mitad deja un fichero que existe y está mal, que es peor que
+  uno que no está: la puerta lo lee y concluye que sólo está rancio. El cuerpo va en
+  un buffer y un solo `writeFile` es lo último que puede fallar, así que todo fallo
+  ocurre antes del primer byte. Es la misma forma que las reglas de instrumentos de
+  abajo --un resultado parcial leído como entero-- y costó una reescritura cuando
+  `refresh_algebra_tags.zig` y `check_pins_fresh.zig` se escribieron sin ella.
 - Un fixture tiene que elegir el valor que hace visible el defecto, no el que hace
   pasar la prueba. Un escalar de módulo 7 no puede cazar nada sobre un campo de
   254 bits, y un módulo justo por debajo de 2^256 no puede detectar nada sobre un
