@@ -3,9 +3,15 @@
 //! `verify` is the primitive consumers should call: allocation-free and safe
 //! against malformed input. `Groth16` wraps it with a reference prover for
 //! compile-time-sized rank-1 constraint systems. That prover is a test oracle,
-//! not a production prover: blinding factors come from the caller, it is not
-//! constant time, and it uses single scalar multiplications where a real
-//! prover would use MSMs.
+//! not a production prover, and the three reasons are the same reason: it is a
+//! reference, not something to deploy.
+//!
+//! It is not constant time. Blinding factors come from the caller, so nothing here
+//! draws from a source the prover controls, and the scalar multiplication is a
+//! single multiplication where a real prover uses MSMs -- which is a cost shape, not
+//! only a timing one. Neither reaches `verify`, which is the primitive a consumer
+//! should call and is public-input only: every input to it is public by
+//! construction.
 const std = @import("std");
 const zc = @import("zig-curve");
 const tp = @import("zig-pairing").bn254_tower_pairing;

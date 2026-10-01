@@ -355,6 +355,88 @@ const algebra_tags_path = "scripts/algebra-tags.txt";
 /// sits outside what these roots reach. The second is the one that found
 /// `libs/stark/m31/lib.zig`, whose `refAllDecls` never ran because nothing
 /// imported it.
+/// The comment lines of a source file that make a timing claim.
+///
+/// Comment lines only. A claim about timing is an assertion about behaviour, and
+/// behaviour is asserted about in prose -- a doc string or a comment. Reading
+/// string literals as claims would make every test name and every error message a
+/// potential finding, and a gate that reports all of those reports nothing.
+fn timingClaims(text: []const u8) usize {
+    var count: usize = 0;
+    var it = std.mem.splitScalar(u8, text, '\n');
+    while (it.next()) |line| {
+        const t = std.mem.trim(u8, line, " \t");
+        const is_comment = std.mem.startsWith(u8, t, "///") or
+            std.mem.startsWith(u8, t, "//") or
+            std.mem.startsWith(u8, t, "//!");
+        if (!is_comment) continue;
+        for (constant_time_words) |w| {
+            if (std.mem.indexOf(u8, t, w) != null) {
+                count += 1;
+                break;
+            }
+        }
+    }
+    return count;
+}
+
+/// Every constant-time claim in the tree, with the mechanism that leaks and the
+/// call sites that reach it.
+///
+/// This is the ledger form of the same discipline as the assert ledger: a claim
+/// about timing cannot be refuted by a test, because `h == h` passes under any
+/// implementation, so the only thing that can be checked is that someone wrote down
+/// what leaks and who can reach it. A doc string that says "constant-time-ish"
+/// fails the reader the same way a gate that counts rows passes the table: it
+/// reports the form and reads as information about the thing.
+///
+/// Every entry names a channel, because "not constant-time" is not a fact on its
+/// own. Control flow is visible to anything counting instructions; a memory
+/// access at a secret-dependent index is not, and a caller deciding whether to
+/// care needs to know which one it is.
+/// Exempt, and the exemption is part of the rule rather than an exception to it.
+///
+/// This file carries the vocabulary because the rule has to name what a claim is
+/// made of. Those comments are the rule describing itself -- the same category as
+/// the header comment above -- and a gate that cannot exempt itself would fail the
+/// moment someone documented it, which is the day it needed documenting.
+const timing_rule_exempt = [_][]const u8{"scripts/check_contract.zig"};
+
+const constant_time_claims = [_]struct {
+    file: []const u8,
+    /// How many comment lines in this file make a timing claim. Ratcheted, not
+    /// counted at build time: a file declared once would otherwise be exempt from
+    /// every claim added to it afterwards, and a mutation that appends a
+    /// `/// constant-time` helper to a declared file passed the rule silently.
+    claims: usize,
+    /// The channel that leaks, in a form a reader can check.
+    mechanism: []const u8,
+    /// Which call sites carry a secret that reaches it.
+    reachability: []const u8,
+}{
+    .{
+        .file = "libs/snark/src/root.zig",
+        .claims = 1,
+        .mechanism = "caller-supplied blinding factors and single scalar multiplications rather than MSMs; a cost shape that is also a timing one",
+        .reachability = "prover only, and it is a reference prover: verify is public-input only",
+    },
+    .{
+        .file = "libs/stark/m31/circle/point.zig",
+        .claims = 3,
+        .mechanism = "table[digit]: memory access at a secret-dependent index, a cache channel; the loop is fixed and the digit is a shift and a mask",
+        .reachability = "none in this tree: every call site passes a public scalar",
+    },
+};
+
+/// The words a claim is made of. Deliberately a list of stems rather than of
+/// sentences: a claim can be phrased any way, and the point is not to match prose
+/// but to require that the prose be declared above.
+const constant_time_words = [_][]const u8{
+    "constant-time", "constant time", "constant_time",
+    "timing attack", "timing side",   "side channel",
+    "side-channel",
+};
+
 const test_roots = [_][]const u8{
     "scripts/check_contract.zig",
     "scripts/check_docs.zig",
@@ -446,6 +528,15 @@ fn collectRelativeImports(
         const joined = try std.fs.path.join(alloc, &.{ dir, target });
         try queue.append(alloc, try std.fs.path.resolve(alloc, &.{joined}));
     }
+}
+
+/// The slot a path occupies, or `haystack.len` when it is not in it. Callers pair
+/// this with a `containsString` check, so the out-of-range value is never indexed.
+fn indexOfString(haystack: []const []const u8, needle: []const u8) usize {
+    for (haystack, 0..) |h, i| {
+        if (std.mem.eql(u8, h, needle)) return i;
+    }
+    return haystack.len;
 }
 
 fn containsString(haystack: []const []const u8, needle: []const u8) bool {
@@ -541,7 +632,7 @@ const declared_reachable: usize = 60;
 /// updating the figure, it is the figure not being hand-written. So the number
 /// lives here, moves only when someone edits this line and says why, and the
 /// documents are checked against it rather than trusted.
-const declared_root_tests: usize = 298;
+const declared_root_tests: usize = 299;
 
 /// The unit-test count the stark README states, which is the other figure a
 /// reader looks at. It is the root build's `zig-stark-tests` step and not the
@@ -1073,6 +1164,69 @@ pub fn main(init: std.process.Init) !u8 {
         }
     }
 
+    // Rule 10. A constant-time claim has to be declared, with the channel that
+    // leaks and the call sites that reach it.
+    //
+    // A gate cannot check whether a function is constant-time -- that needs a
+    // timing measurement against a real attacker, which is not what this is. What it
+    // can do is refuse the undocumented claim, which is the failure that was
+    // actually live: a doc string reading "constant-time-ish" says the shape and is
+    // read as information about the thing, and "ish" is a hedge that hides the only
+    // fact a caller has to act on.
+    //
+    // So the ledger holds the claims, not a verdict on them. `mulScalar` is in it
+    // with the leak and the reachability; a new claim anywhere in the tree fails
+    // until someone writes down what leaks and who can reach it. That is the same
+    // discipline as the assert ledger and for the same reason: the count can only
+    // move when a person edits this file.
+    {
+        var declared_paths: [constant_time_claims.len][]const u8 = undefined;
+        var declared_counts: [constant_time_claims.len]usize = undefined;
+        for (constant_time_claims, 0..) |claim, i| {
+            declared_paths[i] = claim.file;
+            declared_counts[i] = claim.claims;
+        }
+
+        // Reported rather than fatal: an unopenable working directory is already a
+        // Rule 1 failure, and a second copy of the same cause would be noise.
+        if (std.Io.Dir.cwd().openDir(io, ".", .{ .iterate = true }) catch null) |cwd| {
+            defer cwd.close(io);
+
+            var sources: std.ArrayList([]const u8) = .empty;
+            defer {
+                for (sources.items) |sp| alloc.free(sp);
+                sources.deinit(alloc);
+            }
+            try collectSources(alloc, io, cwd, "", &sources);
+
+            for (sources.items) |path| {
+                const text = readOrNull(alloc, io, path) orelse continue;
+                const found = timingClaims(text);
+                if (found == 0) continue;
+                if (containsString(&timing_rule_exempt, path)) continue;
+                if (containsString(&declared_paths, path)) {
+                    const slot = indexOfString(&declared_paths, path);
+                    if (found == declared_counts[slot]) continue;
+                    var pd: Problem = .{};
+                    pd.setWhat("timing", .{});
+                    pd.setDetail("{s}: {d} timing claims, the ledger declares {d}. " ++
+                        "More is an undocumented claim; fewer is a claim removed and the " ++
+                        "ledger has to say so. Edit the ledger in the same commit", .{ path, found, declared_counts[slot] });
+                    try problems.append(alloc, pd);
+                    continue;
+                }
+                var pr: Problem = .{};
+                pr.setWhat("timing", .{});
+                pr.setDetail("{s}: makes a constant-time claim not in the ledger at " ++
+                    "the top of this file. A gate cannot measure whether the code is " ++
+                    "constant-time; what it can require is that the channel that leaks " ++
+                    "and the call sites that reach it are written down, so a reader can " ++
+                    "tell a decision from a hedge", .{path});
+                try problems.append(alloc, pr);
+            }
+        }
+    }
+
     if (manifests_read == 0) {
         var p: Problem = .{};
         p.setWhat("root", .{});
@@ -1490,6 +1644,32 @@ test "the newest tag ignores the listing's own documentation" {
     const listing = "\\# v0.9.9 is mentioned here and is not a release\nv0.5.3\nv0.6.0\n";
     try std.testing.expectEqualStrings("0.6.0", newestInListing(listing));
     try std.testing.expectEqualStrings("", newestInListing("# nothing\n"));
+}
+
+test "a timing claim is found in a comment and not in code or in a string" {
+    // In a comment: that is what a claim is made of.
+    try std.testing.expectEqual(@as(usize, 1), timingClaims("/// constant-time fixed window\n"));
+
+    // In code, not a claim. Reading a string literal would make every test name and
+    // every error message a potential finding, and a gate that reports all of those
+    // reports nothing.
+    try std.testing.expectEqual(@as(usize, 0), timingClaims("const note = \"constant-time\";\n"));
+
+    // Indented comments count: the doc comment above a declaration is the claim.
+    try std.testing.expectEqual(@as(usize, 1), timingClaims("    // side channel: note\n"));
+    try std.testing.expectEqual(@as(usize, 1), timingClaims("//! timing attack surface\n"));
+
+    // Every stem the rule knows, so a word added to the list cannot be dead. Built
+    // in a buffer because the concatenation is not comptime-known, and a rule whose
+    // own vocabulary goes untested is the one nobody extends.
+    for (constant_time_words) |w| {
+        var buf: [96]u8 = undefined;
+        const line = try std.fmt.bufPrint(&buf, "// x {s} y\n", .{w});
+        try std.testing.expectEqual(@as(usize, 1), timingClaims(line));
+    }
+
+    // One line with two stems is one claim, not two.
+    try std.testing.expectEqual(@as(usize, 1), timingClaims("/// constant-time and side-channel\n"));
 }
 
 test "the test-count oracle counts declarations the way the runner counts tests" {
