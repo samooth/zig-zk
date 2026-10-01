@@ -156,6 +156,29 @@ Nothing here is done. The checkbox is there to be ticked, not to decorate.
 
 ## Build
 
+- [ ] **The round count** · *measured, decision missing*
+
+  `proof.sumcheck.rounds.len` is `k`, and `k` is measured at 3 for `Gf256/Gf256`
+  and 6 for `Gf16/Gf2_128`. The bound is `k/|E|`, and `k` is the caller's; the
+  prover runs exactly that many rounds and they add rather than compound.
+
+  The 5.0x is **a property of the field width, not of `allow_small_field`**. It is
+  the ratio between the two configurations the fuzz suite runs: `Gf256` over
+  `Gf256`, an eight-bit extension field, and `Gf16` over `Gf2_128`.
+  `allow_small_field` is only the switch that lets a caller *name* the eight-bit
+  end. Remove it and there is nothing left to be 5.0x faster than -- which is why
+  the figure cannot be collected for the default question: one of its two ends is
+  inside the thing being questioned. And `arg.zig` already calls that configuration
+  "fast in Debug", so the speed is an artifact of unoptimised field arithmetic over
+  fewer bits, not a property worth defaulting to.
+
+  So the decision is not the factor. It is which fields are first class, and the
+  quick suite says out loud that its eight-bit end "says nothing about soundness"
+  and stresses only the plumbing, the witness shapes and the tamper rejection.
+
+  **Done:** the decision is written down, naming the first-class fields. The number
+  is not what it turns on.
+
 - [ ] **The root duplicates each library's wiring** · *a medias*
 
   `build.zig` re-declares the module wiring instead of delegating to each

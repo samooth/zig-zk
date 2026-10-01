@@ -109,6 +109,38 @@ fn checkChangelogSections(
     }
 }
 
+/// The labels a state table lists, and whether each has a body.
+///
+/// A table that lists an item whose body was deleted is a table that still reads as
+/// a complete list of what is open. This was not hypothetical: a line-range edit to
+/// one bullet of `TODO.md` swallowed the next one, the table kept the row, and
+/// `check-docs` passed -- pairing, headings and language all fine, because the row
+/// was well formed and the missing text was simply gone.
+///
+/// Row labels are translated between the two languages, so the match is on the
+/// section heading each label's item lives under plus its presence, not on the
+/// literal. What is checkable without a translation dictionary is the count: a
+/// state table must have as many bodies as it has rows.
+fn tableRows(text: []const u8) usize {
+    var rows: usize = 0;
+    var it = std.mem.splitScalar(u8, text, '\n');
+    while (it.next()) |line| {
+        if (std.mem.startsWith(u8, line, "| ") and !std.mem.startsWith(u8, line, "| Document") and !std.mem.startsWith(u8, line, "| Item") and !std.mem.startsWith(u8, line, "|---") and !std.mem.startsWith(u8, line, "| ---")) {
+            rows += 1;
+        }
+    }
+    return rows;
+}
+
+fn taskItems(text: []const u8) usize {
+    var items: usize = 0;
+    var it = std.mem.splitScalar(u8, text, '\n');
+    while (it.next()) |line| {
+        if (std.mem.startsWith(u8, line, "- [ ] ") or std.mem.startsWith(u8, line, "- [x] ")) items += 1;
+    }
+    return items;
+}
+
 /// How many level-2 sections a document declares, ignoring anything inside a
 /// fenced code block.
 ///
@@ -511,6 +543,22 @@ pub fn main(init: std.process.Init) !u8 {
         }
 
         const is_es = std.mem.endsWith(u8, base, ".es.md");
+
+        // Rule 7, on the todo only: its state table must have a body per row. A row
+        // whose body was deleted still reads as an open item, and that is how a line
+        // range that was meant to rewrite one bullet silently swallowed the next one.
+        if (std.mem.eql(u8, base, "TODO.md")) {
+            const rows = tableRows(text);
+            const items = taskItems(text);
+            if (rows != items) {
+                var sp: Problem = .{};
+                sp.setPath(path);
+                sp.setDetail("the state table has {d} rows and the document has {d} " ++
+                    "items. A row whose body is gone still reads as an open item, so " ++
+                    "the two counts have to agree", .{ rows, items });
+                try problems.append(alloc, sp);
+            }
+        }
 
         // Rule 6, on the pair, once. From the English file only, so a mismatch is
         // one report rather than two, and so the message names the file that is

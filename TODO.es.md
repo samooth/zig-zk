@@ -160,6 +160,31 @@ Nada de esto está hecho. La casilla está para marcarse, no para decorar.
 
 ## Compilación
 
+- [ ] **El número de rondas** · *medido, falta decidir*
+
+  `proof.sumcheck.rounds.len` es `k`, y `k` está medido en 3 para `Gf256/Gf256` y 6
+  para `Gf16/Gf2_128`. La cota es `k/|E|`, y `k` es de quien llama; el prover corre
+  exactamente esas rondas, y los errores se suman en vez de compounding.
+
+  El 5,0× es **una propiedad del ancho del campo, no de `allow_small_field`**. Es la
+  razón entre las dos configuraciones que corre la suite de fuzz: `Gf256` sobre
+  `Gf256`, una extensión de ocho bits, y `Gf16` sobre `Gf2_128`.
+  `allow_small_field` es sólo el interruptor que permite a quien llama *nombrar* el
+  extremo de ocho bits. Quítalo y no queda nada frente a lo cual ser 5,0× más
+  rápido, y por eso la cifra no se puede собра para la pregunta del valor por
+  defecto: uno de sus dos extremos está dentro de lo que se está cuestionando. Y
+  `arg.zig` ya llama a esa configuración «fast in Debug», así que la velocidad es un
+  artefacto de la aritmética de campo sin optimizar sobre menos bits, no una
+  propiedad por la que merezca la pena decidir.
+
+  Así que la decisión no es el factor. Es qué campos son de primera clase, y la
+  suite rápida dice en voz alta que su extremo de ocho bits «no dice nada sobre
+  soundness» y que sólo pressiona la fontanería, las formas de testigo y el rechazo
+  de manipulación.
+
+  **Hecho:** que la decisión esté escrita, nombrando los campos de primera clase. El
+  número no es lo que decide.
+
 - [ ] **La raíz duplica el cableado de cada librería** · *a medias*
 
   `build.zig` vuelve a declarar el cableado de módulos en vez de delegar en el

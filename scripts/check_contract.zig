@@ -404,11 +404,25 @@ const timing_rule_exempt = [_][]const u8{"scripts/check_contract.zig"};
 
 const constant_time_claims = [_]struct {
     file: []const u8,
-    /// How many comment lines in this file make a timing claim. Ratcheted, not
+    /// How many comment lines in this file *mention* the topic. Ratcheted, not
     /// counted at build time: a file declared once would otherwise be exempt from
     /// every claim added to it afterwards, and a mutation that appends a
     /// `/// constant-time` helper to a declared file passed the rule silently.
-    claims: usize,
+    ///
+    /// It counts mentions and not claims, and the name says so because the first
+    /// version called it `claims` and lied. `point.zig` makes one claim and spends
+    /// three lines on it, two of them telling the caller what the constant-time form
+    /// would look like -- which contains "constant-time" as a substring exactly as
+    /// the sentence denying it does. A detector of stems cannot tell a claim from
+    /// the advice beside it, so the number it produces is how much a file talks
+    /// about the subject. Calling that a count of claims punishes the better
+    /// documented file, in a gate whose whole point is that the numbers do not lie.
+    mention_lines: usize,
+
+    /// The claim itself, in the words that make it. Kept as text rather than as a
+    /// count because the count cannot be derived from one: a claim can be phrased
+    /// any way, and the rule exists to make someone write down which one they mean.
+    claim: []const u8,
     /// The channel that leaks, in a form a reader can check.
     mechanism: []const u8,
     /// Which call sites carry a secret that reaches it.
@@ -416,13 +430,15 @@ const constant_time_claims = [_]struct {
 }{
     .{
         .file = "libs/snark/src/root.zig",
-        .claims = 1,
+        .mention_lines = 1,
+        .claim = "it is not constant time",
         .mechanism = "caller-supplied blinding factors and single scalar multiplications rather than MSMs; a cost shape that is also a timing one",
         .reachability = "prover only, and it is a reference prover: verify is public-input only",
     },
     .{
         .file = "libs/stark/m31/circle/point.zig",
-        .claims = 3,
+        .mention_lines = 3,
+        .claim = "**Not constant-time**, and specifically not through control flow",
         .mechanism = "table[digit]: memory access at a secret-dependent index, a cache channel; the loop is fixed and the digit is a shift and a mask",
         .reachability = "none in this tree: every call site passes a public scalar",
     },
@@ -1184,7 +1200,7 @@ pub fn main(init: std.process.Init) !u8 {
         var declared_counts: [constant_time_claims.len]usize = undefined;
         for (constant_time_claims, 0..) |claim, i| {
             declared_paths[i] = claim.file;
-            declared_counts[i] = claim.claims;
+            declared_counts[i] = claim.mention_lines;
         }
 
         // Reported rather than fatal: an unopenable working directory is already a
@@ -1209,9 +1225,9 @@ pub fn main(init: std.process.Init) !u8 {
                     if (found == declared_counts[slot]) continue;
                     var pd: Problem = .{};
                     pd.setWhat("timing", .{});
-                    pd.setDetail("{s}: {d} timing claims, the ledger declares {d}. " ++
-                        "More is an undocumented claim; fewer is a claim removed and the " ++
-                        "ledger has to say so. Edit the ledger in the same commit", .{ path, found, declared_counts[slot] });
+                    pd.setDetail("{s}: {d} comment lines mention timing, the ledger declares {d}. " ++
+                        "More is a mention that is not accounted for; fewer is one " ++
+                        "removed. Either way the ledger moves in the same commit", .{ path, found, declared_counts[slot] });
                     try problems.append(alloc, pd);
                     continue;
                 }
