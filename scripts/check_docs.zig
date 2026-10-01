@@ -109,6 +109,136 @@ fn checkChangelogSections(
     }
 }
 
+/// The states a row may carry that claim to be settled. A settled row must be
+/// able to say which commit settled it.
+const settled_states = [_][]const u8{ "hecho", "done", "listo" };
+
+fn isSettled(state: []const u8) bool {
+    for (settled_states) |x| {
+        if (std.mem.eql(u8, state, x)) return true;
+    }
+    return false;
+}
+
+fn isHexSha(text: []const u8) bool {
+    if (text.len < 7 or text.len > 40) return false;
+    for (text) |c| {
+        if (!std.ascii.isHex(c)) return false;
+    }
+    return true;
+}
+
+/// `git show <sha>:<path>`, or null when git cannot produce it.
+///
+/// A gate that passes when its reference cannot be read is not a gate, so this
+/// returns null rather than an empty string and the caller reports it. `git show`
+/// on a committed object needs no network, so the gate stays hermetic.
+fn gitShowAlloc(alloc: std.mem.Allocator, io: std.Io, sha: []const u8, path: []const u8) ?[]const u8 {
+    const spec = std.fmt.allocPrint(alloc, "{s}:{s}", .{ sha, path }) catch return null;
+    var child = std.process.spawn(io, .{
+        .argv = &.{ "git", "show", spec },
+        .stdout = .pipe,
+        .stderr = .ignore,
+    }) catch return null;
+    var buf: [8192]u8 = undefined;
+    var reader = child.stdout.?.readerStreaming(io, &buf);
+    const out = (reader.interface.allocRemaining(alloc, .limited(1 << 22)) catch return null);
+    // The exit code is checked, and that is the whole point of returning an option:
+    // `git show` on a bad revision prints nothing on stdout and fails, and an
+    // implementation that only read stdout would hand back an empty string for a
+    // revision that does not exist. That is a zero read as a value, which is the
+    // fourth time in this repository and the first time I wrote one myself.
+    switch (child.wait(io) catch return null) {
+        .exited => |code| if (code != 0) return null,
+        else => return null,
+    }
+    return out;
+}
+
+/// One row of the state table, as the gate sees it.
+const StateRow = struct { label: []const u8, state: []const u8, commit: []const u8 };
+
+/// Fixed buffers rather than an `ArrayList`: these tables are a dozen rows and the
+/// gate runs on every build, and `appendAssumeCapacity` on an empty list is a
+/// panic waiting for a capacity nobody set. A bounded buffer is also the honest
+/// shape -- a table with more rows than this is malformed, not truncated.
+const RowBuf = struct { items: [64]StateRow = undefined, len: usize = 0 };
+const CellBuf = struct { items: [8][]const u8 = undefined, len: usize = 0 };
+
+/// The non-empty cells of a table row, leading pipe ignored. Empty cells are
+/// dropped so a trailing `|` or a missing third column reads as "not there" rather
+/// than as an empty value that would pass a length check.
+///
+/// Trims newlines as well as spaces, and that is not tidiness: a caller that passes
+/// a single line taken with its terminator would otherwise count "\n" as a cell and
+/// see a three-column row where there are two. The test for the missing column is
+/// what found it.
+fn rowCells(line: []const u8) CellBuf {
+    var out: CellBuf = .{};
+    var fs = std.mem.splitScalar(u8, line, '|');
+    _ = fs.next();
+    while (fs.next()) |f| {
+        const cell = std.mem.trim(u8, f, " \t\r\n");
+        if (cell.len == 0) continue;
+        if (out.len == out.items.len) break;
+        out.items[out.len] = cell;
+        out.len += 1;
+    }
+    return out;
+}
+
+/// The state cell of the row whose label contains `needle`, in `text`.
+///
+/// One cell wide, on purpose. The check is about the state and not about the row,
+/// because a stamp has to survive a schema change: adding a column to this table
+/// is not a state change, and if it counted as one then the first edit after the
+/// rule landed would fail every settled row at once.
+fn rowState(text: []const u8, needle: []const u8) ?[]const u8 {
+    var it = std.mem.splitScalar(u8, text, '\n');
+    while (it.next()) |line| {
+        const cells = rowCells(line);
+        if (cells.len < 2) continue;
+        if (std.mem.indexOf(u8, cells.items[0], needle) == null) continue;
+        return cells.items[1];
+    }
+    return null;
+}
+
+/// The commit cell of the row whose label contains `needle`, or null when the row
+/// has no third column at all.
+fn rowCommit(text: []const u8, needle: []const u8) ?[]const u8 {
+    var it = std.mem.splitScalar(u8, text, '\n');
+    while (it.next()) |line| {
+        const cells = rowCells(line);
+        if (cells.len < 2) continue;
+        if (std.mem.indexOf(u8, cells.items[0], needle) == null) continue;
+        if (cells.len < 3) return null;
+        return cells.items[2];
+    }
+    return null;
+}
+
+/// The rows that claim to be settled. A row with no third column is recorded with
+/// an empty commit, so a settled state with no origin and a settled state with a
+/// malformed origin reach the same report rather than one of them being silent.
+fn settledRows(text: []const u8) RowBuf {
+    var out: RowBuf = .{};
+    var it = std.mem.splitScalar(u8, text, '\n');
+    while (it.next()) |line| {
+        const cells = rowCells(line);
+        if (cells.len < 2) continue;
+        if (!isSettled(cells.items[1])) continue;
+        if (out.len == out.items.len) break;
+        out.items[out.len] = .{
+            .label = cells.items[0],
+            .state = cells.items[1],
+            .commit = if (cells.len >= 3) cells.items[2] else "",
+        };
+        out.len += 1;
+    }
+    return out;
+}
+
 /// The labels a state table lists, and whether each has a body.
 ///
 /// A table that lists an item whose body was deleted is a table that still reads as
@@ -544,6 +674,70 @@ pub fn main(init: std.process.Init) !u8 {
 
         const is_es = std.mem.endsWith(u8, base, ".es.md");
 
+        // Rule 8: a settled row names the commit that settled it, and the row has
+        // not moved since. A state with no origin cannot be audited, which is the
+        // shape three tools hit in two repositories: a row that claimed "done" with
+        // nothing behind it, a row whose body had been deleted, and a gate entry
+        // whose own state was still "not started" a commit after it landed.
+        //
+        // The second half is the one that matters. A commit that exists is a stamp;
+        // a commit the row still agrees with is a stamp with a check on it. The
+        // comparison is deliberately one cell wide, so adding a column to the table
+        // is a schema change and not a state change -- otherwise the first edit
+        // after this rule landed would fail every settled row at once.
+        if (std.mem.eql(u8, base, "TODO.md")) {
+            const settled = settledRows(text);
+            for (settled.items[0..settled.len]) |row| {
+                if (!isHexSha(row.commit)) {
+                    var sp: Problem = .{};
+                    sp.setPath(path);
+                    sp.setDetail("{s} is {s} with no commit. A settled state with no " ++
+                        "origin is an assertion, and the assertion is the thing that " ++
+                        "went stale three times", .{ row.label, row.state });
+                    try problems.append(alloc, sp);
+                    continue;
+                }
+
+                const sha = std.fmt.allocPrint(alloc, "{s}", .{row.commit}) catch continue;
+                const historical = gitShowAlloc(alloc, io, sha, "TODO.md");
+                if (historical == null) {
+                    var sp: Problem = .{};
+                    sp.setPath(path);
+                    sp.setDetail("{s} is {s} and cites {s}, which is not a commit " ++
+                        "this repository has. A stamp that points at nothing is worse " ++
+                        "than no stamp", .{ row.label, row.state, row.commit });
+                    try problems.append(alloc, sp);
+                    continue;
+                }
+                defer alloc.free(historical.?);
+
+                // A row that does not exist at the cited commit is a failure, not an
+                // absence of a failure. That is the coordinator's second mutation and
+                // it is the one that makes the stamp auditable: the commit has to be
+                // one where the row already said this. Skipping the comparison when
+                // there is nothing to compare is how a rule that never fires looks
+                // exactly like a rule that is satisfied.
+                const then_opt = rowState(historical.?, row.label);
+                const then = then_opt orelse {
+                    var sp: Problem = .{};
+                    sp.setPath(path);
+                    sp.setDetail("{s} is {s} and cites {s}, where that row does not " ++
+                        "exist yet. A stamp has to point at a commit where the row " ++
+                        "already said this, not at one before the row was written", .{ row.label, row.state, row.commit });
+                    try problems.append(alloc, sp);
+                    continue;
+                };
+                if (!std.mem.eql(u8, then, row.state)) {
+                    var sp: Problem = .{};
+                    sp.setPath(path);
+                    sp.setDetail("{s} says {s} and cites {s}, where it said {s}. The " ++
+                        "state moved after the commit it claims to come from, which is " ++
+                        "a stamp pointing at a commit that did not settle it", .{ row.label, row.state, row.commit, then });
+                    try problems.append(alloc, sp);
+                }
+            }
+        }
+
         // Rule 7, on the todo only: its state table must have a body per row. A row
         // whose body was deleted still reads as an open item, and that is how a line
         // range that was meant to rewrite one bullet silently swallowed the next one.
@@ -702,6 +896,53 @@ test "a CJK sequence in the prose is a failure and one in a code fence is not" {
     defer out2.deinit(alloc);
     _ = try stripCode(alloc, bare, &out2);
     try std.testing.expect(firstCjk(out2.items) != null);
+}
+
+test "a settled row needs a seal and the seal has to be there" {
+    const tabla =
+        \\| Item | State | Commit |
+        \\|---|---|
+        \\| `hecho` | hecho | 0a1b2c3 |
+        \\| `sin sello` | hecho | - |
+        \\| `mal formado` | hecho | xyz |
+        \\| `abierto` | sin empezar | - |
+    ;
+    const rows = settledRows(tabla);
+    try std.testing.expectEqual(@as(usize, 3), rows.len);
+    // Three rows claim to be settled; the fourth does not and therefore asserts
+    // nothing, which is why it needs no seal and is not reported. The three that
+    // do: one well formed, one absent, one malformed.
+    try std.testing.expect(isHexSha(rows.items[0].commit));
+    try std.testing.expectEqualStrings("0a1b2c3", rows.items[0].commit);
+    try std.testing.expectEqualStrings("-", rows.items[1].commit);
+    try std.testing.expect(!isHexSha(rows.items[1].commit));
+    try std.testing.expectEqualStrings("xyz", rows.items[2].commit);
+    try std.testing.expect(!isHexSha(rows.items[2].commit));
+}
+
+test "the seal comparison is one cell wide, so a schema change is not a state change" {
+    const antes = "\\| Pin hygiene | hecho | 727c46d |\\n";
+    const despues = "\\| Pin hygiene | hecho | 727c46d |\\n";
+    try std.testing.expectEqualStrings("hecho", rowState(antes, "Pin hygiene").?);
+    try std.testing.expectEqualStrings("hecho", rowState(despues, "Pin hygiene").?);
+    try std.testing.expectEqualStrings("727c46d", rowCommit(antes, "Pin hygiene").?);
+    // A row that has moved on reports the other state, which is the staleness case.
+    const movida = "| Pin hygiene | sin empezar | 727c46d |\n";
+    try std.testing.expectEqualStrings("sin empezar", rowState(movida, "Pin hygiene").?);
+    // And a row that is not in the table at all has no state to compare.
+    try std.testing.expectEqual(@as(?[]const u8, null), rowState(antes, "Nada de eso"));
+}
+
+test "an empty cell reads as absent rather than as an empty value" {
+    // A missing third column and a `-` in it are both "no seal", and both have to
+    // reach the report rather than pass a length check.
+    const sin_columna = "| `hecho` | hecho |\n";
+    const con_guion = "| `hecho` | hecho | - |\n";
+    // Two cells, not three: the third column is absent, and an absent column is
+    // dropped rather than read as an empty value that would pass a length check.
+    try std.testing.expectEqual(@as(usize, 2), rowCells(sin_columna).len);
+    try std.testing.expectEqual(@as(usize, 3), rowCells(con_guion).len);
+    try std.testing.expectEqualStrings("-", rowCommit(con_guion, "`hecho`").?);
 }
 
 test "the changelog rule catches a repeated section" {

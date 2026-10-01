@@ -10,25 +10,25 @@ Nada de esto está hecho. La casilla está para marcarse, no para decorar.
 
 ## En qué punto está cada cosa
 
-| Punto | Estado |
-|---|---|
-| Completar la auditoría de `libs/signature` | a medias |
-| Hash-to-curve | sin empezar |
-| BLS12-381 | sin empezar |
-| Multifirma y umbral de Schnorr | sin empezar |
-| Ed25519 sobre campo primo | sin empezar |
-| Adaptadores de punto para otras curvas | sin empezar |
-| DER, PEM y formatos de intercambio | sin empezar |
-| Propagar `allow_small_field` | hecho |
-| El número de rondas | medido, falta decidir |
-| La raíz duplica el cableado de cada librería | a medias |
-| Higiene del pin | hecho |
-| `core/hash` y `core/merkle` | sin empezar |
-| Afirmaciones de tiempo constante, con puerta | hecho |
-| Ramas locales | a medias |
-| `libs/fri` en `zig-zkml` | precondición satisfecha |
-| Hash dentro del circuito | sin empezar |
-| Un solo repositorio | sin empezar |
+| Punto | Estado | Commit |
+|---|---|---|
+| Completar la auditoría de `libs/signature` | a medias | - |
+| Hash-to-curve | sin empezar | - |
+| BLS12-381 | sin empezar | - |
+| Multifirma y umbral de Schnorr | sin empezar | - |
+| Ed25519 sobre campo primo | sin empezar | - |
+| Adaptadores de punto para otras curvas | sin empezar | - |
+| DER, PEM y formatos de intercambio | sin empezar | - |
+| Propagar `allow_small_field` | hecho | 0d81e3a |
+| El número de rondas | medido, falta decidir | - |
+| La raíz duplica el cableado de cada librería | a medias | - |
+| Higiene del pin | hecho | 727c46d |
+| `core/hash` y `core/merkle` | sin empezar | - |
+| Afirmaciones de tiempo constante, con puerta | hecho | 8946c6b |
+| Ramas locales | a medias | - |
+| `libs/fri` en `zig-zkml` | precondición satisfecha | - |
+| Hash dentro del circuito | sin empezar | - |
+| Un solo repositorio | sin empezar | - |
 
 - **a medias** — empezado, y la parte hecha está escrita abajo.
 - **sin empezar** — no se ha intentado nada.

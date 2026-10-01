@@ -149,7 +149,7 @@ a bare checkout. The per-library `build.zig` files exist for standalone work
 (`cd libs/<name> && zig build test`) and resolve zig-algebra from the same
 pinned tarball, so they build from a bare checkout too.
 
-The root `test` step compiles and runs every suite: 299 tests across transcript
+The root `test` step compiles and runs every suite: 302 tests across transcript
 (20), commitment (17), signature (12), stark (185), snark (13), six that import the published modules by name, the two gates'
 own tests (9 and 13), six that import the published modules by name, the three
 known-answer suites that guard the layer consumed

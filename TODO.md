@@ -10,25 +10,25 @@ Nothing here is done. The checkbox is there to be ticked, not to decorate.
 
 ## Where each item stands
 
-| Item | State |
-|---|---|
-| Complete the audit of `libs/signature` | a medias |
-| Hash-to-curve | sin empezar |
-| BLS12-381 | sin empezar |
-| Schnorr multisignature and threshold | sin empezar |
-| Ed25519 over a prime field | sin empezar |
-| Point adapters for other curves | sin empezar |
-| DER, PEM, and interchange formats | sin empezar |
-| Propagate `allow_small_field` | done |
-| The round count | medido, falta decidir |
-| The root duplicates each library's wiring | a medias |
-| Pin hygiene | hecho |
-| `core/hash` and `core/merkle` | sin empezar |
-| Constant-time claims, gated | hecho |
-| Local branches | a medias |
-| `libs/fri` in `zig-zkml` | precondición satisfecha |
-| Hash inside the circuit | sin empezar |
-| One repository | sin empezar |
+| Item | State | Commit |
+|---|---|---|
+| Complete the audit of `libs/signature` | a medias | - |
+| Hash-to-curve | sin empezar | - |
+| BLS12-381 | sin empezar | - |
+| Schnorr multisignature and threshold | sin empezar | - |
+| Ed25519 over a prime field | sin empezar | - |
+| Point adapters for other curves | sin empezar | - |
+| DER, PEM, and interchange formats | sin empezar | - |
+| Propagate `allow_small_field` | done | 0d81e3a |
+| The round count | medido, falta decidir | - |
+| The root duplicates each library's wiring | a medias | - |
+| Pin hygiene | hecho | 727c46d |
+| `core/hash` and `core/merkle` | sin empezar | - |
+| Constant-time claims, gated | hecho | 8946c6b |
+| Local branches | a medias | - |
+| `libs/fri` in `zig-zkml` | precondición satisfecha | - |
+| Hash inside the circuit | sin empezar | - |
+| One repository | sin empezar | - |
 
 - **a medias** — started, and the part that was done is written down below.
 - **sin empezar** — nothing has been attempted.
