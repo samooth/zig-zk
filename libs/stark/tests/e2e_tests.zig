@@ -660,3 +660,55 @@ test "the proof invariant moves when the proof size changes" {
     // is measuring the code that produced it and not the proof.
     try std.testing.expect(try adderProofDigest(4) != adder_proof_digest_k3);
 }
+
+test "the small-field flag reaches both Binius layers, and the default is unchanged" {
+    const Pcs = zig_stark.binius.pcs;
+    const Sum = zig_stark.binius.sumcheck;
+    const F = zig_stark.binius.tower.Gf256;
+    const E = zig_stark.binius.tower.Gf2_128;
+    const Pequeno = zig_stark.binius.tower.Gf2_64;
+
+    // What the three constructors have always been, and what they stay. The
+    // existing entry points were kept rather than given a parameter, so every
+    // proof this repository produced still verifies against them, and that is what
+    // an unchanged test count measures.
+    const Inseguro = zig_stark.binius.stark.BiniusStark(F, E);
+    try std.testing.expect(Inseguro.allows_small_field);
+    try std.testing.expect(
+        zig_stark.binius.arg.BiniusArgWith(F, E, Pcs.CommittedMlePcsUnsafe(F, E)).allows_small_field,
+    );
+
+    // The flag reached both layers, checked against the types it selected rather
+    // than against the flag itself. `allows_small_field` only restates the
+    // argument; these say what was instantiated.
+    const Seguro = zig_stark.binius.stark.BiniusStarkChecked(F, E, Pcs.CommittedMlePcs(F, E), false);
+    try std.testing.expect(!Seguro.allows_small_field);
+    try std.testing.expect(Seguro.sumcheck == Sum.Sumcheck(E));
+    try std.testing.expect(Seguro.mle_pcs == Pcs.MlePcs(F, E));
+    try std.testing.expect(Inseguro.sumcheck == Sum.SumcheckUnsafe(E));
+    try std.testing.expect(Inseguro.mle_pcs == Pcs.MlePcsUnsafe(F, E));
+
+    const ArgSeguro = zig_stark.binius.arg.BiniusArgChecked(F, E, Pcs.CommittedMlePcs(F, E), false);
+    try std.testing.expect(ArgSeguro.sumcheck == Sum.Sumcheck(E));
+    try std.testing.expect(
+        zig_stark.binius.arg.BiniusArgWith(F, E, Pcs.CommittedMlePcsUnsafe(F, E)).sumcheck == Sum.SumcheckUnsafe(E),
+    );
+
+    // What the flag is not: it does not make the configuration a different type.
+    // `SC` and `M` are declarations inside the struct, not fields, so two
+    // configurations differing only in the flag are the same type. An earlier
+    // draft asserted they were different, failed, and the reason is worth more than
+    // the assertion: nothing stops a proof built under the safe sum-check being
+    // handed to a verifier built with the unsafe one. That is sound -- the proof
+    // format is identical and the unsafe verifier accepts more -- so the flag is a
+    // policy switch and not a type-level guarantee, and must not be called one.
+
+    // And what it bought, at the layer it names. The secure sum-check rejects a
+    // field below 128 bits with a typed error rather than grinding the challenge,
+    // which is the difference between the two configurations.
+    try std.testing.expect(Sum.Sumcheck(E) != Sum.SumcheckUnsafe(E));
+    try std.testing.expect(Pcs.MlePcs(F, E) != Pcs.MlePcsUnsafe(F, E));
+    try std.testing.expect(Pcs.CommittedMlePcs(F, E) != Pcs.CommittedMlePcsUnsafe(F, E));
+    try std.testing.expect(Sum.Sumcheck(Pequeno).MIN_SAFE_BITS == 128);
+    try std.testing.expect(Pequeno.BITS < Sum.Sumcheck(Pequeno).MIN_SAFE_BITS);
+}

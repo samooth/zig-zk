@@ -19,7 +19,7 @@ Nothing here is done. The checkbox is there to be ticked, not to decorate.
 | Ed25519 over a prime field | sin empezar |
 | Point adapters for other curves | sin empezar |
 | DER, PEM, and interchange formats | sin empezar |
-| Propagate `allow_small_field` | precondición satisfecha |
+| Propagate `allow_small_field` | done |
 | The round count | medido, falta decidir |
 | The root duplicates each library's wiring | a medias |
 | Pin hygiene | hecho |
@@ -126,30 +126,30 @@ Nothing here is done. The checkbox is there to be ticked, not to decorate.
 
 ## Binius
 
-- [ ] **Propagate `allow_small_field`** · *precondición satisfecha*
+- [x] **Propagate `allow_small_field`** · *done*
 
-  `StarkInner` and `BiniusArgWith` still hardcode `SumcheckUnsafe(E)` at
-  `stark.zig:83` and `arg.zig:48`, and the six convenience constructors still
-  select `CommittedMlePcsUnsafe`. The field pair is never told, so a pair below
-  128 bits is rejected rather than proved over.
+  `StarkInner` and `BiniusArgWith` take a comptime `allow_small_field`, and each
+  selects `Sumcheck` or `SumcheckUnsafe` **and** `MlePcs` or `MlePcsUnsafe`. Both
+  layers together on purpose: a protocol that rejects in the sum-check and grinds
+  in the commitment layer is worse than either being left alone.
 
-  The blocker was the algebra pin, and it moved to `0.6.0`. It is first in this
-  document because it is measurable now rather than because it is large.
+  New entry points, so nothing existing moved: `BiniusStarkChecked(F, E, CP, bool)`,
+  `BiniusStarkSecure(F, E)`, `BiniusArgChecked(F, E, CP, bool)`. The three old
+  constructors pass `true` and are what they always were, which is why the test
+  count was unchanged when this landed.
 
-  **Done:** the flag reaches both layers, and the default can then be decided on
-  measured cost rather than on the shape of the code.
+  **What the flag is not**, which took a failing assertion to establish: it does
+  not make the configuration a different type. `SC` and `M` are declarations
+  inside the struct, not fields, so two configurations differing only in the flag
+  are the same type, and nothing stops a proof built under the safe sum-check
+  being handed to a verifier built with the unsafe one. That is sound -- the proof
+  format is identical and the unsafe verifier accepts more -- so it is a policy
+  switch and not a type-level guarantee, and `sumcheck` / `mle_pcs` are published
+  as types so the choice is inspectable rather than restated.
 
-- [ ] **The round count** · *medido, falta decidir*
-
-  `proof.sumcheck.rounds.len` is `k`, and `k` is measured at 3 for `Gf256/Gf256`
-  and 6 for `Gf16/Gf2_128`. The bound is `k/|E|`, and 128 bits cost 5.0x per round,
-  linear in the fuzz suite. `k` is the caller's; the prover runs exactly that many
-  rounds and they add rather than compound.
-
-  What is missing is the decision: whether the default moves to 128 bits is a
-  product decision, and it needs to be written down with that number next to it.
-
-  **Done:** the decision is written down, with 5.0x in it.
+  **Still open, and it is the rest of this item:** whether the *default* moves is
+  a product decision with 5.0x per round next to it. The flag makes the decision
+  expressible; it does not make it.
 
 ---
 

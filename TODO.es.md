@@ -19,7 +19,7 @@ Nada de esto está hecho. La casilla está para marcarse, no para decorar.
 | Ed25519 sobre campo primo | sin empezar |
 | Adaptadores de punto para otras curvas | sin empezar |
 | DER, PEM y formatos de intercambio | sin empezar |
-| Propagar `allow_small_field` | precondición satisfecha |
+| Propagar `allow_small_field` | hecho |
 | El número de rondas | medido, falta decidir |
 | La raíz duplica el cableado de cada librería | a medias |
 | Higiene del pin | hecho |
@@ -130,30 +130,30 @@ Nada de esto está hecho. La casilla está para marcarse, no para decorar.
 
 ## Binius
 
-- [ ] **Propagar `allow_small_field`** · *precondición satisfecha*
+- [x] **Propagar `allow_small_field`** · *hecho*
 
-  `StarkInner` y `BiniusArgWith` siguen con `SumcheckUnsafe(E)` fijo en
-  `stark.zig:83` y `arg.zig:48`, y los seis constructores de conveniencia siguen
-  eligiendo `CommittedMlePcsUnsafe`. Del par de campos nunca se entera, así que un
-  par de menos de 128 bits se rechaza en vez de probarse sobre él.
+  `StarkInner` y `BiniusArgWith` reciben un `allow_small_field` de comptime, y cada
+  uno elige `Sumcheck` o `SumcheckUnsafe` **y** `MlePcs` o `MlePcsUnsafe`. Las dos
+  capas juntas a propósito: un protocolo que rechaza en el sum-check y muele en la
+  capa de compromiso es peor que dejar cualquiera de las dos como estaba.
 
-  El bloqueo era el pin de algebra, y ya está en `0.6.0`. Va primero en este
-  documento porque es medible ahora, no porque sea grande.
+  Entradas nuevas, para que nada existente se mueva: `BiniusStarkChecked(F, E, CP,
+  bool)`, `BiniusStarkSecure(F, E)`, `BiniusArgChecked(F, E, CP, bool)`. Los tres
+  constructores antiguos pasan `true` y son lo que siempre fueron, y por eso el
+  recuento de pruebas no cambió al aterrizar esto.
 
-  **Hecho:** que el indicador llegue a las dos capas, y que entonces el valor por
-  defecto se pueda decidir sobre coste medido y no sobre la forma del código.
+  **Lo que el indicador no es**, y que costó una aserción fallida establecer: no
+  convierte la configuración en un tipo distinto. `SC` y `M` son declaraciones
+  dentro del struct, no campos, así que dos configuraciones que sólo difieren en el
+  indicador son el mismo tipo, y nada impide pasar una prueba construida con el
+  sum-check seguro a un verificador construido con el inseguro. Eso es sólido —el
+  formato de prueba es idéntico y el verificador inseguro acepta más—, así que es
+  un interruptor de política y no una garantía de tipos, y `sumcheck` / `mle_pcs`
+  se publican como tipos para que la elección sea inspeccionable y no repetida.
 
-- [ ] **El número de rondas** · *medido, falta decidir*
-
-  `proof.sumcheck.rounds.len` es `k`, y `k` está medido en 3 para `Gf256/Gf256` y 6
-  para `Gf16/Gf2_128`. La cota es `k/|E|`, y 128 bits cuestan 5,0× por ronda, lineal
-  en la suite de fuzz. `k` es de quien llama; el prover corre exactamente esas
-  rondas, y los errores se suman en vez de compounding.
-
-  Lo que falta es la decisión: si el valor por defecto pasa a 128 bits es una
-  decisión de producto, y necesita escribirse con ese número al lado.
-
-  **Hecho:** que la decisión esté escrita, con el 5,0× dentro.
+  **Sigue abierto, y es el resto de este punto:** si el valor por defecto se mueve
+  es una decisión de producto con el 5,0× por ronda al lado. El indicador hace la
+  decisión expresable; no la hace.
 
 ---
 

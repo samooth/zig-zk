@@ -52,7 +52,7 @@ const Pool = @import("zig-parallel").Pool;
 /// sum-check transcript, so all randomness binds to the public statement and
 /// the committed witness.
 pub fn BiniusStark(comptime F: type, comptime E: type) type {
-    return StarkInner(F, E, PcsMod.CommittedMlePcsUnsafe(F, E));
+    return StarkInner(F, E, PcsMod.CommittedMlePcsUnsafe(F, E), true);
 }
 
 /// Same zero-check STARK, but with the sub-linear polylog FRI-Binius PCS
@@ -65,7 +65,7 @@ pub fn BiniusStarkFri(
     comptime log_blowup: u8,
     comptime num_queries: usize,
 ) type {
-    return StarkInner(F, E, BatchPcsMod.BatchFriPcsStark(F, E, log_blowup, num_queries));
+    return StarkInner(F, E, BatchPcsMod.BatchFriPcsStark(F, E, log_blowup, num_queries), true);
 }
 
 /// Same zero-check STARK, but with a caller-chosen committed-MLE PCS. The PCS
@@ -75,14 +75,71 @@ pub fn BiniusStarkFri(
 /// all 2^k entries; `PackedPcsStark` (from `packed_pcs.zig`) opens only the
 /// packed rows and a few sampled columns, giving sub-linear proofs.
 pub fn BiniusStarkWith(comptime F: type, comptime E: type, comptime CP: type) type {
-    return StarkInner(F, E, CP);
+    return StarkInner(F, E, CP, true);
 }
 
-fn StarkInner(comptime F: type, comptime E: type, comptime CP: type) type {
+/// `allow_small_field` reaches both layers that were hardcoded, and it reaches
+/// them together on purpose: `Sumcheck` and `MlePcs` each have a secure entry
+/// point that rejects an extension field below 128 bits with `error.FieldTooSmall`,
+/// and picking one without the other would leave a protocol that rejects in the
+/// sum-check and grinds in the commitment layer, which is worse than either.
+///
+/// It is a runtime error rather than a compile error, and that is correct: the
+/// field is a parameter, so this is the caller supplying something the callee has
+/// to check. A `comptime` rejection would fire at compile time for a value that
+/// is legal in a toy configuration and only illegal for a remote one.
+/// The zero-check STARK with the caller's choice of small-field policy, over a
+/// caller-chosen committed-MLE PCS.
+///
+/// Pass `allow_small_field = false` for anything that secures a remote proof:
+/// both the sum-check and the MLE layer then reject an extension field below 128
+/// bits with `error.FieldTooSmall` instead of grinding challenges in it. Pass
+/// `true` only for toy and on-chain experiments, which is what the three
+/// constructors above do and why they are kept.
+///
+/// The flag is comptime because both layers are types, so it costs nothing at
+/// run time and there is no branch to forget.
+pub fn BiniusStarkChecked(
+    comptime F: type,
+    comptime E: type,
+    comptime CP: type,
+    comptime allow_small_field: bool,
+) type {
+    return StarkInner(F, E, CP, allow_small_field);
+}
+
+/// `BiniusStarkChecked` with the default committed-MLE PCS, for the common case
+/// where the caller wants the safe sum-check and nothing else decided.
+pub fn BiniusStarkSecure(comptime F: type, comptime E: type) type {
+    return StarkInner(F, E, PcsMod.CommittedMlePcs(F, E), false);
+}
+
+fn StarkInner(
+    comptime F: type,
+    comptime E: type,
+    comptime CP: type,
+    comptime allow_small_field: bool,
+) type {
     return struct {
-        const SC = SumcheckMod.SumcheckUnsafe(E);
-        const M = PcsMod.MlePcsUnsafe(F, E);
+        const SC = if (allow_small_field)
+            SumcheckMod.SumcheckUnsafe(E)
+        else
+            SumcheckMod.Sumcheck(E);
+        const M = if (allow_small_field)
+            PcsMod.MlePcsUnsafe(F, E)
+        else
+            PcsMod.MlePcs(F, E);
         const Hash = CoreHash.Hash;
+
+        /// Whether this configuration accepts an extension field below 128 bits.
+        /// `false` means both layers above reject one, with `error.FieldTooSmall`.
+        pub const allows_small_field = allow_small_field;
+
+        /// The sum-check and MLE layer this configuration selected, as types.
+        /// Published because `allows_small_field` alone is only a restatement of
+        /// the argument: these say which of the two was actually instantiated.
+        pub const sumcheck = SC;
+        pub const mle_pcs = M;
 
         /// Fiat-Shamir domain separator for this protocol.
         const domain = "zig-stark:binius-stark";

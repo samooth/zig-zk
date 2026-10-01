@@ -38,10 +38,44 @@ pub fn BiniusArg(comptime F: type, comptime E: type) type {
 /// Product-sum argument with a caller-chosen committed-MLE PCS `CP` (same
 /// interface as `BiniusStarkWith`: `Proof`, `commit`, `proveEval`,
 /// `verifyEval`). `BiniusArgFri` picks the sub-linear FRI-Binius PCS.
+/// Product-sum argument with a caller-chosen committed-MLE PCS `CP` (same
+/// interface as `BiniusStarkWith`: `Proof`, `commit`, `proveEval`,
+/// `verifyEval`). `BiniusArgFri` picks the sub-linear FRI-Binius PCS.
+///
+/// `allow_small_field = true`, which is what this has always been: the sum-check
+/// accepts an extension field below 128 bits. Use `BiniusArgChecked` to choose.
 pub fn BiniusArgWith(comptime F: type, comptime E: type, comptime CP: type) type {
+    return BiniusArgChecked(F, E, CP, true);
+}
+
+/// The caller's choice of small-field policy. `false` selects the secure
+/// sum-check, which rejects an extension field below 128 bits with
+/// `error.FieldTooSmall`. It is a runtime error because the field is a parameter,
+/// and the same reasoning as in `stark.zig`: this is the caller supplying
+/// something the callee checks, so it is a typed error rather than an assert.
+///
+/// Comptime, because the sum-check is a type: no run-time branch, nothing to
+/// forget, and the choice is visible at every call site.
+pub fn BiniusArgChecked(
+    comptime F: type,
+    comptime E: type,
+    comptime CP: type,
+    comptime allow_small_field: bool,
+) type {
     return struct {
-        const SC = SumcheckMod.SumcheckUnsafe(E);
+        const SC = if (allow_small_field)
+            SumcheckMod.SumcheckUnsafe(E)
+        else
+            SumcheckMod.Sumcheck(E);
         const Hash = CoreHash.Hash;
+
+        /// Whether this configuration accepts an extension field below 128 bits.
+        pub const allows_small_field = allow_small_field;
+
+        /// The sum-check this configuration selected, as a type. Published for the
+        /// same reason as in `stark.zig`: `allows_small_field` restates the
+        /// argument, and this says which of the two was instantiated.
+        pub const sumcheck = SC;
 
         pub const EvalProof = struct {
             value: E,
