@@ -15,6 +15,16 @@ jobs:
       - uses: actions/checkout@v5
         with:
           submodules: false
+          # Full history, and not for speed. The documentation gate's seal rule
+          # reads each settled row's cell at the commit that settled it, with
+          # `git show`, so a checkout one commit deep reports every seal as
+          # pointing at a commit this repository does not have: six failures, the
+          # gate red, and no local run able to reproduce it, because a local clone
+          # has the history. A gate that only holds on a machine with something
+          # extra is not a gate. The shallow default also means the rule had never
+          # run in CI at all -- the eighteen commits before this one had never been
+          # pushed, so this is the first run that could have caught it.
+          fetch-depth: 0
       - name: Setup Zig
         uses: ./.github/actions/setup-zig
         with:
