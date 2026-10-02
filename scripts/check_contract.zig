@@ -24,6 +24,29 @@
 //!      module that is resolved by the build but never imported fails too.
 //!   4. Every manifest that declares `zig_algebra` pins the version the ledger
 //!      records, so a bump on one side only is caught.
+//!   5. Every module the build wires is imported by something under the root, so
+//!      a module that is wired and abandoned does not read as live.
+//!   6. The pin has to be a tag that was actually published, and no more than
+//!      one release behind the newest, so a bump to a release nobody has is
+//!      caught here rather than at a consumer's first build.
+//!   7. The three places a test count lives -- this ledger and the two
+//!      architecture documents -- have to agree with the source, so the figure
+//!      cannot be edited to agree with itself.
+//!   8. A module copied out of `zig-algebra` instead of imported is named, so a
+//!      divergence from the pinned version is visible.
+//!   9. A release in the pin's history that carries a security note has to be
+//!      acknowledged in the ledger.
+//!  10. A constant-time claim has to be declared, with the channel it leaks and
+//!      the call sites that reach it.
+//!  11. The test total the architecture documents quote is this constant, so a
+//!      document cannot quote a figure nothing recomputes.
+//!  12. The stark README's unit-test count, checked the same way and for the
+//!      same reason: a count in prose is a claim.
+//!  13. Every file under `libs/stark/tests/` is named in the stark README, so a
+//!      suite that exists and is not listed does not read as listed.
+//!  14. The two files whose adoption is still open are named in both
+//!      directions, because "not adopted yet" has to be the same sentence on both
+//!      sides.
 //!
 //! Rule 2 exists because `AGENTS.md` forbids `std.debug.assert` on anything
 //! reachable from the public API, and `libs/stark/root.zig` re-exports all three
@@ -1419,7 +1442,7 @@ pub fn main(init: std.process.Init) !u8 {
     try reportUnused(&problems, alloc, imports.algebra.items, &declared_algebra_modules, "algebra");
     try reportUnused(&problems, alloc, imports.own.items, &declared_own_modules, "own");
 
-    // Rule 6. The total the architecture documents quote is this constant, not
+    // Rule 11. The total the architecture documents quote is this constant, not
     // a figure typed into prose. A document that disagrees is a claim that has
     // gone stale, which is the failure this exists to catch rather than to
     // report.
@@ -1456,7 +1479,7 @@ pub fn main(init: std.process.Init) !u8 {
         }
     }
 
-    // Rule 7. The stark README's unit-test count, checked the same way and for
+    // Rule 12. The stark README's unit-test count, checked the same way and for
     // the same reason as the total: a figure typed into prose has no way of
     // knowing the build moved.
     for ([_][]const u8{ "libs/stark/README.md", "libs/stark/README.es.md" }) |doc_path| {
@@ -1495,7 +1518,7 @@ pub fn main(init: std.process.Init) !u8 {
         }
     }
 
-    // Rule 8. Every file under `libs/stark/tests/` is named in the stark README,
+    // Rule 13. Every file under `libs/stark/tests/` is named in the stark README,
     // in both languages. A figure can be checked against the build; a description
     // cannot be checked against anything, and the way that shows is a suite
     // existing without the README mentioning it. This one caught the README
@@ -1515,7 +1538,7 @@ pub fn main(init: std.process.Init) !u8 {
         }
     }
 
-    // Rule 9. The two files whose adoption is still open, in both directions.
+    // Rule 14. The two files whose adoption is still open, in both directions.
     //
     // Rule 8 covers the test directory, so deleting a library file triggers
     // nothing and the README keeps naming a path that is gone. That is the

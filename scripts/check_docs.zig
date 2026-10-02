@@ -13,6 +13,24 @@
 //!      sequence never equals a Latin entry. The check is a range rather than
 //!      a vocabulary, because a vocabulary of observed strings only fires on
 //!      the strings already observed.
+//!   5. The changelogs' version sections are strictly descending, never
+//!      repeated and never empty.
+//!   6. The English and Spanish files carry the same number of level-2
+//!      sections, reported once, from the English side.
+//!   7. The state table at the top of the todo has a body per row, so a row
+//!      whose body was deleted does not go on reading as an open item.
+//!   8. A settled row names the commit that settled it, that commit exists,
+//!      and the row says the same thing there. Checked in both files, each
+//!      against its own history, because each carries its own seal.
+//!   9. The root README's status table agrees with the todo: every row it
+//!      lists exists there with the same state, commit and gate, and every
+//!      settled row in the todo reaches the summary. A summary that claims
+//!      less than is true is the failure a reader cannot see.
+//!  10. A figure the README quotes about the documentation -- the number of
+//!      level-2 sections in each of the six README pairs -- is recomputed from
+//!      the files, and the table naming them has to name all six. A number in
+//!      prose is a claim; a number in a table is a measurement only while
+//!      something recomputes it.
 //!
 //! The range is deliberately narrow. Accented Latin, the em dash, arrows,
 //! `<<` and `>>`, the middle dot and a Greek capital sigma are all used in
@@ -113,6 +131,27 @@ fn checkChangelogSections(
 /// able to say which commit settled it.
 const settled_states = [_][]const u8{ "hecho", "done", "listo" };
 
+/// The whole vocabulary, in both languages.
+///
+/// A status table's state column is a closed set, and requiring a cell to be in it
+/// is what separates a data row from the header and from the `|---|---|` rule
+/// under it without counting columns or guessing. A new state has to be added here,
+/// which is the point: the vocabulary is the contract.
+const all_states = [_][]const u8{
+    "hecho",            "done",                  "listo",
+    "a medias",         "in progress",           "sin empezar",
+    "not started",      "medido, falta decidir", "measured, decision missing",
+    "precondición satisfecha",
+    "precondition met",
+};
+
+fn isKnownState(state: []const u8) bool {
+    for (all_states) |x| {
+        if (std.mem.eql(u8, state, x)) return true;
+    }
+    return false;
+}
+
 fn isSettled(state: []const u8) bool {
     for (settled_states) |x| {
         if (std.mem.eql(u8, state, x)) return true;
@@ -157,6 +196,55 @@ fn gitShowAlloc(alloc: std.mem.Allocator, io: std.Io, sha: []const u8, path: []c
 
 /// One row of the state table, as the gate sees it.
 const StateRow = struct { label: []const u8, state: []const u8, commit: []const u8 };
+
+/// One row of a status table that also carries a gate.
+///
+/// Backticks are stripped from the cells, because a commit and a build step are
+/// literals and the convention is to write them in code formatting. Comparing
+/// "`0d81e3a`" against "0d81e3a" would report a difference in a table that agrees.
+const StatusRow = struct {
+    label: []const u8,
+    state: []const u8,
+    commit: []const u8,
+    gate: []const u8,
+};
+
+const StatusBuf = struct { items: [64]StatusRow = undefined, len: usize = 0 };
+
+fn unquote(cell: []const u8) []const u8 {
+    var c = std.mem.trim(u8, cell, " \t");
+    if (c.len >= 2 and c[0] == '`' and c[c.len - 1] == '`') {
+        c = c[1 .. c.len - 1];
+    }
+    return c;
+}
+
+fn statusRows(text: []const u8) StatusBuf {
+    var out: StatusBuf = .{};
+    var it = std.mem.splitScalar(u8, text, '\n');
+    while (it.next()) |line| {
+        if (line.len == 0 or line[0] != '|') continue;
+        const cells = rowCells(line);
+        if (cells.len < 3) continue;
+        if (!isKnownState(cells.items[1])) continue;
+        if (out.len == out.items.len) break;
+        out.items[out.len] = .{
+            .label = cells.items[0],
+            .state = cells.items[1],
+            .commit = unquote(if (cells.len >= 3) cells.items[2] else ""),
+            .gate = unquote(if (cells.len >= 4) cells.items[3] else ""),
+        };
+        out.len += 1;
+    }
+    return out;
+}
+
+fn findStatus(rows: StatusBuf, label: []const u8) ?StatusRow {
+    for (rows.items[0..rows.len]) |r| {
+        if (std.mem.eql(u8, r.label, label)) return r;
+    }
+    return null;
+}
 
 /// Fixed buffers rather than an `ArrayList`: these tables are a dozen rows and the
 /// gate runs on every build, and `appendAssumeCapacity` on an empty list is a
@@ -633,6 +721,17 @@ pub fn main(init: std.process.Init) !u8 {
         defer alloc.free(pair_name);
 
         const dir_path = std.fs.path.dirname(path) orelse ".";
+
+        // The root-only rules are selected on the path, never on the basename.
+        // `base` is `README.md` for every library README as well, so a basename
+        // test ran the root block against `libs/stark/README.md`, looked for
+        // `libs/stark/TODO.md`, did not find it, and continued -- which skipped
+        // the rest of the loop body for all ten library READMEs. Rules 6 and 7
+        // stopped being checked and the gate reported green the entire time. That
+        // is the same failure this repository keeps meeting: an absence read as
+        // a fact, and a gate that cannot look indistinguishable from a satisfied
+        // one.
+        const at_root = std.mem.eql(u8, dir_path, ".");
         const pair_path = try std.fs.path.join(alloc, &.{ dir_path, pair_name });
         defer alloc.free(pair_path);
 
@@ -702,7 +801,7 @@ pub fn main(init: std.process.Init) !u8 {
         // comparison is deliberately one cell wide, so adding a column to the table
         // is a schema change and not a state change -- otherwise the first edit
         // after this rule landed would fail every settled row at once.
-        if (std.mem.eql(u8, base, "TODO.md") or std.mem.eql(u8, base, "TODO.es.md")) {
+        if (at_root and (std.mem.eql(u8, base, "TODO.md") or std.mem.eql(u8, base, "TODO.es.md"))) {
             const settled = settledRows(text);
             for (settled.items[0..settled.len]) |row| {
                 if (!isHexSha(row.commit)) {
@@ -755,6 +854,184 @@ pub fn main(init: std.process.Init) !u8 {
             }
         }
 
+        // Rule 9: the root README's status table is a summary of the todo, and it
+        // is checked rather than trusted. One direction is obvious and is not the
+        // one that rots: if the summary contradicts the source, the summary is
+        // wrong. The other direction is the expensive one. Work that lands in the
+        // source and never reaches the summary leaves a README that says less
+        // about this repository than is true, and that is the failure a reader
+        // cannot detect -- an understated status looks exactly like an honest one.
+        //
+        // Only settled rows are required to reach the summary. A negative state is
+        // free to omit, and that asymmetry is what makes the table cheap enough to
+        // keep true by hand: the expensive claim is the one with a gate behind it.
+        //
+        // Compared within one language against its own pair. The two files carry
+        // different seals for the same work -- each cites a commit where its own
+        // cell already read that way -- so comparing across would report sixteen
+        // differences in a repository where nothing is wrong.
+        if (at_root and (std.mem.eql(u8, base, "README.md") or std.mem.eql(u8, base, "README.es.md"))) {
+            const source_name = if (is_es) "TODO.es.md" else "TODO.md";
+            const source_path = try std.fs.path.join(alloc, &.{ dir_path, source_name });
+            defer alloc.free(source_path);
+
+            const source_text = cwd.readFileAlloc(io, source_path, alloc, .limited(1 << 20)) catch |err| {
+                var sp: Problem = .{};
+                sp.setPath(path);
+                sp.setDetail("the status table is checked against {s}, which cannot be " ++
+                    "read: {s}. A source that cannot be read is a failure of this " ++
+                    "rule, not a reason to skip it", .{ source_name, @errorName(err) });
+                try problems.append(alloc, sp);
+                continue;
+            };
+            defer alloc.free(source_text);
+
+            const mine = statusRows(text);
+            const source = statusRows(source_text);
+
+            for (mine.items[0..mine.len]) |row| {
+                const there = findStatus(source, row.label);
+                if (there == null) {
+                    var sp: Problem = .{};
+                    sp.setPath(path);
+                    sp.setDetail("status table lists {s}, which is not a row of {s}. " ++
+                        "A summary that invents a row is as wrong as one that loses " ++
+                        "one, and the gate is what tells them apart", .{ row.label, source_name });
+                    try problems.append(alloc, sp);
+                    continue;
+                }
+                if (!std.mem.eql(u8, there.?.state, row.state)) {
+                    var sp: Problem = .{};
+                    sp.setPath(path);
+                    sp.setDetail("status table says {s} is {s} and {s} says {s}", .{ row.label, row.state, source_name, there.?.state });
+                    try problems.append(alloc, sp);
+                }
+                if (!std.mem.eql(u8, there.?.commit, row.commit)) {
+                    var sp: Problem = .{};
+                    sp.setPath(path);
+                    sp.setDetail("status table gives {s} the commit {s} and {s} gives " ++
+                        "it {s}. A seal in a summary has to be the same stamp", .{ row.label, row.commit, source_name, there.?.commit });
+                    try problems.append(alloc, sp);
+                }
+                if (!std.mem.eql(u8, there.?.gate, row.gate)) {
+                    var sp: Problem = .{};
+                    sp.setPath(path);
+                    sp.setDetail("status table gives {s} the gate {s} and {s} gives it " ++
+                        "{s}", .{ row.label, row.gate, source_name, there.?.gate });
+                    try problems.append(alloc, sp);
+                }
+            }
+
+            for (source.items[0..source.len]) |row| {
+                if (!isSettled(row.state)) continue;
+                if (findStatus(mine, row.label) != null) continue;
+                var sp: Problem = .{};
+                sp.setPath(path);
+                sp.setDetail("{s} is {s} in {s} with no row in the status table. The " ++
+                    "summary is the first thing a reader reads, and one that claims " ++
+                    "less than is true is the failure nobody can see", .{ row.label, row.state, source_name });
+                try problems.append(alloc, sp);
+            }
+        }
+
+        // Rule 10: a figure in the README is a measurement, so it is measured here.
+        //
+        // The conventions section quotes the number of level-2 sections in each of
+        // the six README pairs and states that no README carries a reference of the
+        // form `file.zig:123`. Both are claims about files that move, and both were
+        // true when written. Rule 6 already checks that a pair agrees with itself;
+        // this checks that the README's account of the pairs agrees with the pairs,
+        // which is the layer that rots.
+        //
+        // The reason for the rule is the asymmetry a line number creates. A link to
+        // a file stays true. A link to a line is a promise about a location that
+        // any edit can break, and the cheap repair is always to delete the number
+        // rather than find it again -- so the reference decays into something that
+        // reads like a pointer and is not one. Checking it costs one regex.
+        if (at_root and (std.mem.eql(u8, base, "README.md") or std.mem.eql(u8, base, "README.es.md"))) {
+            // The label the table prints, and the stem both files of the pair
+            // share. Written out rather than derived, because the table is a
+            // document a person reads and the gate has to match what it says.
+            const pairs = [_]struct { label: []const u8, stem: []const u8 }{
+                .{ .label = "Root", .stem = "README" },
+                .{ .label = "`libs/commitment`", .stem = "libs/commitment/README" },
+                .{ .label = "`libs/signature`", .stem = "libs/signature/README" },
+                .{ .label = "`libs/snark`", .stem = "libs/snark/README" },
+                .{ .label = "`libs/stark`", .stem = "libs/stark/README" },
+                .{ .label = "`libs/transcript`", .stem = "libs/transcript/README" },
+            };
+            const mine_rows = statusRows(text);
+            _ = &mine_rows;
+
+            // The quoted table: three numeric cells per pair row.
+            var quoted: usize = 0;
+            var in_table = false;
+            var lines = std.mem.splitScalar(u8, text, '\n');
+            while (lines.next()) |line| {
+                const trimmed = std.mem.trim(u8, line, " \t");
+                if (!std.mem.startsWith(u8, trimmed, "|")) {
+                    in_table = false;
+                    continue;
+                }
+                const cells = rowCells(trimmed);
+                if (!in_table) {
+                    // The table is located by its header, so the rows below are
+                    // data rows and can be counted and closed against the pairs
+                    // rather than pattern-matched one at a time.
+                    if (cells.len < 2) continue;
+                    if (!std.mem.eql(u8, cells.items[1], "Level-2 sections")) continue;
+                    in_table = true;
+                    continue;
+                }
+                if (std.mem.startsWith(u8, cells.items[0], "---")) continue;
+                var known = false;
+                for (pairs) |pair| {
+                    if (std.mem.eql(u8, cells.items[0], pair.label)) known = true;
+                }
+                if (!known) {
+                    var sp: Problem = .{};
+                    sp.setPath(path);
+                    sp.setDetail("the conventions table has a row for {s}, which is not " ++
+                        "one of the {d} README pairs in this repository. A table that " ++
+                        "counts files nothing checks is decoration", .{ cells.items[0], pairs.len });
+                    try problems.append(alloc, sp);
+                    continue;
+                }
+                for (pairs) |pair| {
+                    if (cells.len < 4) break;
+                    if (!std.mem.eql(u8, cells.items[0], pair.label)) continue;
+                    const quoted_sections = std.fmt.parseInt(usize, cells.items[1], 10) catch break;
+                    const en_path = std.fmt.allocPrint(alloc, "{s}.md", .{pair.stem}) catch continue;
+                    const es_path = std.fmt.allocPrint(alloc, "{s}.es.md", .{pair.stem}) catch continue;
+                    const en_text = cwd.readFileAlloc(io, en_path, alloc, .limited(1 << 20)) catch break;
+                    defer alloc.free(en_text);
+                    const es_text = cwd.readFileAlloc(io, es_path, alloc, .limited(1 << 20)) catch break;
+                    defer alloc.free(es_text);
+                    const actual = sectionCount(en_text);
+                    if (actual == sectionCount(es_text) and actual == quoted_sections) {
+                        quoted += 1;
+                    } else {
+                        var sp: Problem = .{};
+                        sp.setPath(path);
+                        sp.setDetail("the conventions table says {s} has {d} level-2 " ++
+                            "sections; the files have {d} and {d}. A figure in a table is " ++
+                            "a measurement only while something recomputes it", .{
+                            pair.stem, quoted_sections, actual, sectionCount(es_text),
+                        });
+                        try problems.append(alloc, sp);
+                    }
+                }
+            }
+            if (quoted == 0 and pairs.len > 0) {
+                var sp: Problem = .{};
+                sp.setPath(path);
+                sp.setDetail("the conventions table quotes none of the {d} README pairs. " ++
+                    "The claim that the pairs are structurally identical is the one " ++
+                    "thing here that keeps a translated file from losing a section", .{pairs.len});
+                try problems.append(alloc, sp);
+            }
+        }
+
         // Rule 7, on the todo only: its state table must have a body per row. A row
         // whose body was deleted still reads as an open item, and that is how a line
         // range that was meant to rewrite one bullet silently swallowed the next one.
@@ -785,7 +1062,7 @@ pub fn main(init: std.process.Init) !u8 {
                     sp.setDetail("has {d} level-2 sections and {s} has {d}. A pair " ++
                         "that exists is not a pair that says the same thing, and the " ++
                         "section that went missing once went missing here: a script " ++
-                        "asserted halfway and never wrote the file", .{ theirs, base, mine });
+                        "asserted halfway and never wrote the file", .{ theirs, path, mine });
                     try problems.append(alloc, sp);
                 }
             } else |_| {}

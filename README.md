@@ -10,6 +10,41 @@ Requires Zig 0.16 and `zig-algebra` **v0.6.0** (pinned by hash in `build.zig.zon
 The pin is what the build actually resolves, so this line is a claim about it;
 `zig build check-contract` fails when the two disagree.
 
+## Status
+
+This is a working library, not a finished one. The table below is a summary, and
+[TODO.md](TODO.md) is the source: `check-docs` fails when the two disagree, and a
+row that says `done` in `TODO.md` and is missing here is also a failure, so work
+landing in the source cannot leave this section behind.
+
+Five states, not two. A binary checkbox erases the three intermediate ones that
+someone arriving here needs to see: something measured with the decision still
+open is not the same as something not attempted, and neither is the same as a
+done whose gate is the only thing keeping it true.
+
+| Part | State | Commit | Gate |
+|---|---|---|---|
+| Complete the audit of `libs/signature` | in progress | - | - |
+| Hash-to-curve | not started | - | - |
+| BLS12-381 | not started | - | - |
+| Schnorr multisignature and threshold | not started | - | - |
+| Ed25519 over a prime field | not started | - | - |
+| Point adapters for other curves | not started | - | - |
+| DER, PEM, and interchange formats | not started | - | - |
+| Propagate `allow_small_field` | done | `0d81e3a` | `zig build test` |
+| The round count | measured, decision missing | - | - |
+| The root duplicates each library's wiring | in progress | - | - |
+| Pin hygiene | done | `80692a3` | `zig build check-contract` |
+| `core/hash` and `core/merkle` | not started | - | - |
+| Constant-time claims, gated | done | `80692a3` | `zig build check-contract` |
+| Hash inside the circuit | not started | - | - |
+
+Two negative states are cheap to keep and this table is written by hand because of
+it: claiming something is not started cannot rot in a harmful direction, since the
+worst case is that the table stays conservative. A `done` is the expensive claim,
+and it carries the commit that settled it and the gate that would turn red if it
+stopped being true. A `done` with no gate cell is rejected by `check-contract`.
+
 ## Documentation
 
 Every document exists in English and Spanish; the bare file name is English and
@@ -177,6 +212,63 @@ cd libs/transcript && zig build test --summary all
 
 Tests assert, they never print: a `std.debug.print` in a test reports nothing to
 the harness and can print `true` next to a failing assertion.
+
+## Validation contract
+
+What each gate here is, and what it is not. A gate that says what it does not
+cover is usable; one that only says what it covers reads as a guarantee of the
+whole.
+
+`zig build test` is the entry point, and it depends on `check-docs` and
+`check-contract`, so a full run is all three. It is a **guarantee about the
+assertions in the suite and the rules in the two gates**. It is not a proof of
+anything: not that the suite covers what matters, not that the protocols are
+correct, not that the code is free of defects. The fuzz steps run a bounded
+number of iterations, so a green run is a sample and not an absence.
+
+| Gate | Guarantees | Does not guarantee |
+|---|---|---|
+| `zig build test` | Every assertion in the suite holds; 302 tests over 36 steps | Coverage, correctness of the protocols, absence of defects |
+| `zig build check-docs` | Every markdown file has a counterpart in the other language; each declares its language and links its pair; no prose carries stopwords of the other language; no CJK, kana or Cyrillic reaches the prose; changelog versions descend without repeats or empty bodies; paired files carry the same number of sections; a state-table row has a body; a settled row names the commit that settled it and still reads the same there; the README status table agrees with `TODO.md` in both directions | That the prose is correct, that a translation is good, or that a claim in prose is true. Counts and states are checked. Prose is not |
+| `zig build check-contract` | The declared contract with `zig-algebra`: assert counts per zone against a ratcheted ledger, the imported module set against the declared one, every manifest pinning the ledger's version, every wired module imported by something, the pin naming a tag that was published and no more than one release behind, the test total recomputed from source, constant-time claims declared with the channel they leak, and the stark documentation's counts against the same source | That the algorithms are secure, or that the ledger describes the intent correctly. It checks the declaration, not the world |
+| `zig build check-pins-fresh` | `scripts/algebra-tags.txt` still equals the published tags upstream | Anything at all without a network, which is why it is not a dependency of `zig build test`: a gate that reaches out gives a different answer in CI than on a laptop |
+| `zig build refresh-algebra-tags` | Nothing. It writes the reference from the network and is not a gate | - |
+
+The distinction that matters when reading a green run: `check-docs` and
+`check-contract` are guarantees about **this repository's own declarations**, and
+the declarations are written by people. A row can be wrong in both files at once
+and pass, because the gate compares two documents against each other. What the
+gates remove is the class of defect where one document was edited and the others
+were not, which is the class that actually happened here.
+
+## Conventions
+
+Both conventions below are checked, so they are not habits to keep.
+
+**No per-line references.** Across the twelve README files there are zero
+references of the form `file.zig:123`. A line number is a promise about a
+location that any edit can break, and the fix is always to delete the number
+rather than update it, so the reference rots into a lie that reads as a pointer.
+Link the file.
+
+**Pairs are structurally identical.** Each of the six README pairs carries the
+same number of level-2 sections:
+
+| Pair | Level-2 sections | Lines EN | Lines ES |
+|---|---|---|---|
+| Root | 13 | 272 | 284 |
+| `libs/commitment` | 7 | 156 | 161 |
+| `libs/signature` | 8 | 143 | 141 |
+| `libs/snark` | 7 | 163 | 171 |
+| `libs/stark` | 11 | 240 | 249 |
+| `libs/transcript` | 9 | 155 | 158 |
+
+A pair that differs in line count is translated prose -- English and Spanish do not
+wrap the same -- and not a section that went missing in one language. That
+asymmetry went missing once, when a script asserted halfway and never wrote its
+file, which is why `check-docs` counts sections. It also checks the table above
+against the files, because a figure in prose is a claim and a figure in a table is
+a measurement.
 
 ## Design Principles
 
