@@ -129,7 +129,7 @@ fn checkChangelogSections(
 
 /// The states a row may carry that claim to be settled. A settled row must be
 /// able to say which commit settled it.
-const settled_states = [_][]const u8{ "hecho", "done", "listo" };
+const settled_states = [_][]const u8{ "hecho", "done" };
 
 /// The whole vocabulary, in both languages.
 ///
@@ -138,13 +138,31 @@ const settled_states = [_][]const u8{ "hecho", "done", "listo" };
 /// under it without counting columns or guessing. A new state has to be added here,
 /// which is the point: the vocabulary is the contract.
 const all_states = [_][]const u8{
-    "hecho",            "done",                  "listo",
-    "a medias",         "in progress",           "sin empezar",
-    "not started",      "medido, falta decidir", "measured, decision missing",
-    "precondición satisfecha",
-    "precondition met",
+    "done",             "hecho",
+    "in progress",      "a medias",
+    "measured",         "medido",
+    "not started",      "sin empezar",
+    "decision pending", "decision pendiente",
+    "decisión pendiente",
 };
 
+/// Five states, and each one earns its place by saying something the others
+/// cannot.
+///
+/// `done` carries a gate and a commit, so it is the only state that can be
+/// checked by anything. `in progress` says which part holds, and a row that
+/// cannot name the part is `not started` with extra words -- which is what the
+/// first version of this table was. `measured` says a number exists and an
+/// instrument reproduces it on request, and it is deliberately not a conclusion.
+/// `not started` is the free one: nothing can check an absence, so an unstarted
+/// row needs no seal and goes stale only in the conservative direction.
+/// `decision pending` is the one blocked rather than unfinished, because somebody
+/// has to choose before it can be built.
+///
+/// The compound `measured, decision missing` is gone. It was one cell carrying two
+/// facts -- a number exists, and a choice is outstanding -- and the choice is a
+/// different piece of work with a different blocker, so folding it in meant
+/// neither was visible.
 fn isKnownState(state: []const u8) bool {
     for (all_states) |x| {
         if (std.mem.eql(u8, state, x)) return true;
@@ -870,6 +888,53 @@ pub fn main(init: std.process.Init) !u8 {
         // different seals for the same work -- each cites a commit where its own
         // cell already read that way -- so comparing across would report sixteen
         // differences in a repository where nothing is wrong.
+        // Rule 11, on the summary and on the source, because the closure has to be
+        // closed on both or it is decoration.
+        //
+        // The row parser recognises a data row by its state cell being in the
+        // vocabulary. A state nobody defined therefore makes the row invisible
+        // rather than wrong: it stops being compared against its counterpart in one
+        // direction, and the reverse direction only asks about settled rows, so a
+        // `measured` row quietly stopped being checked the moment it was
+        // misspelled -- in the summary first, then in the source once the check
+        // was written only for the README. Two files, two rounds of the same hole,
+        // and the second one was mine, in the gate that was supposed to close it.
+        if (at_root and (std.mem.eql(u8, base, "README.md") or std.mem.eql(u8, base, "README.es.md") or
+            std.mem.eql(u8, base, "TODO.md") or std.mem.eql(u8, base, "TODO.es.md")))
+        {
+            const cabecera = if (is_es) "Estado" else "State";
+            var en_estado = false;
+            var it = std.mem.splitScalar(u8, text, '\n');
+            while (it.next()) |line| {
+                const t = std.mem.trim(u8, line, " \t");
+                if (!std.mem.startsWith(u8, t, "|")) {
+                    // A table ends at the first line that is not a row. Without the
+                    // boundary the flag survives the rest of the document and every
+                    // later two-column table is read as a status table, which is how
+                    // `Library is Description` got reported as a bad state.
+                    en_estado = false;
+                    continue;
+                }
+                const c = rowCells(t);
+                if (c.len < 2) continue;
+                if (!en_estado) {
+                    if (std.mem.eql(u8, c.items[1], cabecera)) en_estado = true;
+                    continue;
+                }
+                if (std.mem.startsWith(u8, c.items[0], "---")) continue;
+                if (isKnownState(c.items[1])) continue;
+                var sp: Problem = .{};
+                sp.setPath(path);
+                sp.setDetail("status row {s} is {s}, which is not one of the five " ++
+                    "states. A row in a state nobody defined is skipped by the " ++
+                    "parser, so it stops being compared instead of failing", .{
+                    c.items[0], c.items[1],
+                });
+                try problems.append(alloc, sp);
+                en_estado = false;
+            }
+        }
+
         if (at_root and (std.mem.eql(u8, base, "README.md") or std.mem.eql(u8, base, "README.es.md"))) {
             const source_name = if (is_es) "TODO.es.md" else "TODO.md";
             const source_path = try std.fs.path.join(alloc, &.{ dir_path, source_name });

@@ -12,7 +12,7 @@ Nothing here is done. The checkbox is there to be ticked, not to decorate.
 
 | Item | State | Commit | Gate |
 |---|---|---|
-| Complete the audit of `libs/signature` | in progress | - | - |
+| Complete the audit of `libs/signature` (reading done, external reference missing) | in progress | - | - |
 | Hash-to-curve | not started | - | - |
 | BLS12-381 | not started | - | - |
 | Schnorr multisignature and threshold | not started | - | - |
@@ -20,13 +20,14 @@ Nothing here is done. The checkbox is there to be ticked, not to decorate.
 | Point adapters for other curves | not started | - | - |
 | DER, PEM, and interchange formats | not started | - | - |
 | Propagate `allow_small_field` | done | 0d81e3a | `zig build test` |
-| The round count | measured, decision missing | - | - |
-| The root duplicates each library's wiring | in progress | - | - |
+| The round count | measured | - | - |
+| Which Binius field is first-class | decision pending | - | - |
+| The root duplicates each library's wiring (drift fixed, duplication remains) | in progress | - | - |
 | Pin hygiene | done | 80692a3 | `zig build check-contract` |
 | `core/hash` and `core/merkle` | not started | - | - |
 | Constant-time claims, gated | done | 80692a3 | `zig build check-contract` |
 | Local branches | in progress | - | - |
-| `libs/fri` in `zig-zkml` | precondition met | - | - |
+| `libs/fri` in `zig-zkml` | not started | - | - |
 | Hash inside the circuit | not started | - | - |
 | One repository | not started | - | - |
 
@@ -156,7 +157,19 @@ Nothing here is done. The checkbox is there to be ticked, not to decorate.
 
 ## Build
 
-- [ ] **The round count** · *measured, decision missing*
+- [ ] **The round count** · *measured*
+
+  The number exists and the instrument reproduces it. What it does not do is
+  settle anything: `Gf256` is an 8-bit field, so the 5.0x ratio between the two
+  configurations the fuzz suite runs is a property of the field width and says
+  nothing about a wider one.
+
+- [ ] **Which Binius field is first-class** · *decision pending*
+
+  Blocked rather than unfinished: somebody has to choose before it can be
+  built. The two configurations both work and the default is neither, because a
+  default that hands out a field too small to be sound is a default that trades
+  soundness for milliseconds.
 
   `proof.sumcheck.rounds.len` is `k`, and `k` is measured at 3 for `Gf256/Gf256`
   and 6 for `Gf16/Gf2_128`. The bound is `k/|E|`, and `k` is the caller's; the
@@ -267,7 +280,7 @@ Nothing here is done. The checkbox is there to be ticked, not to decorate.
 
 These are not this repository's work. They are listed because they block it.
 
-- [ ] **`libs/fri` in `zig-zkml`** · *precondition met*
+- [ ] **`libs/fri` in `zig-zkml`** · *not started*
 
   614 lines of a private FRI implementation. The question is whether to delete it
   and use the `zig-algebra` one, or keep it. The line count is the only figure here

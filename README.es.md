@@ -12,42 +12,6 @@ Requiere Zig 0.16 y `zig-algebra` **v0.6.0** (fijado por huella en
 línea es una afirmación sobre él, y `zig build check-contract` falla cuando las dos
 se contradicen.
 
-## Estado
-
-Esto es una biblioteca en workings, no una terminada. La tabla de abajo es un
-resumen, y [TODO.es.md](TODO.es.md) es la fuente: `check-docs` falla cuando las
-dos no coinciden, y una fila que dice `hecho` en `TODO.es.md` y falta aquí también
-es un fallo, así que un trabajo que aterrice en la fuente no puede dejar atrás esta
-sección.
-
-Cinco estados, no dos. Una casilla binaria borra los tres intermedios que quien
-llega aquí necesita ver: algo medido con la decisión todavía abierta no es lo mismo
-que algo que no se ha intentado, y ninguna de las dos es lo mismo que un `hecho` cuya
-puerta es lo único que lo mantiene cierto.
-
-| Parte | Estado | Commit | Puerta |
-|---|---|---|---|
-| Completar la auditoría de `libs/signature` | a medias | - | - |
-| Hash-to-curve | sin empezar | - | - |
-| BLS12-381 | sin empezar | - | - |
-| Multifirma y umbral de Schnorr | sin empezar | - | - |
-| Ed25519 sobre campo primo | sin empezar | - | - |
-| Adaptadores de punto para otras curvas | sin empezar | - | - |
-| DER, PEM y formatos de intercambio | sin empezar | - | - |
-| Propagar `allow_small_field` | hecho | `0d81e3a` | `zig build test` |
-| El número de rondas | medido, falta decidir | - | - |
-| La raíz duplica el cableado de cada librería | a medias | - | - |
-| Higiene del pin | hecho | `727c46d` | `zig build check-contract` |
-| `core/hash` y `core/merkle` | sin empezar | - | - |
-| Afirmaciones de tiempo constante, con puerta | hecho | `8946c6b` | `zig build check-contract` |
-| Hash dentro del circuito | sin empezar | - | - |
-
-Los estados negativos son baratos de mantener, y esta tabla está escrita a mano por
-eso: afirmar que algo no ha empezado no puede pudrirse en dirección dañina, porque
-lo peor que puede pasar es que la tabla se quede conservadora. Un `hecho` es la
-afirmación cara, y lleva el commit que lo cerró y la puerta que se pondría roja si
-dejase de ser cierto. Un `hecho` sin celda de puerta lo rechaza `check-contract`.
-
 ## Documentación
 
 Cada documento existe en inglés y en español; el nombre sin sufijo es el inglés y
@@ -143,6 +107,53 @@ Capa 4  +----------+----------+
         |     BN254)         |
         +----------+----------+
 ```
+
+## Estado
+
+Esto es una biblioteca en workings, no una terminada. La tabla es un resumen y
+[TODO.es.md](TODO.es.md) es la fuente: `check-docs` falla cuando las dos no
+coinciden, y una fila que dice `hecho` en `TODO.es.md` y falta aquí también es un
+fallo, así que un trabajo que aterrice en la fuente no puede dejar atrás esta
+sección.
+
+| Estado | Por qué existe |
+|---|---|
+| `hecho` | Implementado, y una puerta se pone roja si deja de cumplirse. La fila nombra esa puerta y el commit |
+| `a medias` | Una parte se cumple. La fila nombra **cuál parte**, porque una fila que no puede decirlo es `sin empezar` con palabras de más |
+| `medido` | Hay un número y un instrumento lo reproduce a petición. Deliberadamente no es una conclusión |
+| `sin empezar` | Nada que comprobar. El estado gratis: ninguna puerta puede demostrar una ausencia, así que estas no necesitan sello y sólo se pudren en dirección conservadora |
+| `decisión pendiente` | Bloqueado y no sin terminar. Alguien tiene que elegir antes de que se pueda construir |
+
+Las dos columnas sostienen peso y no son lo mismo. Una puerta es un puntero a un
+mecanismo, y `check-contract` rechaza un `hecho` sin celda de puerta. Un commit es
+un registro de cuándo la fila pasó a ser cierta, y `check-docs` lo compara con la
+celda en ese commit, así que una fila no puede moverse en silencio. Las filas con
+puerta local --que no se vuelven a comprobar solas-- son justo las que el sello
+distingue.
+
+| Parte | Estado | Commit | Puerta |
+|---|---|---|---|
+| Completar la auditoría de `libs/signature` (lectura hecha, falta la referencia externa) | a medias | - | - |
+| La raíz duplica el cableado de cada librería (desvío corregido, la duplicación sigue) | a medias | - | - |
+| Propagar `allow_small_field` | hecho | `0d81e3a` | `zig build test` |
+| Higiene del pin | hecho | `727c46d` | `zig build check-contract` |
+| Afirmaciones de tiempo constante, con puerta | hecho | `8946c6b` | `zig build check-contract` |
+| El número de rondas | medido | - | - |
+| Qué campo de Binius es de primera clase | decisión pendiente | - | - |
+| Hash-to-curve | sin empezar | - | - |
+| BLS12-381 | sin empezar | - | - |
+| Multifirma y umbral de Schnorr | sin empezar | - | - |
+| Ed25519 sobre campo primo | sin empezar | - | - |
+| Adaptadores de punto para otras curvas | sin empezar | - | - |
+| DER, PEM y formatos de intercambio | sin empezar | - | - |
+| `core/hash` y `core/merkle` | sin empezar | - | - |
+| Hash dentro del circuito | sin empezar | - | - |
+
+Dos filas llevan puerta local, es decir que nada las vuelve a comprobar solo: el
+número de rondas es una razón entre dos configuraciones que alguien eligió correr.
+Una puerta que sólo existe cuando alguien se acuerda de ejecutarla es una
+memoria, y la columna de commit es lo que dice al lector cuándo dejar de
+confiar en ella.
 
 ## Librerías
 
@@ -256,6 +267,14 @@ los demás no, que es la clase que aquí sí ocurrió.
 
 Las dos convenciones de abajo se comprueban, así que no son costumbres que haya
 que mantener.
+
+**Primeros pasos y Ejecutar las pruebas siguen separadas.** Construir y probar
+son dos preguntas con dos respuestas distintas -- cómo lo obtengo, y cómo sé que
+funciona -- y juntarlas hace que el primer lector lea más allá de la verificación
+para llegar a la instalación, o que el segundo salte la instalación para encontrar
+lo que las puertas garantizan. La regla cabe en una frase porque la elección es una
+decisión, y una decisión que vive sólo en la ausencia de una fusión se lee como un
+descuido.
 
 **Sin referencias por línea.** En los doce ficheros README hay cero referencias
 con la forma `fichero.zig:123`. Un número de línea es una promesa sobre una

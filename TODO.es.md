@@ -12,7 +12,7 @@ Nada de esto está hecho. La casilla está para marcarse, no para decorar.
 
 | Punto | Estado | Commit |
 |---|---|---|
-| Completar la auditoría de `libs/signature` | a medias | - | - |
+| Completar la auditoría de `libs/signature` (lectura hecha, falta la referencia externa) | a medias | - | - |
 | Hash-to-curve | sin empezar | - | - |
 | BLS12-381 | sin empezar | - | - |
 | Multifirma y umbral de Schnorr | sin empezar | - | - |
@@ -20,13 +20,14 @@ Nada de esto está hecho. La casilla está para marcarse, no para decorar.
 | Adaptadores de punto para otras curvas | sin empezar | - | - |
 | DER, PEM y formatos de intercambio | sin empezar | - | - |
 | Propagar `allow_small_field` | hecho | 0d81e3a | `zig build test` |
-| El número de rondas | medido, falta decidir | - | - |
-| La raíz duplica el cableado de cada librería | a medias | - | - |
+| El número de rondas | medido | - | - |
+| Qué campo de Binius es de primera clase | decisión pendiente | - | - |
+| La raíz duplica el cableado de cada librería (desvío corregido, la duplicación sigue) | a medias | - | - |
 | Higiene del pin | hecho | 727c46d | `zig build check-contract` |
 | `core/hash` y `core/merkle` | sin empezar | - | - |
 | Afirmaciones de tiempo constante, con puerta | hecho | 8946c6b | `zig build check-contract` |
 | Ramas locales | a medias | - | - |
-| `libs/fri` en `zig-zkml` | precondición satisfecha | - | - |
+| `libs/fri` en `zig-zkml` | sin empezar | - | - |
 | Hash dentro del circuito | sin empezar | - | - |
 | Un solo repositorio | sin empezar | - | - |
 
@@ -160,7 +161,19 @@ Nada de esto está hecho. La casilla está para marcarse, no para decorar.
 
 ## Compilación
 
-- [ ] **El número de rondas** · *medido, falta decidir*
+- [ ] **El número de rondas** · *medido*
+
+  El número existe y el instrumento lo reproduce. Lo que no hace es resolver
+  nada: `Gf256` es un campo de ocho bits, así que el 5,0× entre las dos
+  configuraciones que corre la batería de fuzz es una propiedad del ancho del
+  campo y no dice nada de uno más ancho.
+
+- [ ] **Qué campo de Binius es de primera clase** · *decisión pendiente*
+
+  Bloqueado y no sin terminar: alguien tiene que elegir antes de que se pueda
+  construir. Las dos configuraciones funcionan y el default no es ninguna, porque
+  un default que reparte un campo demasiado pequeño para ser sound cambia
+  soundness por milisegundos.
 
   `proof.sumcheck.rounds.len` es `k`, y `k` está medido en 3 para `Gf256/Gf256` y 6
   para `Gf16/Gf2_128`. La cota es `k/|E|`, y `k` es de quien llama; el prover corre
@@ -271,7 +284,7 @@ Nada de esto está hecho. La casilla está para marcarse, no para decorar.
 
 No son trabajo de este repositorio. Se listan porque lo bloquean.
 
-- [ ] **`libs/fri` en `zig-zkml`** · *precondición satisfecha*
+- [ ] **`libs/fri` en `zig-zkml`** · *sin empezar*
 
   614 líneas de una implementación privada de FRI. La pregunta es si se borra y se
   usa la de `zig-algebra`, o si se conserva. La línea es la única cifra de aquí sin

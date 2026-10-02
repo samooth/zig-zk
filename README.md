@@ -10,41 +10,6 @@ Requires Zig 0.16 and `zig-algebra` **v0.6.0** (pinned by hash in `build.zig.zon
 The pin is what the build actually resolves, so this line is a claim about it;
 `zig build check-contract` fails when the two disagree.
 
-## Status
-
-This is a working library, not a finished one. The table below is a summary, and
-[TODO.md](TODO.md) is the source: `check-docs` fails when the two disagree, and a
-row that says `done` in `TODO.md` and is missing here is also a failure, so work
-landing in the source cannot leave this section behind.
-
-Five states, not two. A binary checkbox erases the three intermediate ones that
-someone arriving here needs to see: something measured with the decision still
-open is not the same as something not attempted, and neither is the same as a
-done whose gate is the only thing keeping it true.
-
-| Part | State | Commit | Gate |
-|---|---|---|---|
-| Complete the audit of `libs/signature` | in progress | - | - |
-| Hash-to-curve | not started | - | - |
-| BLS12-381 | not started | - | - |
-| Schnorr multisignature and threshold | not started | - | - |
-| Ed25519 over a prime field | not started | - | - |
-| Point adapters for other curves | not started | - | - |
-| DER, PEM, and interchange formats | not started | - | - |
-| Propagate `allow_small_field` | done | `0d81e3a` | `zig build test` |
-| The round count | measured, decision missing | - | - |
-| The root duplicates each library's wiring | in progress | - | - |
-| Pin hygiene | done | `80692a3` | `zig build check-contract` |
-| `core/hash` and `core/merkle` | not started | - | - |
-| Constant-time claims, gated | done | `80692a3` | `zig build check-contract` |
-| Hash inside the circuit | not started | - | - |
-
-Two negative states are cheap to keep and this table is written by hand because of
-it: claiming something is not started cannot rot in a harmful direction, since the
-worst case is that the table stays conservative. A `done` is the expensive claim,
-and it carries the commit that settled it and the gate that would turn red if it
-stopped being true. A `done` with no gate cell is rejected by `check-contract`.
-
 ## Documentation
 
 Every document exists in English and Spanish; the bare file name is English and
@@ -137,6 +102,51 @@ Layer 4  +----------+----------+
          +----------+----------+
 ```
 
+## Status
+
+This is a working library, not a finished one. The table is a summary and
+[TODO.md](TODO.md) is the source: `check-docs` fails when the two disagree, and a
+row that says `done` in `TODO.md` and is missing here is also a failure, so work
+landing in the source cannot leave this section behind.
+
+| State | Why it exists |
+|---|---|
+| `done` | Implemented, and a gate turns red if it stops holding. The row names that gate and the commit |
+| `in progress` | Part of it holds. The row names **which part**, because a row that cannot say that is `not started` with extra words |
+| `measured` | There is a number and an instrument reproduces it on request. Deliberately not a conclusion |
+| `not started` | Nothing to check. The free state: no gate can prove an absence, so these need no seal and go stale only in the conservative direction |
+| `decision pending` | Blocked rather than unfinished. Somebody has to choose before it can be built |
+
+Both columns are load-bearing and they are not the same thing. A gate is a pointer
+to a mechanism and `check-contract` rejects a `done` with no gate cell. A commit is
+a record of when the row became true, and `check-docs` compares it against the
+cell at that commit, so a row cannot quietly move. The rows with a local gate --
+nothing recomputes them on its own -- are exactly the rows where the seal is what
+distinguishes them.
+
+| Part | State | Commit | Gate |
+|---|---|---|---|
+| Complete the audit of `libs/signature` (reading done, external reference missing) | in progress | - | - |
+| The root duplicates each library's wiring (drift fixed, duplication remains) | in progress | - | - |
+| Propagate `allow_small_field` | done | `0d81e3a` | `zig build test` |
+| Pin hygiene | done | `80692a3` | `zig build check-contract` |
+| Constant-time claims, gated | done | `80692a3` | `zig build check-contract` |
+| The round count | measured | - | - |
+| Which Binius field is first-class | decision pending | - | - |
+| Hash-to-curve | not started | - | - |
+| BLS12-381 | not started | - | - |
+| Schnorr multisignature and threshold | not started | - | - |
+| Ed25519 over a prime field | not started | - | - |
+| Point adapters for other curves | not started | - | - |
+| DER, PEM, and interchange formats | not started | - | - |
+| `core/hash` and `core/merkle` | not started | - | - |
+| Hash inside the circuit | not started | - | - |
+
+Two rows carry a local gate, meaning nothing recomputes them on their own: the
+round count is a ratio between two configurations a person chose to run. A gate
+that only exists when somebody remembers to run it is a memory, and the commit
+column is what tells a reader when to stop trusting it.
+
 ## Libraries
 
 | Library | Description | Reference |
@@ -213,7 +223,7 @@ cd libs/transcript && zig build test --summary all
 Tests assert, they never print: a `std.debug.print` in a test reports nothing to
 the harness and can print `true` next to a failing assertion.
 
-## Validation contract
+## Validation Contract
 
 What each gate here is, and what it is not. A gate that says what it does not
 cover is usable; one that only says what it covers reads as a guarantee of the
@@ -245,6 +255,13 @@ were not, which is the class that actually happened here.
 ## Conventions
 
 Both conventions below are checked, so they are not habits to keep.
+
+**Quick Start and Running Tests stay separate.** Building and testing are two
+questions with two different answers -- how do I get it, and how do I know it
+works -- and merging them makes the first reader read past verification to reach
+installation, or the second scroll past installation to find what the gates
+guarantee. The rule is one sentence long because the choice is a decision, and a
+decision that lives only in the absence of a merge reads as an oversight.
 
 **No per-line references.** Across the twelve README files there are zero
 references of the form `file.zig:123`. A line number is a promise about a
