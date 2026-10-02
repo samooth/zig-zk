@@ -79,6 +79,14 @@ archivo trata de cómo trabajar, no de lo que hace el código.
   donde todos los sellos se leían como commits que no existían. Esa última
   esperó dieciocho commits a que alguien pusheara, y falló en el primer push. En
   la máquina donde se escribió no tenía nada de malo.
+- **Una puerta que depende de algo que todavía no existe falla siempre, y una
+  puerta que falla siempre es una puerta que nadie lee.** Es la contrapartida
+  exacta de la de arriba: una puerta que se salta en silencio deja de existir donde
+  importa, y una puerta enchufada a algo ausente está roja durante toda una
+  versión hasta que alguien aprende a ignorarla. Las dos son hacer que la puerta
+  mienta, una por omisión y otra por fallo constante. Por eso `check-release` no
+  es dependencia de `zig build test` aunque sea una comprobación real: el tag no
+  existe hasta que el CI está verde, así que corre en los empujes de tag.
 - Diagnostica antes de tocar. Una clonación superficial reproduciendo las mismas
   seis líneas que imprimió el runner, seguida de `git fetch --unshallow` dejando
   la puerta verde sin cambiar nada más, convierte una hipótesis en un hecho,

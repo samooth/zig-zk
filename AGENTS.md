@@ -78,6 +78,14 @@ how to work, not about what the code does.
   every seal read as pointing at a commit that did not exist. That last one
   waited eighteen commits for someone to push, and then it failed on the first
   push. Nothing about it was wrong on the machine it was written on.
+- **A gate that depends on something that does not exist yet fails every time, and
+  a gate that fails every time is a gate nobody reads.** It is the exact
+  counterpart of the rule above: a gate that skips silently stops existing where
+  it matters, and a gate wired to something absent is red all the way through a
+  release until somebody learns to ignore it. Both are making the gate lie, one by
+  omission and one by constant failure. This is why `check-release` is not a
+  dependency of `zig build test` even though it is a real check: the tag does not
+  exist until CI is green, so it runs on tag pushes instead.
 - Diagnose before touching. A shallow clone reproducing the same six lines the
   runner printed, followed by `git fetch --unshallow` turning the gate green with
   nothing else changed, turns a hypothesis into a fact, because there is a before
