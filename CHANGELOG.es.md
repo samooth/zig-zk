@@ -11,6 +11,36 @@ política está desarrollada en
 
 ## [Sin publicar]
 
+## [Sin publicar]
+
+### Añadido
+
+- `zig build check-release`, y un paso de CI que lo ejecuta en los empujes de un
+  tag. Lee la versión de `build.zig.zon`, resuelve el tag `v<versión>` y falla si
+  el tag no existe, si es una referencia ligera, si está anotado pero sin
+  firmar, si apunta a un commit que no está en `main` o cuyo propio manifiesto
+  declara otra versión. No es dependencia de `zig build test`: el tag no existe
+  hasta después de que el CI esté verde, así que una regla sobre el tag no puede
+  condicionar el commit que va antes.
+
+  La regla que esto hace cumplir vivía en `AGENTS.md` como "el tag apunta al
+  commit donde se puso la versión", que es una convención que alguien aplica
+  acordándose de ella. En 0.7.1 se aplicó mal, y etiquetar el commit que puso la
+  versión habría entregado una release que falla en una clonación nueva, porque
+  el arreglo de CI que deja verde una clonación nueva llegó tres commits después.
+  Una puerta y no una nota, porque la nota es lo que se desvió.
+
+- `AGENTS.md` lleva la forma general de lo que fue el fallo de sellos de 0.7.1:
+  una puerta ejercitada noventa veces en local y una vez en CI está validada una
+  vez y ha informado noventa. Cuatro controles de este repositorio tenían esa
+  forma y sólo el cuarto era nuevo.
+
+### Corregido
+
+- Una clonación de CI de un commit leía los seis sellos de documentación como
+  commits que este repositorio no tiene. La clonación de CI pide ahora el
+  historial completo.
+
 ## [0.7.1] - 2026-09-30
 
 **Aquí no cambia ninguna firma que ya llames, ni cambia ninguna prueba que ya

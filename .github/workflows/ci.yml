@@ -3,6 +3,10 @@ name: ci
 on:
   push:
     branches: [main]
+    # The tag is the release, and the only run that can say whether the tag and
+    # the manifest describe the same release is one that happens after the tag
+    # exists.
+    tags: ['v*']
   pull_request:
 
 jobs:
@@ -31,6 +35,12 @@ jobs:
           version: 0.16.0
       - name: Run full suite (incl. STARK e2e + fuzz)
         run: zig build test --summary all
+      # Only meaningful once the tag exists, and only cheap: it reads a handful of
+      # things out of git. It is skipped on branch pushes rather than made to
+      # pass, so a green run on a branch does not claim the release is consistent.
+      - name: The tag and the manifest version agree
+        if: startsWith(github.ref, 'refs/tags/')
+        run: zig build check-release
       # The documentation check is a dependency of `zig build test` above, which
       # is the only place it has ever been wired. The step that used to call a
       # `scripts/check-docs` shell wrapper was removed: that file does not exist,

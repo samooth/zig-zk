@@ -35,8 +35,17 @@ archivo trata de cómo trabajar, no de lo que hace el código.
 - SemVer. En `0.x` el MINOR lleva los cambios incompatibles y el PATCH solo
   cambios aditivos y correcciones. La política está desarrollada en
   `docs/architecture.md`.
-- La versión del manifiesto en `build.zig.zon` y el tag de git se fijan en el
-  mismo commit de publicación, y el tag apunta a ese commit.
+- **Un tag apunta al commit cuyo manifiesto declara esa versión, y ese commit es
+  publicable: el CI está verde sobre una clonación completa.** `zig build
+  check-release` comprueba la primera mitad con `git show <tag>^{}:build.zig.zon`,
+  en una línea. La redacción anterior -- el tag apunta al commit donde se puso la
+  versión -- mezclaba dos cosas distintas: dónde se declara el número es el
+  manifiesto, y qué publica el tag es la versión entregada. Sólo son el mismo
+  commit si el trabajo de en medio salió con él, y en 0.7.1 no fueron. La versión
+  se puso tres commits antes del arreglo de CI que deja verde una clonación nueva,
+  y etiquetar el commit de la versión habría entregado una release que falla al
+  clonar. Una regla que alguien aplica acordándose de ella no es una regla, y así
+  se desvió ésta sin que nadie decidiera dejarla así.
 
 ## Código
 
@@ -58,6 +67,24 @@ archivo trata de cómo trabajar, no de lo que hace el código.
   lo único que demuestra que el árbol está entero. Una regla que depende de que
   salga un error de compilación no es una regla.
 
+- **Una puerta que se ha ejecutado noventa veces en tu máquina y una vez en CI
+  está validada una vez y ha informado noventa.** El entorno es parte de aquello
+  contra lo que se comprueba un control, y la primera ejecución donde va a vivir
+  es la que lo encuentra. Cuatro de la misma forma aquí, y sólo la cuarta era
+  nueva: un recuento declarado igual al ejecutado porque los dos nunca se
+  compararon; una fila del libro marcada "sin empezar" un commit después de que
+  la puerta existiera, porque el estado no se miró; una regla que nunca dispara,
+  indistinguible de una que se cumple; y una puerta de sellos que lee historial
+  con `git show`, ejercitada por primera vez contra una clonación de un commit,
+  donde todos los sellos se leían como commits que no existían. Esa última
+  esperó dieciocho commits a que alguien pusheara, y falló en el primer push. En
+  la máquina donde se escribió no tenía nada de malo.
+- Diagnostica antes de tocar. Una clonación superficial reproduciendo las mismas
+  seis líneas que imprimió el runner, seguida de `git fetch --unshallow` dejando
+  la puerta verde sin cambiar nada más, convierte una hipótesis en un hecho,
+  porque hay un antes y un después y ninguna otra variable movida. La hipótesis
+  --historial incompleto-- ya estaba medio escrita antes de comprobarla, y
+  comprobarla es lo que la volvió certeza.
 - Una aserción que protege algo que aporta el llamante es un error tipado, y una
   que valida un invariante de un valor ya construido se queda como aserción. El
   eje es qué protege la aserción, no si su función es `pub`: `coset.at` toma un

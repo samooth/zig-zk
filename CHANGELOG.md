@@ -10,6 +10,34 @@ policy is spelled out in [docs/architecture.md](docs/architecture.md#versioning)
 
 ## [Unreleased]
 
+## [Unreleased]
+
+### Added
+
+- `zig build check-release`, and a CI step that runs it on tag pushes. It reads
+  the version out of `build.zig.zon`, resolves the tag `v<version>`, and fails
+  when the tag does not exist, is a lightweight ref, is annotated but unsigned, or
+  points at a commit that is not on `main` or whose own manifest declares another
+  version. It is not a dependency of `zig build test`: the tag does not exist until
+  after CI is green, so a rule about the tag cannot gate the commit before it.
+
+  The rule this enforces used to live in `AGENTS.md` as "the tag points at the
+  commit where the version was set", which is a convention a person applies by
+  remembering it. On 0.7.1 it was remembered wrong, and tagging the commit that
+  set the version would have published a release that fails on a fresh clone,
+  because the CI fix that makes a fresh clone green landed three commits later.
+  A gate rather than a note, because the note is what drifted.
+
+- `AGENTS.md` carries the general form of what the 0.7.1 seal failure was: a gate
+  exercised ninety times locally and once in CI has been validated once and has
+  reported ninety. Four controls here had that shape and only the fourth was new.
+
+### Fixed
+
+- A CI checkout one commit deep reported all six documentation seals as pointing
+  at commits this repository does not have. The CI checkout now asks for the full
+  history.
+
 ## [0.7.1] - 2026-09-30
 
 **Nothing here changes a signature you already call, and nothing changes a proof

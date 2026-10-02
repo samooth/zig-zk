@@ -35,8 +35,17 @@ how to work, not about what the code does.
 - SemVer. In `0.x` the MINOR carries incompatible changes and the PATCH carries
   additive changes and fixes only. The policy is spelled out in
   `docs/architecture.md`.
-- The manifest version in `build.zig.zon` and the git tag are set in the same
-  release commit, and the tag points at it.
+- **A tag points at the commit whose manifest declares that version, and that
+  commit is publishable: CI is green over a complete clone.** `zig build
+  check-release` checks the first half with `git show <tag>^{}:build.zig.zon`, in
+  one line. The earlier wording -- the tag points at the commit where the version
+  was set -- mixed two different things: where the number is declared is the
+  manifest, and what the tag publishes is the release. They are the same commit
+  only if the work in between went out with it, and on 0.7.1 they were not. The
+  version was set three commits before the CI fix that makes a fresh clone green,
+  and tagging the version commit would have shipped a release that fails on
+  checkout. A rule a person applies by remembering it is not a rule, which is
+  exactly how this one drifted without anybody deciding to let it.
 
 ## Code
 
@@ -57,6 +66,24 @@ how to work, not about what the code does.
   byte for byte -- a fetch verifies the hash and a diff is the only thing that
   proves the tree is whole. A rule that depends on a compile error appearing is
   not a rule.
+- **A gate that has run ninety times on your machine and once in CI has been
+  validated once and has reported ninety.** The environment is part of what a
+  control is checked against, and the first run in the place it will live is the
+  one that finds it. Four of the same shape here, and only the fourth was new: a
+  declared count that equalled the executed one because the two were never
+  compared; a ledger row marked "not started" a commit after the gate landed,
+  because the state was never looked at; a rule that never fires, which is
+  indistinguishable from a satisfied one; and a seal rule that reads history with
+  `git show`, run for the first time against a checkout one commit deep, where
+  every seal read as pointing at a commit that did not exist. That last one
+  waited eighteen commits for someone to push, and then it failed on the first
+  push. Nothing about it was wrong on the machine it was written on.
+- Diagnose before touching. A shallow clone reproducing the same six lines the
+  runner printed, followed by `git fetch --unshallow` turning the gate green with
+  nothing else changed, turns a hypothesis into a fact, because there is a before
+  and an after and no other variable moved. The hypothesis -- incomplete history
+  -- was already half written before it was checked, and checking it is what made
+  it certain.
 - An assert that guards something the caller supplies is a typed error, and one
   that validates an invariant of an already-constructed value stays an assert.
   The axis is what the assert protects, not whether its function is `pub`:

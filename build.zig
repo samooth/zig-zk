@@ -178,6 +178,28 @@ pub fn build(b: *std.Build) void {
     const fresh_step = b.step("check-pins-fresh", "Fail if scripts/algebra-tags.txt differs from the published tags. Needs the network.");
     fresh_step.dependOn(&run_fresh_check.step);
 
+    // The tag that publishes the version in build.zig.zon, and that version read
+    // back out of the commit the tag points at. Not a dependency of `test`,
+    // because the tag does not exist until after CI is green: wiring it in would
+    // leave a permanent red build for the length of every release, which is the
+    // shape of a gate people learn to ignore. CI runs it on tag pushes instead,
+    // which is the moment the thing it describes comes into existence.
+    {
+        const release_check = b.addExecutable(.{
+            .name = "check-release",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("scripts/check_release.zig"),
+                .target = target,
+                .optimize = optimize,
+            }),
+        });
+        const run_release_check = b.addRunArtifact(release_check);
+        run_release_check.setCwd(b.path("."));
+        if (b.args) |args| run_release_check.addArgs(args);
+        const release_step = b.step("check-release", "Fail if the tag and the manifest version disagree");
+        release_step.dependOn(&run_release_check.step);
+    }
+
     // Test step that runs all library tests
     const test_step = b.step("test", "Run all tests");
     test_step.dependOn(&run_docs_check.step);
